@@ -2,14 +2,6 @@ using UnityEngine;
 
 namespace RestaurantLoop
 {
-    /// <summary>
-    /// Müşterinin olası tüm durumları.
-    /// Şu an sadece Blocked / Idle gameplay olarak aktif;
-    /// diğerleri (Eating, HappyJump, Leaving, Angry) ileride
-    /// başka sistemler tarafından set edilecek — bu script
-    /// onların davranışını implement etmiyor, sadece state'i
-    /// tutuyor ve enum'da tanımlı olmalarını sağlıyor.
-    /// </summary>
     public enum CustomerState
     {
         Blocked,
@@ -44,29 +36,22 @@ namespace RestaurantLoop
         public FoodType DesiredFood { get; private set; }
         public CustomerState CurrentState => currentState;
 
-        /// <summary>
-        /// CustomerManager'ın otomatik Idle/Blocked ataması bu state'lerdeki
-        /// müşterilere dokunur. Eating/HappyJump/Leaving/Angry state'indeki
-        /// bir müşteri hâlâ hücresinde "oturuyor" sayılır (komşuları bloklamaya
-        /// devam eder) ama kendi state'i bu sistem tarafından değiştirilmez.
-        /// </summary>
         public bool IsWaiting => currentState == CustomerState.Idle || currentState == CustomerState.Blocked;
 
-        /// <summary>
-        /// GridManager tarafından instantiate edildikten hemen sonra çağrılır.
-        /// </summary>
         public void Init(int row, int col, FoodType desiredFood, CustomerManager manager)
         {
             Row = row;
             Col = col;
             DesiredFood = desiredFood;
             customerManager = manager;
+            currentState = CustomerState.Blocked;
 
             if (renderersToFade == null || renderersToFade.Length == 0)
                 renderersToFade = GetComponentsInChildren<Renderer>();
 
             mpb = new MaterialPropertyBlock();
             CacheOriginalColors();
+            ApplyVisual();
 
             initialized = true;
 
@@ -76,27 +61,33 @@ namespace RestaurantLoop
                 Debug.LogWarning($"Customer [{name}]: CustomerManager atanmadı, state sistemi çalışmayacak.");
         }
 
-        /// <summary>
-        /// Food sistemi tarafından, uygun yemek bu müşteriye teslim edilmeye
-        /// karar verildiği anda çağrılır (yemek fiziksel olarak varmadan ÖNCE —
-        /// böylece aynı müşteri başka bir yemek tarafından ikinci kez hedef
-        /// alınmaz). Eating'in gerçek gameplay'i (animasyon, süre, vs.) henüz
-        /// implement edilmedi; şimdilik sadece state geçişini yapıyor.
-        /// </summary>
         public void ReceiveFood()
         {
             SetState(CustomerState.Eating);
+            SetState(CustomerState.HappyJump);
+            SetState(CustomerState.Leaving);
+            Despawn();
         }
 
-        /// <summary>
-        /// CustomerManager veya ileride Eating/Leaving gibi başka sistemler
-        /// tarafından çağrılacak tek giriş noktası.
-        /// </summary>
         public void SetState(CustomerState newState)
         {
             if (currentState == newState) return;
             currentState = newState;
             ApplyVisual();
+        }
+
+        private void Despawn()
+        {
+            if (initialized && customerManager != null)
+            {
+                customerManager.UnregisterCustomer(this);
+                initialized = false;
+            }
+
+            if (ObjectPool.Instance != null)
+                ObjectPool.Instance.Return(gameObject);
+            else
+                gameObject.SetActive(false);
         }
 
         private void ApplyVisual()

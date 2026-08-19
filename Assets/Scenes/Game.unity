@@ -166,7 +166,7 @@ GameObject:
   - component: {fileID: 89366411}
   - component: {fileID: 89366410}
   m_Layer: 0
-  m_Name: FoodPool
+  m_Name: ObjectPool
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -184,19 +184,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f152fa599b1c88e4aa4030ac128571cf, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  prefabs:
-  - food: 0
-    prefab: {fileID: 637324645510347922, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
-  - food: 1
-    prefab: {fileID: 0}
-  - food: 2
-    prefab: {fileID: 0}
-  - food: 3
-    prefab: {fileID: 0}
-  - food: 4
-    prefab: {fileID: 0}
-  - food: 5
-    prefab: {fileID: 0}
 --- !u!4 &89366411
 Transform:
   m_ObjectHideFlags: 0
@@ -380,7 +367,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   levelData: {fileID: 11400000, guid: 8d69c8373ef87c24e9f3a392f507785f, type: 2}
-  unityGrid: {fileID: 0}
+  unityGrid: {fileID: 368813332}
   customerManager: {fileID: 1989108643}
   conveyorCellPrefab: {fileID: 8903834080389090876, guid: baeed4aaaf55dac49a442d3fbbd10987, type: 3}
   customerPrefabs:
@@ -1093,45 +1080,17 @@ PrefabInstance:
       value: Hamburger
       objectReference: {fileID: 0}
     - target: {fileID: 1031462423939452789, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
-      propertyPath: loop
-      value: 0
-      objectReference: {fileID: 0}
+      propertyPath: objectPool
+      value: 
+      objectReference: {fileID: 89366410}
     - target: {fileID: 1031462423939452789, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
       propertyPath: gridManager
       value: 
       objectReference: {fileID: 368813331}
     - target: {fileID: 1031462423939452789, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
-      propertyPath: tapAction.m_Name
-      value: Tap
-      objectReference: {fileID: 0}
-    - target: {fileID: 1031462423939452789, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
-      propertyPath: tapAction.m_SingletonActionBindings.Array.size
-      value: 1
-      objectReference: {fileID: 0}
-    - target: {fileID: 1031462423939452789, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
-      propertyPath: tapAction.m_SingletonActionBindings.Array.data[0].m_Id
-      value: cc6dbf1d-ea55-45df-a6e4-4b45789e05d8
-      objectReference: {fileID: 0}
-    - target: {fileID: 1031462423939452789, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
-      propertyPath: tapAction.m_SingletonActionBindings.Array.data[0].m_Path
-      value: <Pointer>/press
-      objectReference: {fileID: 0}
-    - target: {fileID: 1031462423939452789, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
-      propertyPath: tapAction.m_SingletonActionBindings.Array.data[0].m_Action
-      value: Tap
-      objectReference: {fileID: 0}
-    - target: {fileID: 7712653130459215038, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
-      propertyPath: m_LocalScale.x
-      value: 0.4
-      objectReference: {fileID: 0}
-    - target: {fileID: 7712653130459215038, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
-      propertyPath: m_LocalScale.y
-      value: 0.4
-      objectReference: {fileID: 0}
-    - target: {fileID: 7712653130459215038, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
-      propertyPath: m_LocalScale.z
-      value: 0.4
-      objectReference: {fileID: 0}
+      propertyPath: customerManager
+      value: 
+      objectReference: {fileID: 1989108643}
     - target: {fileID: 7712653130459215038, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
       propertyPath: m_LocalPosition.x
       value: 12.63

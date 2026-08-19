@@ -22,9 +22,7 @@ namespace RestaurantLoop
 
         [Header("References")]
         [SerializeField] private Grid unityGrid;
-
-        [Header("Customer State Sistemi")]
-        [Tooltip("Boş bırakılırsa sahnede otomatik aranır (FindFirstObjectByType, sadece Awake'te bir kez).")]
+        [Tooltip("Boş bırakılırsa Start'ta otomatik aranır (sadece bir kez).")]
         [SerializeField] private CustomerManager customerManager;
 
         [Header("Conveyor Görseli")]
@@ -48,7 +46,6 @@ namespace RestaurantLoop
         [SerializeField] private bool swapAxes = true;
 
         [Header("Conveyor Yönü")]
-        [Tooltip("Varsayılan (işaretsiz) hal artık doğru yönü veriyor. Sadece ters gerekirse işaretle.")]
         [SerializeField] private bool reversePathDirection = false;
 
         [Header("Editor Gizmo")]
@@ -64,6 +61,8 @@ namespace RestaurantLoop
         public List<Vector3> WaypointWorldPositions { get; private set; } = new();
         public List<Vector2Int> WaypointBlockOrigins { get; private set; } = new();
         public int ExitWaypointIndex { get; private set; } = -1;
+
+        private readonly Dictionary<Vector2Int, GameObject> spawnedCustomers = new();
 
         void Awake()
         {
@@ -86,6 +85,9 @@ namespace RestaurantLoop
             ClearExisting();
             BuildWaypoints(data);
 
+            if (customerManager == null)
+                Debug.LogWarning("GridManager: CustomerManager bulunamadı — spawn edilen müşteriler kaydedilemeyecek, hiçbir food teslim edilemez.");
+
             for (int r = 0; r < data.rows; r++)
             {
                 for (int c = 0; c < data.columns; c++)
@@ -98,8 +100,7 @@ namespace RestaurantLoop
                     if (type == CellType.Conveyor)
                     {
                         if (conveyorCellPrefab == null) continue;
-                        var go = Instantiate(conveyorCellPrefab, pos, conveyorCellPrefab.transform.rotation, transform);
-                        go.name = $"Conveyor_{r}_{c}";
+                        SpawnFromPool(conveyorCellPrefab, pos, conveyorCellPrefab.transform.rotation, $"Conveyor_{r}_{c}");
                     }
                     else if (type == CellType.CustomerSlot)
                     {
@@ -110,26 +111,34 @@ namespace RestaurantLoop
                             Debug.LogWarning($"'{food}' için customer prefab atanmamış (GridManager > Customer Prefabs).");
                             continue;
                         }
-                        var go = Instantiate(prefab, pos, prefab.transform.rotation, transform);
-                        go.name = $"Customer_{food}_{r}_{c}";
 
-                        var customer = go.GetComponent<Customer>();
-                        if (customer != null)
-                        {
-                            if (customerManager != null)
-                                customer.Init(r, c, food, customerManager);
-                            else
-                                Debug.LogWarning("GridManager: CustomerManager atanmamış, müşteri state sistemi çalışmayacak.");
-                        }
+                        var instance = SpawnFromPool(prefab, pos, prefab.transform.rotation, $"Customer_{food}_{r}_{c}");
+                        spawnedCustomers[new Vector2Int(r, c)] = instance;
+
+                        var customerComp = instance.GetComponent<Customer>();
+                        if (customerComp != null)
+                            customerComp.Init(r, c, food, customerManager);
+                        else
+                            Debug.LogWarning($"'{prefab.name}' prefabında Customer component'i yok.");
                     }
                 }
             }
         }
 
-        /// Bir bloğun (origin = sol-üst hücre) TAM ORTASININ world
-        /// pozisyonu — origin hücresi ile karşı köşe (origin+1,+1)
-        /// hücresinin merkezlerinin ortalaması. Base/Exit dahil her
-        /// waypoint bunu kullanıyor.
+        /// <summary>
+        /// Artık her zaman ObjectPool.Instance (lazy-static) kullanıyor —
+        /// GridManager'ın kendi Object Pool referansını elle bağlamana
+        /// gerek kalmadı, o alan tamamen kaldırıldı.
+        /// </summary>
+        private GameObject SpawnFromPool(GameObject prefab, Vector3 pos, Quaternion rot, string name)
+        {
+            GameObject instance = ObjectPool.Instance != null
+                ? ObjectPool.Instance.Get(prefab, pos, rot, transform)
+                : Instantiate(prefab, pos, rot, transform);
+            instance.name = name;
+            return instance;
+        }
+
         private Vector3 GetBlockCenterWorld(Vector2Int origin)
         {
             Vector3 a = Grid.GetCellCenterWorld(origin.x, origin.y);
@@ -168,27 +177,9 @@ namespace RestaurantLoop
 
         void ClearExisting()
         {
+            spawnedCustomers.Clear();
             for (int i = transform.childCount - 1; i >= 0; i--)
-            {
-                var child = transform.GetChild(i).gameObject;
-
-                // DestroyImmediate sadece Editor'de (Edit mode'da, örn. bir
-                // önizleme/rebuild aracından çağrıldığında) kullanılmalı.
-                // Play mode'da DestroyImmediate kullanmak, Inspector'da o an
-                // seçili bir obje varsa Unity'nin Inspector'ının geçersiz bir
-                // referansla kalmasına ve konsolda
-                // NullReferenceException/SerializedObjectNotCreatableException
-                // hatalarına yol açabiliyor (Play moda girerken görülen hata
-                // tam olarak buydu).
-#if UNITY_EDITOR
-                if (!Application.isPlaying)
-                {
-                    DestroyImmediate(child);
-                    continue;
-                }
-#endif
-                Destroy(child);
-            }
+                DestroyImmediate(transform.GetChild(i).gameObject);
         }
 
         public bool TryGetCellFromScreenPoint(Camera cam, Vector2 screenPos, out int row, out int col)
