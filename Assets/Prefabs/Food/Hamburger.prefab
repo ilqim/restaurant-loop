@@ -122,5 +122,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   gridManager: {fileID: 0}
-  stepDuration: 0.3
-  loop: 1
+  customerManager: {fileID: 0}
+  foodPool: {fileID: 0}
+  foodType: 0
+  stepDuration: 0.4
+  deliveryDuration: 0.25
+  loop: 0
+  tapAction:
+    m_Name: Tap
+    m_Type: 0
+    m_ExpectedControlType: 
+    m_Id: 76d6e6bd-df8b-4f57-9bc7-a2aba4bc4de5
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings: []
+    m_Flags: 0
+  currentState: 1

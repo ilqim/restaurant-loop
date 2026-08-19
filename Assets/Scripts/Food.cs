@@ -18,9 +18,21 @@ namespace RestaurantLoop
         [Header("References")]
         [SerializeField] private GridManager gridManager;
 
+        [Tooltip("Boş bırakılırsa Start'ta otomatik aranır (sadece bir kez).")]
+        [SerializeField] private CustomerManager customerManager;
+
+        [Tooltip("Boş bırakılırsa Start'ta otomatik aranır (sadece bir kez).")]
+        [SerializeField] private FoodPool foodPool;
+
+        [Header("Bu yemeğin türü — hangi müşterilere gidebileceğini belirler")]
+        [SerializeField] private FoodType foodType;
+
         [Header("Movement")]
         [Tooltip("Bir waypoint'ten diğerine geçiş süresi.")]
         [SerializeField] private float stepDuration = 0.3f;
+
+        [Tooltip("Konveyörden ayrılıp müşteriye 'fırlatılan' klonun uçuş süresi.")]
+        [SerializeField] private float deliveryDuration = 0.25f;
 
         [Tooltip("Exit'e ulaştığında tekrar Base'e dönsün mü?")]
         [SerializeField] private bool loop = false;
@@ -60,9 +72,11 @@ namespace RestaurantLoop
 
         private void Start()
         {
+            if (gridManager == null) gridManager = FindFirstObjectByType<GridManager>();
+
             if (gridManager == null)
             {
-                Debug.LogError("Food: GridManager atanmamış.");
+                Debug.LogError("Food: Sahnede bir GridManager bulunamadı.");
                 enabled = false;
                 return;
             }
@@ -78,6 +92,9 @@ namespace RestaurantLoop
                 enabled = false;
                 return;
             }
+
+            if (customerManager == null) customerManager = FindFirstObjectByType<CustomerManager>();
+            if (foodPool == null) foodPool = FindFirstObjectByType<FoodPool>();
 
             // Yemek başlangıçta kuyuda.
             ChangeState(FoodState.AvailableInQueue);
@@ -169,6 +186,67 @@ namespace RestaurantLoop
                 );
 
                 currentIndex = nextIndex;
+
+                // Konveyörden AYRILMADAN, sadece hizaya gelinen uygun bir
+                // müşteri varsa pool'dan bir klon fırlatılır. Ana yemek
+                // (bu obje) konveyörde yoluna devam eder.
+                TryDeliverAtCurrentWaypoint();
+            }
+        }
+
+
+        // --------------------------------------------------
+        // MÜŞTERİYE TESLİMAT (konveyörden ayrılmadan)
+        // --------------------------------------------------
+
+        private void TryDeliverAtCurrentWaypoint()
+        {
+            if (customerManager == null || foodPool == null) return;
+            if (gridManager.WaypointBlockOrigins == null) return;
+            if (currentIndex < 0 || currentIndex >= gridManager.WaypointBlockOrigins.Count) return;
+
+            Vector2Int blockOrigin = gridManager.WaypointBlockOrigins[currentIndex];
+
+            if (!customerManager.TryFindDeliverableCustomer(
+                    foodType, blockOrigin, LevelData.ConveyorBlockSize, out Customer target))
+            {
+                return;
+            }
+
+            // Müşteriyi HEMEN "Eating"e al — klon henüz yolda olsa bile,
+            // aynı müşteri başka bir yemek tarafından ikinci kez hedef
+            // alınmasın diye (çift teslimat / race condition önlemi).
+            target.ReceiveFood();
+
+            StartCoroutine(DeliverClone(target));
+        }
+
+        private IEnumerator DeliverClone(Customer target)
+        {
+            GameObject clone = foodPool.Get(foodType, transform.position, transform.rotation);
+            if (clone == null) yield break;
+
+            Vector3 start = transform.position;
+            float elapsed = 0f;
+
+            while (elapsed < deliveryDuration)
+            {
+                if (clone == null || target == null)
+                {
+                    if (clone != null) foodPool.Release(foodType, clone);
+                    yield break;
+                }
+
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / deliveryDuration);
+                clone.transform.position = Vector3.Lerp(start, target.transform.position, t);
+                yield return null;
+            }
+
+            if (clone != null)
+            {
+                if (target != null) clone.transform.position = target.transform.position;
+                foodPool.Release(foodType, clone);
             }
         }
 

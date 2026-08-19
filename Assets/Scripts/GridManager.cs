@@ -23,6 +23,10 @@ namespace RestaurantLoop
         [Header("References")]
         [SerializeField] private Grid unityGrid;
 
+        [Header("Customer State Sistemi")]
+        [Tooltip("Boş bırakılırsa sahnede otomatik aranır (FindFirstObjectByType, sadece Awake'te bir kez).")]
+        [SerializeField] private CustomerManager customerManager;
+
         [Header("Conveyor Görseli")]
         [SerializeField] private GameObject conveyorCellPrefab;
 
@@ -58,11 +62,13 @@ namespace RestaurantLoop
         public Grid UnityGridRef => unityGrid;
 
         public List<Vector3> WaypointWorldPositions { get; private set; } = new();
+        public List<Vector2Int> WaypointBlockOrigins { get; private set; } = new();
         public int ExitWaypointIndex { get; private set; } = -1;
 
         void Awake()
         {
             if (unityGrid == null) unityGrid = GetComponent<Grid>();
+            if (customerManager == null) customerManager = FindFirstObjectByType<CustomerManager>();
             int r = levelData != null ? levelData.rows : 10;
             int c = levelData != null ? levelData.columns : 10;
             Grid = new GameGrid(unityGrid, r, c, invertRow, invertCol, swapAxes);
@@ -106,6 +112,15 @@ namespace RestaurantLoop
                         }
                         var go = Instantiate(prefab, pos, prefab.transform.rotation, transform);
                         go.name = $"Customer_{food}_{r}_{c}";
+
+                        var customer = go.GetComponent<Customer>();
+                        if (customer != null)
+                        {
+                            if (customerManager != null)
+                                customer.Init(r, c, food, customerManager);
+                            else
+                                Debug.LogWarning("GridManager: CustomerManager atanmamış, müşteri state sistemi çalışmayacak.");
+                        }
                     }
                 }
             }
@@ -125,6 +140,7 @@ namespace RestaurantLoop
         private void BuildWaypoints(LevelData data)
         {
             WaypointWorldPositions.Clear();
+            WaypointBlockOrigins.Clear();
             ExitWaypointIndex = -1;
 
             var path = ConveyorPathBuilder.BuildPath(data, out bool valid, out string reason, reversePathDirection);
@@ -135,7 +151,10 @@ namespace RestaurantLoop
             }
 
             foreach (var blockOrigin in path)
+            {
                 WaypointWorldPositions.Add(GetBlockCenterWorld(blockOrigin));
+                WaypointBlockOrigins.Add(blockOrigin);
+            }
 
             ExitWaypointIndex = ConveyorPathBuilder.FindExitIndex(data, path);
         }
@@ -150,7 +169,26 @@ namespace RestaurantLoop
         void ClearExisting()
         {
             for (int i = transform.childCount - 1; i >= 0; i--)
-                DestroyImmediate(transform.GetChild(i).gameObject);
+            {
+                var child = transform.GetChild(i).gameObject;
+
+                // DestroyImmediate sadece Editor'de (Edit mode'da, örn. bir
+                // önizleme/rebuild aracından çağrıldığında) kullanılmalı.
+                // Play mode'da DestroyImmediate kullanmak, Inspector'da o an
+                // seçili bir obje varsa Unity'nin Inspector'ının geçersiz bir
+                // referansla kalmasına ve konsolda
+                // NullReferenceException/SerializedObjectNotCreatableException
+                // hatalarına yol açabiliyor (Play moda girerken görülen hata
+                // tam olarak buydu).
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                {
+                    DestroyImmediate(child);
+                    continue;
+                }
+#endif
+                Destroy(child);
+            }
         }
 
         public bool TryGetCellFromScreenPoint(Camera cam, Vector2 screenPos, out int row, out int col)

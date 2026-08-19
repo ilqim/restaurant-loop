@@ -12,6 +12,7 @@ GameObject:
   - component: {fileID: 6575899696999088620}
   - component: {fileID: 450696890004576135}
   - component: {fileID: 3989261945335264828}
+  - component: {fileID: -1583052016670526504}
   m_Layer: 0
   m_Name: Drink Customer
   m_TagString: Untagged
@@ -110,3 +111,18 @@ CapsuleCollider:
   m_Height: 2
   m_Direction: 1
   m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &-1583052016670526504
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 238755207060358853}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 54f36af565c2b1c488111a5fac26f070, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  renderersToFade: []
+  blockedAlpha: 0.35
+  currentState: 0
