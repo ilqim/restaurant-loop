@@ -123,32 +123,12 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   gridManager: {fileID: 0}
   customerManager: {fileID: 0}
+  slotManager: {fileID: 0}
   foodType: 0
   deliveryPrefab: {fileID: 637324645510347922, guid: 95a5ad973ae3c344daa0e879cd39d13c, type: 3}
-  stepDuration: 0.3
-  deliveryDuration: 0.25
+  stepDuration: 0.15
+  deliveryDuration: 0.15
   loop: 0
   maxOnConveyor: 5
-  tapAction:
-    m_Name: Tap
-    m_Type: 0
-    m_ExpectedControlType: 
-    m_Id: 76d6e6bd-df8b-4f57-9bc7-a2aba4bc4de5
-    m_Processors: 
-    m_Interactions: 
-    m_SingletonActionBindings:
-    - m_Name: 
-      m_Id: cc6dbf1d-ea55-45df-a6e4-4b45789e05d8
-      m_Path: <Pointer>/press
-      m_Interactions: 
-      m_Processors: 
-      m_Groups: 
-      m_Action: Tap
-      m_Flags: 0
-    m_Flags: 0
-  raycastCamera: {fileID: 0}
-  raycastMask:
-    serializedVersion: 2
-    m_Bits: 4294967295
   currentState: 1
   verboseLogging: 1

@@ -1529,7 +1529,7 @@ Transform:
   m_GameObject: {fileID: 2008343121}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 10.442724, y: 0, z: -5.48}
+  m_LocalPosition: {x: 4.22, y: 0, z: -13.96}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -1562,12 +1562,41 @@ MonoBehaviour:
     prefab: {fileID: 0}
   - food: 5
     prefab: {fileID: 0}
-  originPoint: {fileID: 1227414993}
-  cellSpacingX: 1.5
-  cellSpacingZ: 1.5
+  originPoint: {fileID: 2008343122}
+  cellSpacingX: 1.3
+  cellSpacingZ: 1.3
   foodYOffset: 0.3
   visibleRows: 3
   lockedAlpha: 0.35
+  tapAction:
+    m_Name: Tap
+    m_Type: 0
+    m_ExpectedControlType: 
+    m_Id: 2c2a8253-2f60-4833-b862-cd9fedcdfe53
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings:
+    - m_Name: 
+      m_Id: 8bc1cc31-7766-4a8f-b0d8-b57e318100cf
+      m_Path: <Touchscreen>/primaryTouch
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Tap
+      m_Flags: 0
+    - m_Name: 
+      m_Id: 8ca718d4-68ff-49dd-a648-325b7640cb81
+      m_Path: <Mouse>/leftButton
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Tap
+      m_Flags: 0
+    m_Flags: 0
+  raycastCamera: {fileID: 330585545}
+  raycastMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
 --- !u!1001 &2093154711
 PrefabInstance:
   m_ObjectHideFlags: 0

@@ -240,3 +240,7 @@ MonoBehaviour:
     col: 1
     food: 0
     capacity: 10
+  - row: 2
+    col: 0
+    food: 0
+    capacity: 10
