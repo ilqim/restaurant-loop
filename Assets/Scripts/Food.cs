@@ -127,26 +127,31 @@ namespace RestaurantLoop
                 yield return StartCoroutine(MoveTo(waypoints[nextIndex]));
                 currentIndex = nextIndex;
 
+                Debug.Log($"Current Index: {currentIndex}");
                 TryDeliverAtCurrentWaypoint();
             }
         }
 
         private void TryDeliverAtCurrentWaypoint()
         {
+            Debug.Log($"Delivery try {currentIndex} started");
             if (customerManager == null) return;
             if (gridManager.WaypointBlockOrigins == null) return;
             if (currentIndex < 0 || currentIndex >= gridManager.WaypointBlockOrigins.Count) return;
 
             Vector2Int blockOrigin = gridManager.WaypointBlockOrigins[currentIndex];
+            Debug.Log($"Block Origin: {blockOrigin}");
 
             if (!customerManager.TryFindDeliverableCustomer(
                     foodType, blockOrigin, LevelData.ConveyorBlockSize, out Customer target))
             {
                 return;
             }
+            Debug.Log($"Found customer {target.gameObject} at {currentIndex}");
 
             target.ReceiveFood();
             StartCoroutine(DeliverClone(target));
+            Debug.Log($"Delivery try {currentIndex} finished");
         }
 
         private IEnumerator DeliverClone(Customer target)
