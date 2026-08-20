@@ -12,6 +12,8 @@ namespace RestaurantLoop
     public class LevelData : ScriptableObject
     {
         public const int ConveyorBlockSize = 2;
+        public const int QueueColumnsMin = 3;
+        public const int QueueColumnsMax = 5;
 
         [Header("Level Grid boyutu — level tasarımcısı buradan ayarlar")]
         public int rows = 8;
@@ -33,6 +35,10 @@ namespace RestaurantLoop
 
         [Header("İçerik")]
         public List<CustomerEntry> customers = new();
+
+        [Header("Food Stack Queue — üst (sütun) sayısı 3-5 arası, sonsuz derinlik")]
+        [Range(QueueColumnsMin, QueueColumnsMax)]
+        public int queueColumns = 4;
         public List<QueueEntry> queue = new();
 
         public CellType GetCell(int row, int col)
@@ -94,6 +100,41 @@ namespace RestaurantLoop
             customers.RemoveAll(e => e.row == row && e.col == col);
         }
 
+        // ---- Queue helper'ları — level grid'den TAMAMEN bağımsız, kendi (row,col) uzayı ----
+
+        public bool TryGetQueueEntry(int row, int col, out QueueEntry entry)
+        {
+            foreach (var e in queue)
+            {
+                if (e.row == row && e.col == col)
+                {
+                    entry = e;
+                    return true;
+                }
+            }
+            entry = null;
+            return false;
+        }
+
+        public void SetQueueEntry(int row, int col, FoodType food, int capacity)
+        {
+            foreach (var e in queue)
+            {
+                if (e.row == row && e.col == col)
+                {
+                    e.food = food;
+                    e.capacity = capacity;
+                    return;
+                }
+            }
+            queue.Add(new QueueEntry { row = row, col = col, food = food, capacity = capacity });
+        }
+
+        public void RemoveQueueEntry(int row, int col)
+        {
+            queue.RemoveAll(e => e.row == row && e.col == col);
+        }
+
         public void ResizeCells()
         {
             var oldCells = cells;
@@ -136,8 +177,9 @@ namespace RestaurantLoop
     [Serializable]
     public class QueueEntry
     {
-        public int position;
-        public string foodType;
+        public int row;
+        public int col;
+        public FoodType food;
         public int capacity;
     }
 }

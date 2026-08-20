@@ -60,19 +60,25 @@ namespace RestaurantLoop
         private int currentIndex;
         private Coroutine moveRoutine;
         private int deliveryTryCounter;
+        private bool queueStatePreset;
 
         public FoodState CurrentState => currentState;
+        public FoodType FoodTypeValue => foodType;
 
-        /// <summary>Genel state bildirimi — bilgi amaçlı, artık slot mantığı buna dayanmıyor.</summary>
         public event Action<Food, FoodState> StateChanged;
+        public event Action<Food> ReenterConveyorRequested;
 
         /// <summary>
-        /// Food slottayken tıklanınca AN SET olarak fırlatılır. Slot bu
-        /// event'e abone olup ÖNCE kendini boşaltır, SONRA
-        /// EnterConveyorFromSlot() çağırır — sıralama garanti, "slota
-        /// haber vermeden konveyöre geçme" artık yapısal olarak imkansız.
+        /// QueueManager tarafından, Instantiate'in HEMEN ardından (Start
+        /// çalışmadan önce) çağrılır. Start() bu preset varsa kendi
+        /// varsayılan AvailableInQueue atamasını ATLAR — böylece
+        /// QueueManager bir food'u LockedInQueue olarak spawn edebilir.
         /// </summary>
-        public event Action<Food> ReenterConveyorRequested;
+        public void PresetQueueState(FoodState state)
+        {
+            currentState = state;
+            queueStatePreset = true;
+        }
 
         private void OnEnable()
         {
@@ -120,7 +126,11 @@ namespace RestaurantLoop
             if (slotManager == null)
                 Debug.LogWarning("Food: Sahnede bir SlotManager bulunamadı — Exit'e varan yemekler slota yerleşemeyecek.");
 
-            ChangeState(FoodState.AvailableInQueue);
+            if (!queueStatePreset)
+                ChangeState(FoodState.AvailableInQueue);
+            else if (verboseLogging)
+                Debug.Log($"Food [{gameObject.name}] preset state ile başladı: {currentState}");
+
             currentIndex = 0;
         }
 
@@ -140,24 +150,15 @@ namespace RestaurantLoop
 
             if (currentState == FoodState.AvailableInQueue)
             {
-                // Queue'dan giriş — slot hiç karışmıyor, direkt konveyöre.
                 MoveToConveyor();
             }
-            else // InFoodSlot
+            else
             {
-                // Slottan giriş — DİREKT MoveToConveyor ÇAĞIRMIYORUZ.
-                // Önce isteği fırlatıyoruz; slot bunu yakalayıp kendini
-                // boşalttıktan SONRA EnterConveyorFromSlot()'u çağıracak.
                 if (verboseLogging) Debug.Log($"Food [{gameObject.name}]: Slottan çıkış isteniyor.");
                 ReenterConveyorRequested?.Invoke(this);
             }
         }
 
-        /// <summary>
-        /// Slot, ReenterConveyorRequested'i yakalayıp KENDİNİ boşalttıktan
-        /// sonra bunu çağırır. Food ancak bu çağrı geldiğinde gerçekten
-        /// hareket etmeye başlar — slot her zaman önce boşalmış olur.
-        /// </summary>
         public void EnterConveyorFromSlot()
         {
             MoveToConveyor();
