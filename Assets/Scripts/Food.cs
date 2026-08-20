@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace RestaurantLoop
 {
@@ -42,13 +41,6 @@ namespace RestaurantLoop
         [Tooltip("Aynı anda conveyor'da (OnConveyor state'inde) en fazla kaç Food olabilir.")]
         [SerializeField] private int maxOnConveyor = 5;
 
-        [Header("Input")]
-        [SerializeField] private InputAction tapAction;
-        [Tooltip("Tap noktasından bu objeye raycast atarken kullanılacak kamera. Boşsa Camera.main kullanılır.")]
-        [SerializeField] private Camera raycastCamera;
-        [Tooltip("Raycast'in hangi layer'ları görmezden geleceği (opsiyonel).")]
-        [SerializeField] private LayerMask raycastMask = ~0;
-
         [Header("State")]
         [SerializeField] private FoodState currentState = FoodState.AvailableInQueue;
 
@@ -61,6 +53,13 @@ namespace RestaurantLoop
         private Coroutine moveRoutine;
         private int deliveryTryCounter;
         private bool queueStatePreset;
+
+        // -1 = sınırsız — QueueManager dışından (örn. test sahnesinde elle
+        // sürüklenmiş bir Food) spawn edilirse capacity hiç düşürülmez,
+        // eski davranış korunur. QueueManager, PresetCapacity() ile bunu
+        // her zaman QueueEntry.capacity'ye eşitliyor (level tasarımında
+        // seçtiğin sayı neyse o — 10'a sabit değil).
+        private int remainingCapacity = -1;
 
         public FoodState CurrentState => currentState;
         public FoodType FoodTypeValue => foodType;
@@ -80,17 +79,19 @@ namespace RestaurantLoop
             queueStatePreset = true;
         }
 
-        private void OnEnable()
+        /// <summary>
+        /// QueueManager tarafından, bu food'un temsil ettiği stack'in kaç
+        /// teslimat hakkı olduğunu ayarlamak için çağrılır (level
+        /// tasarımındaki "Yerleştirilecek Kapasite" değeri — sabit 10
+        /// DEĞİL, her hücre için ayrı ayrı seçilebiliyor).
+        /// </summary>
+        public void PresetCapacity(int capacity)
         {
-            tapAction.Enable();
-            tapAction.performed += OnTapped;
+            remainingCapacity = capacity;
         }
 
         private void OnDisable()
         {
-            tapAction.performed -= OnTapped;
-            tapAction.Disable();
-
             if (currentState == FoodState.OnConveyor)
             {
                 currentOnConveyorCount = Mathf.Max(0, currentOnConveyorCount - 1);
@@ -118,7 +119,6 @@ namespace RestaurantLoop
 
             if (customerManager == null) customerManager = FindFirstObjectByType<CustomerManager>();
             if (slotManager == null) slotManager = FindFirstObjectByType<SlotManager>();
-            if (raycastCamera == null) raycastCamera = Camera.main;
 
             if (deliveryPrefab == null)
                 Debug.LogWarning($"Food [{gameObject.name}]: Delivery Prefab atanmamış — müşteriye görsel klon fırlatılamayacak.");
@@ -134,12 +134,13 @@ namespace RestaurantLoop
             currentIndex = 0;
         }
 
-        private void OnTapped(InputAction.CallbackContext context)
+        /// <summary>
+        /// Tek global tap yönlendiricisi (QueueManager) bir dokunuşta
+        /// raycast'in çarptığı Food için bunu çağırır.
+        /// </summary>
+        public void ActivateFromTap()
         {
             if (currentState != FoodState.AvailableInQueue && currentState != FoodState.InFoodSlot)
-                return;
-
-            if (!IsPointerOverThisObject())
                 return;
 
             if (currentOnConveyorCount >= maxOnConveyor)
@@ -164,27 +165,10 @@ namespace RestaurantLoop
             MoveToConveyor();
         }
 
-        private bool IsPointerOverThisObject()
-        {
-            if (raycastCamera == null) raycastCamera = Camera.main;
-            if (raycastCamera == null) return false;
-
-            Vector2 screenPos = Pointer.current != null
-                ? Pointer.current.position.ReadValue()
-                : (Vector2)Mouse.current.position.ReadValue();
-
-            Ray ray = raycastCamera.ScreenPointToRay(screenPos);
-
-            if (Physics.Raycast(ray, out RaycastHit hit, 1000f, raycastMask))
-            {
-                return hit.transform == transform || hit.transform.IsChildOf(transform);
-            }
-
-            return false;
-        }
-
         private void MoveToConveyor()
         {
+            if (currentState == FoodState.OnConveyor) return;
+
             var waypoints = gridManager.WaypointWorldPositions;
             if (waypoints == null || waypoints.Count == 0) return;
 
@@ -231,6 +215,10 @@ namespace RestaurantLoop
                 currentIndex = nextIndex;
 
                 TryDeliverAtCell(pathCells[currentIndex]);
+
+                // TryDeliverAtCell capacity'yi tüketip bu objeyi Destroy
+                // etmiş olabilir — coroutine'e devam etmeden önce kontrol et.
+                if (this == null) yield break;
             }
         }
 
@@ -276,35 +264,97 @@ namespace RestaurantLoop
             if (verboseLogging) Debug.Log($"Found customer {target.name} at ({cell.x},{cell.y})");
 
             target.ReceiveFood();
-            StartCoroutine(DeliverClone(target, transform.position));
+
+            // ÖNEMLİ: gereken her şeyi (prefab, rotasyon, süre) ŞİMDİ,
+            // parametre olarak yakalıyoruz ve coroutine'i ObjectPool
+            // (kalıcı bir obje) üzerinde çalıştırıyoruz — bu Food nesnesi
+            // (this) az sonra ConsumeAndDestroy() ile yok edilse bile
+            // (kapasite bittiyse), mermi coroutine'i buna bağlı DEĞİL,
+            // yoluna devam edip pool'a düzgünce dönüyor. Eskiden bu
+            // coroutine Food'un ÜZERİNDE çalışıyordu — Food destroy
+            // edilince Unity coroutine'i anında kesiyordu ve mermi
+            // olduğu yerde havada donup kalıyordu.
+            if (ObjectPool.Instance != null)
+            {
+                ObjectPool.Instance.StartCoroutine(
+                    DeliverCloneRoutine(deliveryPrefab, transform.position, transform.rotation, target, deliveryDuration));
+            }
 
             if (verboseLogging) Debug.Log($"Delivery try {deliveryTryCounter} finished");
+
+            // ---- Capacity düşür — level tasarımında seçilen sayı kadar
+            // teslimat yapınca bu food conveyor'dan kalkar. -1 = sınırsız,
+            // hiç düşürülmez (QueueManager dışından spawn edilen food'lar
+            // için geriye dönük uyumlu varsayılan).
+            if (remainingCapacity > 0)
+            {
+                remainingCapacity--;
+                if (remainingCapacity == 0)
+                    ConsumeAndDestroy();
+            }
         }
 
-        private IEnumerator DeliverClone(Customer target, Vector3 launchPosition)
+        /// <summary>
+        /// Atış hakkı (capacity) bitti — conveyor'dan kaldırılıyor.
+        /// Şimdilik Destroy ediliyor; ObjectPool entegrasyonu eklenince
+        /// Destroy yerine ObjectPool.Instance.Return(gameObject) çağrılacak.
+        /// </summary>
+        private void ConsumeAndDestroy()
         {
-            if (deliveryPrefab == null || ObjectPool.Instance == null) yield break;
+            if (verboseLogging) Debug.Log($"Food [{gameObject.name}]: Kapasite tükendi, kaldırılıyor.");
 
-            GameObject clone = ObjectPool.Instance.Get(deliveryPrefab, launchPosition, transform.rotation);
+            if (moveRoutine != null)
+            {
+                StopCoroutine(moveRoutine);
+                moveRoutine = null;
+            }
+
+            if (currentState == FoodState.OnConveyor)
+                currentOnConveyorCount = Mathf.Max(0, currentOnConveyorCount - 1);
+
+            ChangeState(FoodState.Served);
+
+            // TODO: pooling eklenince -> ObjectPool.Instance.Return(gameObject);
+            Destroy(gameObject);
+        }
+
+        /// <summary>
+        /// STATIC — herhangi bir Food instance'ına (this) bağımlı DEĞİL.
+        /// ObjectPool.Instance üzerinde çalıştığı için, bu delivery'i
+        /// başlatan Food objesi coroutine bitmeden Destroy edilse bile
+        /// sorunsuz tamamlanır.
+        /// </summary>
+        private static IEnumerator DeliverCloneRoutine(
+            GameObject prefab, Vector3 launchPosition, Quaternion launchRotation,
+            Customer target, float duration)
+        {
+            if (prefab == null || ObjectPool.Instance == null) yield break;
+
+            GameObject clone = ObjectPool.Instance.Get(prefab, launchPosition, launchRotation);
             if (clone == null) yield break;
 
-            Vector3 start = launchPosition;
-            Vector3 targetPos = target.transform.position;
             float elapsed = 0f;
 
-            while (elapsed < deliveryDuration)
+            while (elapsed < duration)
             {
-                if (clone == null) yield break;
+                if (clone == null)
+                    yield break;
+
+                if (target == null)
+                {
+                    ObjectPool.Instance.Return(clone);
+                    yield break;
+                }
 
                 elapsed += Time.deltaTime;
-                float t = Mathf.Clamp01(elapsed / deliveryDuration);
-                clone.transform.position = Vector3.Lerp(start, targetPos, t);
+                float t = Mathf.Clamp01(elapsed / duration);
+                clone.transform.position = Vector3.Lerp(launchPosition, target.transform.position, t);
                 yield return null;
             }
 
             if (clone != null)
             {
-                clone.transform.position = targetPos;
+                if (target != null) clone.transform.position = target.transform.position;
                 ObjectPool.Instance.Return(clone);
             }
         }

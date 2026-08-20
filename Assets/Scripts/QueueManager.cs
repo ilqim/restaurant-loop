@@ -1,6 +1,8 @@
+using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace RestaurantLoop
 {
@@ -31,7 +33,7 @@ namespace RestaurantLoop
         };
 
         [Header("Yerleşim — sabit Transform listesi YOK, matematikle hesaplanıyor")]
-        [Tooltip("Queue'nun sahnedeki başlangıç noktası — satır 0, sütun 0'ın (varsayımsal, TAM dolu bir satırdaki) yeri.")]
+        [Tooltip("Queue'nun sahnedeki başlangıç noktası — grid'in merkezinin hizalandığı yer.")]
         [SerializeField] private Transform originPoint;
         [Tooltip("Bir hücrenin kapladığı yatay/dikey mesafe (dünya birimi).")]
         [SerializeField] private float cellSpacingX = 1f;
@@ -47,9 +49,30 @@ namespace RestaurantLoop
         [Range(0f, 1f)]
         [SerializeField] private float lockedAlpha = 0.35f;
 
+        [Header("Input — TEK global tap dinleyicisi (Food objeleri artık kendi InputAction'ını dinlemiyor)")]
+        [Tooltip("Bir tap geldiğinde SADECE BURADAN bir kez raycast atılır, hangi Food'a çarptıysa sadece o işlenir.")]
+        [SerializeField] private InputAction tapAction;
+        [Tooltip("Raycast için kullanılacak kamera. Boşsa Camera.main kullanılır.")]
+        [SerializeField] private Camera raycastCamera;
+        [Tooltip("Raycast'in hangi layer'ları görmezden geleceği (opsiyonel).")]
+        [SerializeField] private LayerMask raycastMask = ~0;
+
         private readonly Dictionary<int, List<QueueEntry>> columnData = new();
         private readonly Dictionary<int, List<GameObject>> columnVisuals = new();
         private readonly Dictionary<Food, int> availableFoodColumn = new();
+        private Coroutine pendingRebuild;
+
+        private void OnEnable()
+        {
+            tapAction.Enable();
+            tapAction.performed += OnTapped;
+        }
+
+        private void OnDisable()
+        {
+            tapAction.performed -= OnTapped;
+            tapAction.Disable();
+        }
 
         private void Start()
         {
@@ -71,8 +94,28 @@ namespace RestaurantLoop
                 return;
             }
 
+            if (raycastCamera == null) raycastCamera = Camera.main;
+
             BuildColumnData();
             RebuildAllVisibleRows();
+        }
+
+        private void OnTapped(InputAction.CallbackContext context)
+        {
+            if (raycastCamera == null) raycastCamera = Camera.main;
+            if (raycastCamera == null) return;
+
+            Vector2 screenPos = Pointer.current != null
+                ? Pointer.current.position.ReadValue()
+                : (Vector2)Mouse.current.position.ReadValue();
+
+            Ray ray = raycastCamera.ScreenPointToRay(screenPos);
+            if (!Physics.Raycast(ray, out RaycastHit hit, 1000f, raycastMask)) return;
+
+            var food = hit.transform.GetComponentInParent<Food>();
+            if (food == null) return;
+
+            food.ActivateFromTap();
         }
 
         private void BuildColumnData()
@@ -88,11 +131,16 @@ namespace RestaurantLoop
         }
 
         /// <summary>
-        /// TÜM görünür satırları (0..visibleRows-1) sıfırdan kurar. Sabit
-        /// slot Transform'ları yerine, HER SATIRIN o anki dolu kolon
-        /// sayısına göre pozisyonlar hesaplanır ve merkeze hizalanır —
-        /// referans görseldeki "2'li satır ortada 2 tane, 4'lü satır baştan
-        /// sona 4 tane" görünümü budur.
+        /// TÜM görünür satırları (0..visibleRows-1) sıfırdan kurar.
+        ///
+        /// ÖNEMLİ: Her item'ın X pozisyonu KENDİ SABİT kolon index'ine
+        /// göre hesaplanır (levelData.queueColumns'a göre BİR KEZ
+        /// ortalanmış grid pozisyonu) — o satırda o anda kaç kolonun
+        /// dolu olduğuna göre YENİDEN merkezlenmez. Böylece bir kolon
+        /// tükenip boşaldığında sadece o hücre boş kalır, DİĞER kolonlar
+        /// asla kaymaz / çapraz durmaz — gerçek bir sabit grid gibi
+        /// davranır (örn. 1,2,3 / 4,5,6 düzeninde "1" gidince "4" tam
+        /// "1"in eski yerine gelir, "2" ve "3" hiç kıpırdamaz).
         /// </summary>
         private void RebuildAllVisibleRows()
         {
@@ -100,30 +148,20 @@ namespace RestaurantLoop
 
             for (int visualRow = 0; visualRow < visibleRows; visualRow++)
             {
-                // Bu satırda (visualRow'daki, yani her kolonun kendi
-                // veri listesinden visualRow'ıncı elemanı) DOLU olan
-                // kolonları bul.
-                var occupiedCols = new List<(int col, QueueEntry entry)>();
                 for (int col = 0; col < levelData.queueColumns; col++)
                 {
-                    if (columnData.TryGetValue(col, out var list) && visualRow < list.Count)
-                        occupiedCols.Add((col, list[visualRow]));
-                }
+                    if (!columnData.TryGetValue(col, out var list) || visualRow >= list.Count)
+                        continue;
 
-                if (occupiedCols.Count == 0) continue;
+                    QueueEntry entry = list[visualRow];
 
-                // Ortalama: N tane item varsa, merkez etrafında
-                // -((N-1)/2)..+((N-1)/2) aralığında x ofseti dağıt.
-                int n = occupiedCols.Count;
-                for (int i = 0; i < n; i++)
-                {
-                    float xOffset = (i - (n - 1) / 2f) * cellSpacingX;
-                    float zOffset = -visualRow * cellSpacingZ; // satır arttıkça geriye/aşağıya
+                    float xOffset = (col - (levelData.queueColumns - 1) / 2f) * cellSpacingX;
+                    float zOffset = -visualRow * cellSpacingZ;
 
                     Vector3 pos = originPoint.position + originPoint.right * xOffset + originPoint.forward * zOffset;
                     pos.y += foodYOffset;
 
-                    SpawnAt(occupiedCols[i].col, visualRow, occupiedCols[i].entry, pos);
+                    SpawnAt(col, visualRow, entry, pos);
                 }
             }
         }
@@ -152,6 +190,11 @@ namespace RestaurantLoop
                 Debug.LogWarning($"'{prefab.name}' prefabında Food component'i yok.");
                 return;
             }
+
+            // Bu food'un kaç teslimat hakkı olduğu — level tasarımında
+            // seçilen "Yerleştirilecek Kapasite" değeri (sabit 10 DEĞİL,
+            // her hücre için ayrı seçilebiliyor).
+            food.PresetCapacity(entry.capacity);
 
             if (visualRow == 0)
             {
@@ -197,12 +240,6 @@ namespace RestaurantLoop
             availableFoodColumn.Clear();
         }
 
-        /// <summary>
-        /// row0'daki (Available) bir food'un state'i değişince tetiklenir.
-        /// OnConveyor'a geçtiyse, o kolonun en üstü tüketildi — veriden
-        /// düş, TÜM görünür satırları yeniden kur (kalan her satır bir
-        /// üst pozisyona ışınlanmış olur, ve her satır yeniden ortalanır).
-        /// </summary>
         private void OnAvailableFoodStateChanged(Food food, FoodState newState)
         {
             if (newState != FoodState.OnConveyor) return;
@@ -214,6 +251,14 @@ namespace RestaurantLoop
             if (columnData.TryGetValue(col, out var list) && list.Count > 0)
                 list.RemoveAt(0);
 
+            if (pendingRebuild != null) StopCoroutine(pendingRebuild);
+            pendingRebuild = StartCoroutine(RebuildNextFrame());
+        }
+
+        private IEnumerator RebuildNextFrame()
+        {
+            yield return null;
+            pendingRebuild = null;
             RebuildAllVisibleRows();
         }
 
