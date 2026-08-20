@@ -65,8 +65,8 @@ namespace RestaurantLoop.EditorTools
             DrawToolButton(PaintMode.Erase, "Erase (2x2)", Color.white);
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.BeginHorizontal();
-            DrawToolButton(PaintMode.SetBase, "Set Base (TEKİL hücre)", BaseColor);
-            DrawToolButton(PaintMode.SetExit, "Set Exit (TEKİL hücre)", ExitColor);
+            DrawToolButton(PaintMode.SetBase, "Set Base (2x2 blok)", BaseColor);
+            DrawToolButton(PaintMode.SetExit, "Set Exit (2x2 blok)", ExitColor);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
@@ -81,11 +81,11 @@ namespace RestaurantLoop.EditorTools
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.HelpBox(
-                "Conveyor 2x2'lik bloklar halinde boyanır — bu SADECE görsel kalınlık için, hareket path'i " +
-                "bunu kullanmıyor. Set Base/Set Exit artık BLOĞA hizalamıyor — tam tıkladığın hücreyi kullanıyor, " +
-                "bu yüzden Base/Exit'i mutlaka boyanmış şeridin DIŞ kenarındaki bir hücreye koy (iç sıraya koyarsan " +
-                "path o hücreden başlayamaz).",
-                MessageType.Warning);
+                "Conveyor 2x2'lik bloklar halinde boyanır. Base ve Exit de ARTIK 2x2 blok — " +
+                "tıkladığın hücrenin ait olduğu 2x2 blok otomatik Conveyor'a boyanır ve blok " +
+                "origin'i (sol-üst köşe) Base/Exit olarak kaydedilir. Path her zaman blok " +
+                "merkezinden başlar/biter ve dış konturun tamamını (en uzun turu) izler.",
+                MessageType.Info);
 
             var path = ConveyorPathBuilder.BuildPath(levelData, out bool pathValid, out string pathReason);
             EditorGUILayout.HelpBox(
@@ -135,9 +135,8 @@ namespace RestaurantLoop.EditorTools
                         CellPixelSize - 1, CellPixelSize - 1);
 
                     CellType type = levelData.GetCell(r, c);
-                    // Artık TEKİL hücre eşitliği — blok kontrolü değil.
-                    bool isBase = levelData.baseRow == r && levelData.baseCol == c;
-                    bool isExit = levelData.exitRow == r && levelData.exitCol == c;
+                    bool isBase = levelData.IsCellInBaseBlock(r, c);
+                    bool isExit = levelData.IsCellInExitBlock(r, c);
 
                     Color color = type switch
                     {
@@ -151,9 +150,11 @@ namespace RestaurantLoop.EditorTools
 
                     EditorGUI.DrawRect(cellRect, color);
 
-                    if (isBase)
+                    bool isBaseOrigin = levelData.baseRow == r && levelData.baseCol == c;
+                    bool isExitOrigin = levelData.exitRow == r && levelData.exitCol == c;
+                    if (isBaseOrigin)
                         EditorGUI.LabelField(cellRect, "B", new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter });
-                    if (isExit)
+                    if (isExitOrigin)
                         EditorGUI.LabelField(cellRect, "E", new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter });
                 }
             }
@@ -229,28 +230,11 @@ namespace RestaurantLoop.EditorTools
                     break;
 
                 case PaintMode.SetBase:
-                    // BLOĞA hizalama KALDIRILDI — tam tıkladığın hücre kullanılıyor.
-                    if (levelData.GetCell(row, col) == CellType.Conveyor)
-                    {
-                        levelData.baseRow = row;
-                        levelData.baseCol = col;
-                    }
-                    else
-                    {
-                        Debug.LogWarning("Set Base: seçilen hücre Conveyor değil.");
-                    }
+                    SetBaseOrExitBlock(levelData, row, col, isBase: true);
                     break;
 
                 case PaintMode.SetExit:
-                    if (levelData.GetCell(row, col) == CellType.Conveyor)
-                    {
-                        levelData.exitRow = row;
-                        levelData.exitCol = col;
-                    }
-                    else
-                    {
-                        Debug.LogWarning("Set Exit: seçilen hücre Conveyor değil.");
-                    }
+                    SetBaseOrExitBlock(levelData, row, col, isBase: false);
                     break;
 
                 default:
@@ -258,6 +242,31 @@ namespace RestaurantLoop.EditorTools
                         levelData.SetCustomerAt(row, col, PaintModeToFood(currentMode));
                     break;
             }
+        }
+
+        /// <summary>
+        /// Base/Exit ARTIK 2x2 blok. Tıklanan hücrenin ait olduğu bloğun
+        /// origin'i (sol-üst) hesaplanır, bloğun 4 hücresi otomatik olarak
+        /// Conveyor'a boyanır (henüz değilse) ve varsa üzerlerindeki
+        /// customer kaydı temizlenir — Conveyor fırçasıyla birebir aynı
+        /// snap mantığı.
+        /// </summary>
+        private void SetBaseOrExitBlock(LevelData levelData, int row, int col, bool isBase)
+        {
+            int originRow = (row / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
+            int originCol = (col / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
+
+            if (originRow + LevelData.ConveyorBlockSize > levelData.rows ||
+                originCol + LevelData.ConveyorBlockSize > levelData.columns)
+            {
+                Debug.LogWarning($"Set {(isBase ? "Base" : "Exit")}: 2x2 blok grid sınırlarının dışına taşıyor.");
+                return;
+            }
+
+            PaintConveyorBlock(levelData, originRow, originCol);
+
+            if (isBase) { levelData.baseRow = originRow; levelData.baseCol = originCol; }
+            else { levelData.exitRow = originRow; levelData.exitCol = originCol; }
         }
 
         private void PaintConveyorBlock(LevelData levelData, int row, int col)
@@ -290,9 +299,9 @@ namespace RestaurantLoop.EditorTools
                         int rr = originRow + dr, cc = originCol + dc;
                         if (rr >= levelData.rows || cc >= levelData.columns) continue;
                         levelData.SetCell(rr, cc, CellType.Empty);
-                        if (levelData.baseRow == rr && levelData.baseCol == cc)
+                        if (levelData.baseRow == originRow && levelData.baseCol == originCol)
                         { levelData.baseRow = -1; levelData.baseCol = -1; }
-                        if (levelData.exitRow == rr && levelData.exitCol == cc)
+                        if (levelData.exitRow == originRow && levelData.exitCol == originCol)
                         { levelData.exitRow = -1; levelData.exitCol = -1; }
                     }
                 }

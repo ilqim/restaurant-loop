@@ -13,6 +13,7 @@ namespace RestaurantLoop
         Served
     }
 
+    [RequireComponent(typeof(Collider))]
     public class Food : MonoBehaviour
     {
         [Header("References")]
@@ -32,8 +33,16 @@ namespace RestaurantLoop
         [SerializeField] private float deliveryDuration = 0.25f;
         [SerializeField] private bool loop = false;
 
+        [Header("Conveyor Kapasitesi")]
+        [Tooltip("Aynı anda conveyor'da (OnConveyor state'inde) en fazla kaç Food olabilir.")]
+        [SerializeField] private int maxOnConveyor = 5;
+
         [Header("Input")]
         [SerializeField] private InputAction tapAction;
+        [Tooltip("Tap noktasından bu objeye raycast atarken kullanılacak kamera. Boşsa Camera.main kullanılır.")]
+        [SerializeField] private Camera raycastCamera;
+        [Tooltip("Raycast'in hangi layer'ları görmezden geleceği (opsiyonel).")]
+        [SerializeField] private LayerMask raycastMask = ~0;
 
         [Header("State")]
         [SerializeField] private FoodState currentState = FoodState.AvailableInQueue;
@@ -41,9 +50,14 @@ namespace RestaurantLoop
         [Header("Debug")]
         [SerializeField] private bool verboseLogging = true;
 
+        // Sahnedeki TÜM Food instance'ları arasında paylaşılan sayaç —
+        // "conveyor'da aynı anda en fazla N food" kuralı bununla uygulanıyor.
+        private static int currentOnConveyorCount;
+
         private int currentIndex;
         private Coroutine moveRoutine;
         private int deliveryTryCounter;
+        private bool countedOnConveyor;
 
         public FoodState CurrentState => currentState;
 
@@ -57,6 +71,12 @@ namespace RestaurantLoop
         {
             tapAction.performed -= OnTapped;
             tapAction.Disable();
+
+            if (countedOnConveyor)
+            {
+                currentOnConveyorCount = Mathf.Max(0, currentOnConveyorCount - 1);
+                countedOnConveyor = false;
+            }
         }
 
         private void Start()
@@ -79,6 +99,7 @@ namespace RestaurantLoop
             }
 
             if (customerManager == null) customerManager = FindFirstObjectByType<CustomerManager>();
+            if (raycastCamera == null) raycastCamera = Camera.main;
 
             if (deliveryPrefab == null)
                 Debug.LogWarning($"Food [{gameObject.name}]: Delivery Prefab atanmamış — müşteriye görsel klon fırlatılamayacak.");
@@ -87,12 +108,48 @@ namespace RestaurantLoop
             currentIndex = 0;
         }
 
+        /// <summary>
+        /// ARTIK "herhangi bir yere basınca tetiklenmiyor" — tap event'i
+        /// geldiğinde, o an basılan ekran noktasından raycast atıp GERÇEKTEN
+        /// BU objeye (kendi collider'ına) çarpıp çarpmadığını kontrol
+        /// ediyor. Başka bir objeye/boşluğa basıldıysa hiçbir şey olmuyor.
+        /// </summary>
         private void OnTapped(InputAction.CallbackContext context)
         {
             if (currentState != FoodState.AvailableInQueue)
                 return;
 
+            if (!IsPointerOverThisObject())
+                return;
+
+            if (currentOnConveyorCount >= maxOnConveyor)
+            {
+                if (verboseLogging) Debug.Log($"Food [{gameObject.name}]: Conveyor dolu ({currentOnConveyorCount}/{maxOnConveyor}), giriş engellendi.");
+                return;
+            }
+
             MoveToConveyor();
+        }
+
+        private bool IsPointerOverThisObject()
+        {
+            if (raycastCamera == null) raycastCamera = Camera.main;
+            if (raycastCamera == null) return false;
+
+            Vector2 screenPos = Pointer.current != null
+                ? Pointer.current.position.ReadValue()
+                : (Vector2)Mouse.current.position.ReadValue();
+
+            Ray ray = raycastCamera.ScreenPointToRay(screenPos);
+
+            if (Physics.Raycast(ray, out RaycastHit hit, 1000f, raycastMask))
+            {
+                // hit.transform kendi objemiz VEYA child'larından biri olabilir —
+                // ikisini de "bu objeye tıklandı" say.
+                return hit.transform == transform || hit.transform.IsChildOf(transform);
+            }
+
+            return false;
         }
 
         private void MoveToConveyor()
@@ -103,10 +160,11 @@ namespace RestaurantLoop
             transform.position = waypoints[0];
             currentIndex = 0;
 
+            currentOnConveyorCount++;
+            countedOnConveyor = true;
+
             ChangeState(FoodState.OnConveyor);
 
-            // Base hücresi (path[0]) de tekil bir hücre — girer girmez orada
-            // teslimat mümkünse tek seferlik kontrol.
             TryDeliverAtCell(gridManager.WaypointBlockOrigins[0]);
 
             if (moveRoutine != null) StopCoroutine(moveRoutine);
@@ -116,7 +174,7 @@ namespace RestaurantLoop
         private IEnumerator MoveOnConveyor()
         {
             var waypoints = gridManager.WaypointWorldPositions;
-            var pathCells = gridManager.WaypointBlockOrigins; // artık path'teki HER eleman zaten tekil bir (row,col)
+            var pathCells = gridManager.WaypointBlockOrigins;
 
             while (true)
             {
@@ -127,6 +185,7 @@ namespace RestaurantLoop
                     if (!loop)
                     {
                         if (verboseLogging) Debug.Log($"Food [{gameObject.name}] Exit'e ulaştı.");
+                        ReleaseConveyorSlot();
                         moveRoutine = null;
                         yield break;
                     }
@@ -136,11 +195,18 @@ namespace RestaurantLoop
                 yield return StartCoroutine(MoveTo(waypoints[nextIndex]));
                 currentIndex = nextIndex;
 
-                // Path artık native 1-hücre çözünürlüğünde — her adımda
-                // TEK bir hücre kontrol ediliyor, aynı anda 2 müşteriye
-                // birden ateş etme ihtimali yapısal olarak ortadan kalktı.
                 TryDeliverAtCell(pathCells[currentIndex]);
             }
+        }
+
+        private void ReleaseConveyorSlot()
+        {
+            if (countedOnConveyor)
+            {
+                currentOnConveyorCount = Mathf.Max(0, currentOnConveyorCount - 1);
+                countedOnConveyor = false;
+            }
+            ChangeState(FoodState.Served);
         }
 
         private void TryDeliverAtCell(Vector2Int cell)

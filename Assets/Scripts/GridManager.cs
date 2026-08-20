@@ -58,20 +58,8 @@ namespace RestaurantLoop
         public LevelData LevelDataRef => levelData;
         public Grid UnityGridRef => unityGrid;
 
-        /// <summary>
-        /// Servis/hareket için GÖRSEL hedef noktalar. Normal path
-        /// hücrelerinde tam hücre merkezi; index 0 (Base) ve
-        /// ExitWaypointIndex'te (varsa) 2x2 BLOK merkezi kullanılır —
-        /// token buradan doğar/burada kaybolur.
-        /// </summary>
         public List<Vector3> WaypointWorldPositions { get; private set; } = new();
 
-        /// <summary>
-        /// Servis/hedefleme MANTIĞI için — HER ZAMAN gerçek, tekil
-        /// (row,col). WaypointWorldPositions'taki blok-merkezi
-        /// override'ından etkilenmez; TryFindDeliverableCustomer bu
-        /// listeyi kullanır.
-        /// </summary>
         public List<Vector2Int> WaypointBlockOrigins { get; private set; } = new();
 
         public int ExitWaypointIndex { get; private set; } = -1;
@@ -82,69 +70,122 @@ namespace RestaurantLoop
         {
             if (unityGrid == null) unityGrid = GetComponent<Grid>();
             if (customerManager == null) customerManager = FindFirstObjectByType<CustomerManager>();
+
             int r = levelData != null ? levelData.rows : 10;
             int c = levelData != null ? levelData.columns : 10;
-            Grid = new GameGrid(unityGrid, r, c, invertRow, invertCol, swapAxes);
+
+            Grid = new GameGrid(
+                unityGrid,
+                r,
+                c,
+                invertRow,
+                invertCol,
+                swapAxes
+            );
         }
 
         void Start()
         {
-            if (levelData != null) BuildFromData(levelData);
+            if (levelData != null)
+                BuildFromData(levelData);
         }
 
         public void BuildFromData(LevelData data)
         {
             levelData = data;
-            Grid = new GameGrid(unityGrid, data.rows, data.columns, invertRow, invertCol, swapAxes);
+
+            Grid = new GameGrid(
+                unityGrid,
+                data.rows,
+                data.columns,
+                invertRow,
+                invertCol,
+                swapAxes
+            );
+
             ClearExisting();
             BuildWaypoints(data);
 
             if (customerManager == null)
-                Debug.LogWarning("GridManager: CustomerManager bulunamadı — spawn edilen müşteriler kaydedilemeyecek, hiçbir food teslim edilemez.");
+            {
+                Debug.LogWarning(
+                    "GridManager: CustomerManager bulunamadı — spawn edilen müşteriler kaydedilemeyecek, hiçbir food teslim edilemez."
+                );
+            }
 
             for (int r = 0; r < data.rows; r++)
             {
                 for (int c = 0; c < data.columns; c++)
                 {
                     CellType type = data.GetCell(r, c);
-                    if (type == CellType.Empty) continue;
+
+                    if (type == CellType.Empty)
+                        continue;
 
                     Vector3 pos = Grid.GetCellCenterWorld(r, c);
 
                     if (type == CellType.Conveyor)
                     {
-                        if (conveyorCellPrefab == null) continue;
-                        SpawnFromPool(conveyorCellPrefab, pos, conveyorCellPrefab.transform.rotation, $"Conveyor_{r}_{c}");
+                        if (conveyorCellPrefab == null)
+                            continue;
+
+                        SpawnFromPool(
+                            conveyorCellPrefab,
+                            pos,
+                            conveyorCellPrefab.transform.rotation,
+                            $"Conveyor_{r}_{c}"
+                        );
                     }
                     else if (type == CellType.CustomerSlot)
                     {
-                        if (!data.TryGetCustomerFood(r, c, out FoodType food)) continue;
+                        if (!data.TryGetCustomerFood(r, c, out FoodType food))
+                            continue;
+
                         GameObject prefab = GetCustomerPrefab(food);
+
                         if (prefab == null)
                         {
-                            Debug.LogWarning($"'{food}' için customer prefab atanmamış (GridManager > Customer Prefabs).");
+                            Debug.LogWarning(
+                                $"'{food}' için customer prefab atanmamış (GridManager > Customer Prefabs)."
+                            );
                             continue;
                         }
 
-                        var instance = SpawnFromPool(prefab, pos, prefab.transform.rotation, $"Customer_{food}_{r}_{c}");
+                        var instance = SpawnFromPool(
+                            prefab,
+                            pos,
+                            prefab.transform.rotation,
+                            $"Customer_{food}_{r}_{c}"
+                        );
+
                         spawnedCustomers[new Vector2Int(r, c)] = instance;
 
                         var customerComp = instance.GetComponent<Customer>();
+
                         if (customerComp != null)
                             customerComp.Init(r, c, food, customerManager);
                         else
-                            Debug.LogWarning($"'{prefab.name}' prefabında Customer component'i yok.");
+                            Debug.LogWarning(
+                                $"'{prefab.name}' prefabında Customer component'i yok."
+                            );
                     }
                 }
             }
         }
 
-        private GameObject SpawnFromPool(GameObject prefab, Vector3 pos, Quaternion rot, string name)
+        private GameObject SpawnFromPool(
+            GameObject prefab,
+            Vector3 pos,
+            Quaternion rot,
+            string name
+        )
         {
             GameObject instance = ObjectPool.Instance != null
                 ? ObjectPool.Instance.Get(prefab, pos, rot, transform)
                 : Instantiate(prefab, pos, rot, transform);
+
             instance.name = name;
+
             return instance;
         }
 
@@ -152,7 +193,254 @@ namespace RestaurantLoop
         {
             Vector3 a = Grid.GetCellCenterWorld(originRow, originCol);
             Vector3 b = Grid.GetCellCenterWorld(originRow + 1, originCol + 1);
+
             return (a + b) * 0.5f;
+        }
+
+        private static Vector3 GetGridCornerWorld(
+            GameGrid grid,
+            int rowLine,
+            int colLine
+        )
+        {
+            Vector3 origin = grid.GetCellCenterWorld(0, 0);
+
+            Vector3 rowStep =
+                grid.GetCellCenterWorld(1, 0) - origin;
+
+            Vector3 colStep =
+                grid.GetCellCenterWorld(0, 1) - origin;
+
+            return origin
+                - rowStep * 0.5f
+                - colStep * 0.5f
+                + rowStep * rowLine
+                + colStep * colLine;
+        }
+
+        /// <summary>
+        /// Bir hücre için 2x2 conveyor'ın orta çizgisindeki
+        /// grid köşe noktasını hesaplar.
+        ///
+        /// Önemli:
+        /// Waypoint hiçbir zaman hücre merkezine veya hücre kenarına
+        /// yerleştirilmez. Her zaman gerçek grid çizgilerinin kesişimindedir.
+        /// </summary>
+        private static Vector2Int GetCenterlineCorner(
+            LevelData data,
+            List<Vector2Int> path,
+            int index
+        )
+        {
+            Vector2Int cell = path[index];
+
+            Vector2Int dirIn = Vector2Int.zero;
+            Vector2Int dirOut = Vector2Int.zero;
+
+            if (index > 0)
+                dirIn = cell - path[index - 1];
+
+            if (index < path.Count - 1)
+                dirOut = path[index + 1] - cell;
+
+            Vector2Int direction =
+                dirOut != Vector2Int.zero
+                    ? dirOut
+                    : dirIn;
+
+            int rowLine;
+            int colLine;
+
+            // Yatay hareket:
+            // row genişlik eksenidir.
+            if (direction.y != 0)
+            {
+                Vector2Int? widthCell = null;
+
+                for (int dr = -1; dr <= 1; dr++)
+                {
+                    for (int dc = -1; dc <= 1; dc++)
+                    {
+                        if (Mathf.Abs(dr) + Mathf.Abs(dc) != 1)
+                            continue;
+
+                        Vector2Int candidate =
+                            cell + new Vector2Int(dr, dc);
+
+                        if (candidate == cell)
+                            continue;
+
+                        if (candidate.x == cell.x)
+                            continue;
+
+                        if (candidate.x < 0 ||
+                            candidate.x >= data.rows ||
+                            candidate.y < 0 ||
+                            candidate.y >= data.columns)
+                            continue;
+
+                        if (data.GetCell(candidate.x, candidate.y)
+                            != CellType.Conveyor)
+                            continue;
+
+                        widthCell = candidate;
+                        break;
+                    }
+
+                    if (widthCell.HasValue)
+                        break;
+                }
+
+                if (widthCell.HasValue)
+                {
+                    int minRow =
+                        Mathf.Min(cell.x, widthCell.Value.x);
+
+                    rowLine = minRow + 1;
+                }
+                else
+                {
+                    rowLine =
+                        direction.x >= 0
+                            ? cell.x + 1
+                            : cell.x;
+                }
+
+                colLine =
+                    direction.y >= 0
+                        ? cell.y + 1
+                        : cell.y;
+            }
+            else
+            {
+                // Dikey hareket:
+                // col genişlik eksenidir.
+                Vector2Int? widthCell = null;
+
+                for (int dr = -1; dr <= 1; dr++)
+                {
+                    for (int dc = -1; dc <= 1; dc++)
+                    {
+                        if (Mathf.Abs(dr) + Mathf.Abs(dc) != 1)
+                            continue;
+
+                        Vector2Int candidate =
+                            cell + new Vector2Int(dr, dc);
+
+                        if (candidate == cell)
+                            continue;
+
+                        if (candidate.y == cell.y)
+                            continue;
+
+                        if (candidate.x < 0 ||
+                            candidate.x >= data.rows ||
+                            candidate.y < 0 ||
+                            candidate.y >= data.columns)
+                            continue;
+
+                        if (data.GetCell(candidate.x, candidate.y)
+                            != CellType.Conveyor)
+                            continue;
+
+                        widthCell = candidate;
+                        break;
+                    }
+
+                    if (widthCell.HasValue)
+                        break;
+                }
+
+                if (widthCell.HasValue)
+                {
+                    int minCol =
+                        Mathf.Min(cell.y, widthCell.Value.y);
+
+                    colLine = minCol + 1;
+                }
+                else
+                {
+                    colLine =
+                        direction.y >= 0
+                            ? cell.y + 1
+                            : cell.y;
+                }
+
+                rowLine =
+                    direction.x >= 0
+                        ? cell.x + 1
+                        : cell.x;
+            }
+
+            return new Vector2Int(rowLine, colLine);
+        }
+
+        private static List<(Vector2Int cell, Vector2Int corner)>
+            BuildCornerSequence(
+                LevelData data,
+                List<Vector2Int> path
+            )
+        {
+            var result =
+                new List<(Vector2Int cell, Vector2Int corner)>();
+
+            if (path == null || path.Count == 0)
+                return result;
+
+            // BASE:
+            // 2x2 bloğun tam merkezindeki grid kesişimi.
+            Vector2Int baseCorner =
+                new Vector2Int(
+                    data.baseRow + 1,
+                    data.baseCol + 1
+                );
+
+            result.Add(
+                (path[0], baseCorner)
+            );
+
+            // Ara waypointler.
+            for (int i = 1; i < path.Count - 1; i++)
+            {
+                Vector2Int corner =
+                    GetCenterlineCorner(
+                        data,
+                        path,
+                        i
+                    );
+
+                if (result.Count > 0 &&
+                    result[^1].corner == corner)
+                    continue;
+
+                result.Add(
+                    (path[i], corner)
+                );
+            }
+
+            // EXIT:
+            // 2x2 bloğun tam merkezindeki grid kesişimi.
+            if (path.Count > 1)
+            {
+                Vector2Int exitCorner =
+                    new Vector2Int(
+                        data.exitRow + 1,
+                        data.exitCol + 1
+                    );
+
+                if (result.Count == 0 ||
+                    result[^1].corner != exitCorner)
+                {
+                    result.Add(
+                        (
+                            path[path.Count - 1],
+                            exitCorner
+                        )
+                    );
+                }
+            }
+
+            return result;
         }
 
         private void BuildWaypoints(LevelData data)
@@ -161,92 +449,285 @@ namespace RestaurantLoop
             WaypointBlockOrigins.Clear();
             ExitWaypointIndex = -1;
 
-            var path = ConveyorPathBuilder.BuildPath(data, out bool valid, out string reason, reversePathDirection);
+            var fullPath =
+                ConveyorPathBuilder.BuildPath(
+                    data,
+                    out bool valid,
+                    out string reason,
+                    reversePathDirection
+                );
+
             if (!valid)
             {
-                Debug.LogWarning($"Conveyor waypoint path geçersiz: {reason}");
+                Debug.LogWarning(
+                    $"Conveyor waypoint path geçersiz: {reason}"
+                );
+
                 return;
             }
 
-            int exitIdx = ConveyorPathBuilder.FindExitIndex(data, path);
-            ExitWaypointIndex = exitIdx;
+            int exitIdx =
+                ConveyorPathBuilder.FindExitIndex(
+                    data,
+                    fullPath
+                );
 
-            for (int i = 0; i < path.Count; i++)
+            if (exitIdx < 0)
             {
-                var cell = path[i];
-                WaypointBlockOrigins.Add(cell); // her zaman GERÇEK hücre — servis mantığı için
+                Debug.LogWarning(
+                    "Conveyor path: Exit indexi bulunamadı — tüm kontur kullanılacak."
+                );
 
-                Vector3 worldPos;
-                if (i == 0)
-                    worldPos = GetBlockCenterWorld(data.baseRow, data.baseCol); // Base bloğunun TAM ortası
-                else if (i == exitIdx)
-                    worldPos = GetBlockCenterWorld(data.exitRow, data.exitCol); // Exit bloğunun TAM ortası
-                else
-                    worldPos = Grid.GetCellCenterWorld(cell.x, cell.y); // normal hücrelerde tam hücre merkezi
-
-                WaypointWorldPositions.Add(worldPos);
+                exitIdx = fullPath.Count - 1;
             }
+
+            var path =
+                fullPath.GetRange(
+                    0,
+                    exitIdx + 1
+                );
+
+            /*
+             * Base'den çıkış yönü world Z yönünde pozitif olmalı.
+             *
+             * İlk gerçek path adımının world Z'sini kontrol ediyoruz.
+             * Negatif yöndeyse path yönünü ters çeviriyoruz.
+             *
+             * Böylece:
+             * Base merkezi
+             *      ↓
+             * ilk waypoint
+             *      ↓
+             * ikinci waypoint
+             *
+             * world Z boyunca artarak ilerler.
+             */
+            if (path.Count >= 3)
+            {
+                Vector3 baseWorld =
+                    GetGridCornerWorld(
+                        Grid,
+                        data.baseRow + 1,
+                        data.baseCol + 1
+                    );
+
+                Vector2Int firstCorner =
+                    GetCenterlineCorner(
+                        data,
+                        path,
+                        1
+                    );
+
+                Vector3 firstWorld =
+                    GetGridCornerWorld(
+                        Grid,
+                        firstCorner.x,
+                        firstCorner.y
+                    );
+
+                if (firstWorld.z < baseWorld.z)
+                {
+                    path.Reverse();
+                }
+            }
+
+            var corners =
+                BuildCornerSequence(
+                    data,
+                    path
+                );
+
+            foreach (var (cell, corner) in corners)
+            {
+                WaypointBlockOrigins.Add(cell);
+
+                WaypointWorldPositions.Add(
+                    GetGridCornerWorld(
+                        Grid,
+                        corner.x,
+                        corner.y
+                    )
+                );
+            }
+
+            ExitWaypointIndex =
+                WaypointWorldPositions.Count - 1;
         }
 
         private GameObject GetCustomerPrefab(FoodType food)
         {
             foreach (var entry in customerPrefabs)
-                if (entry.food == food) return entry.prefab;
+            {
+                if (entry.food == food)
+                    return entry.prefab;
+            }
+
             return null;
         }
 
         void ClearExisting()
         {
             spawnedCustomers.Clear();
+
             for (int i = transform.childCount - 1; i >= 0; i--)
-                DestroyImmediate(transform.GetChild(i).gameObject);
+            {
+                var child =
+                    transform.GetChild(i).gameObject;
+
+#if UNITY_EDITOR
+                if (!Application.isPlaying)
+                {
+                    DestroyImmediate(child);
+                    continue;
+                }
+#endif
+
+                Destroy(child);
+            }
         }
 
-        public bool TryGetCellFromScreenPoint(Camera cam, Vector2 screenPos, out int row, out int col)
+        public bool TryGetCellFromScreenPoint(
+            Camera cam,
+            Vector2 screenPos,
+            out int row,
+            out int col
+        )
         {
-            Ray ray = cam.ScreenPointToRay(screenPos);
-            Plane groundPlane = new Plane(Vector3.up, transform.position);
-            if (groundPlane.Raycast(ray, out float distance))
+            Ray ray =
+                cam.ScreenPointToRay(screenPos);
+
+            Plane groundPlane =
+                new Plane(
+                    Vector3.up,
+                    transform.position
+                );
+
+            if (groundPlane.Raycast(
+                    ray,
+                    out float distance
+                ))
             {
-                Vector3 worldPoint = ray.GetPoint(distance);
-                return Grid.TryGetRowColFromWorld(worldPoint, out row, out col);
+                Vector3 worldPoint =
+                    ray.GetPoint(distance);
+
+                return Grid.TryGetRowColFromWorld(
+                    worldPoint,
+                    out row,
+                    out col
+                );
             }
+
             row = col = -1;
             return false;
         }
 
         void OnDrawGizmos()
         {
-            if (!drawGridGizmo || levelData == null) return;
-            var g = unityGrid != null ? unityGrid : GetComponent<Grid>();
-            if (g == null) return;
+            if (!drawGridGizmo || levelData == null)
+                return;
 
-            var gizmoGrid = new GameGrid(g, levelData.rows, levelData.columns, invertRow, invertCol, swapAxes);
+            var g =
+                unityGrid != null
+                    ? unityGrid
+                    : GetComponent<Grid>();
+
+            if (g == null)
+                return;
+
+            var gizmoGrid =
+                new GameGrid(
+                    g,
+                    levelData.rows,
+                    levelData.columns,
+                    invertRow,
+                    invertCol,
+                    swapAxes
+                );
+
             Gizmos.color = gizmoLineColor;
 
-            Vector3 half = new Vector3(g.cellSize.x * 0.5f, 0, g.cellSize.z * 0.5f);
-            float waypointRadius = Mathf.Max(g.cellSize.x, g.cellSize.z) * 0.22f;
+            Vector3 half =
+                new Vector3(
+                    g.cellSize.x * 0.5f,
+                    0,
+                    g.cellSize.z * 0.5f
+                );
+
+            float waypointRadius =
+                Mathf.Max(
+                    g.cellSize.x,
+                    g.cellSize.z
+                ) * 0.22f;
 
             for (int r = 0; r < levelData.rows; r++)
             {
                 for (int c = 0; c < levelData.columns; c++)
                 {
-                    Vector3 center = gizmoGrid.GetCellCenterWorld(r, c);
-                    Vector3 p1 = center + new Vector3(-half.x, 0, -half.z);
-                    Vector3 p2 = center + new Vector3(half.x, 0, -half.z);
-                    Vector3 p3 = center + new Vector3(half.x, 0, half.z);
-                    Vector3 p4 = center + new Vector3(-half.x, 0, half.z);
+                    Vector3 center =
+                        gizmoGrid.GetCellCenterWorld(r, c);
+
+                    Vector3 p1 =
+                        center +
+                        new Vector3(
+                            -half.x,
+                            0,
+                            -half.z
+                        );
+
+                    Vector3 p2 =
+                        center +
+                        new Vector3(
+                            half.x,
+                            0,
+                            -half.z
+                        );
+
+                    Vector3 p3 =
+                        center +
+                        new Vector3(
+                            half.x,
+                            0,
+                            half.z
+                        );
+
+                    Vector3 p4 =
+                        center +
+                        new Vector3(
+                            -half.x,
+                            0,
+                            half.z
+                        );
+
                     Gizmos.DrawLine(p1, p2);
                     Gizmos.DrawLine(p2, p3);
                     Gizmos.DrawLine(p3, p4);
                     Gizmos.DrawLine(p4, p1);
 
 #if UNITY_EDITOR
-                    bool isCorner = (r == 0 || r == levelData.rows - 1) && (c == 0 || c == levelData.columns - 1);
+                    bool isCorner =
+                        (r == 0 ||
+                         r == levelData.rows - 1) &&
+                        (c == 0 ||
+                         c == levelData.columns - 1);
+
                     if (drawCoordinateLabels && isCorner)
                     {
-                        var style = new GUIStyle { normal = { textColor = Color.cyan }, fontSize = 11, fontStyle = FontStyle.Bold };
-                        Handles.Label(center + Vector3.up * 0.3f, $"({r},{c})", style);
+                        var style =
+                            new GUIStyle
+                            {
+                                normal =
+                                {
+                                    textColor = Color.cyan
+                                },
+                                fontSize = 11,
+                                fontStyle = FontStyle.Bold
+                            };
+
+                        Handles.Label(
+                            center + Vector3.up * 0.3f,
+                            $"({r},{c})",
+                            style
+                        );
                     }
 #endif
                 }
@@ -255,52 +736,105 @@ namespace RestaurantLoop
 #if UNITY_EDITOR
             if (drawWaypointPath)
             {
-                var path = ConveyorPathBuilder.BuildPath(levelData, out bool valid, out string reason, reversePathDirection);
+                var fullPath =
+                    ConveyorPathBuilder.BuildPath(
+                        levelData,
+                        out bool valid,
+                        out string reason,
+                        reversePathDirection
+                    );
+
                 if (valid)
                 {
-                    int exitIdx = ConveyorPathBuilder.FindExitIndex(levelData, path);
-                    var style = new GUIStyle { normal = { textColor = Color.white }, fontSize = 11, fontStyle = FontStyle.Bold };
-                    float yOffset = Mathf.Max(g.cellSize.x, g.cellSize.z) * 0.4f;
+                    int exitIdx =
+                        ConveyorPathBuilder.FindExitIndex(
+                            levelData,
+                            fullPath
+                        );
 
-                    Vector3 GetDisplayWorld(int index)
-                    {
-                        var cell = path[index];
-                        if (index == 0)
+                    if (exitIdx < 0)
+                        exitIdx = fullPath.Count - 1;
+
+                    var path =
+                        fullPath.GetRange(
+                            0,
+                            exitIdx + 1
+                        );
+
+                    var corners =
+                        BuildCornerSequence(
+                            levelData,
+                            path
+                        );
+
+                    var style =
+                        new GUIStyle
                         {
-                            Vector3 a = gizmoGrid.GetCellCenterWorld(levelData.baseRow, levelData.baseCol);
-                            Vector3 b = gizmoGrid.GetCellCenterWorld(levelData.baseRow + 1, levelData.baseCol + 1);
-                            return (a + b) * 0.5f;
-                        }
-                        if (index == exitIdx)
-                        {
-                            Vector3 a = gizmoGrid.GetCellCenterWorld(levelData.exitRow, levelData.exitCol);
-                            Vector3 b = gizmoGrid.GetCellCenterWorld(levelData.exitRow + 1, levelData.exitCol + 1);
-                            return (a + b) * 0.5f;
-                        }
-                        return gizmoGrid.GetCellCenterWorld(cell.x, cell.y);
-                    }
+                            normal =
+                            {
+                                textColor = Color.white
+                            },
+                            fontSize = 11,
+                            fontStyle = FontStyle.Bold
+                        };
 
-                    for (int i = 0; i < path.Count; i++)
+                    float yOffset =
+                        Mathf.Max(
+                            g.cellSize.x,
+                            g.cellSize.z
+                        ) * 0.4f;
+
+                    Vector3? prevDrawn = null;
+
+                    for (int i = 0; i < corners.Count; i++)
                     {
-                        Vector3 pos = GetDisplayWorld(i) + Vector3.up * yOffset;
+                        var corner =
+                            corners[i].corner;
 
-                        Gizmos.color = (i == exitIdx) ? Color.red : (i == 0 ? Color.yellow : Color.magenta);
-                        Gizmos.DrawSphere(pos, waypointRadius);
-                        Handles.Label(pos + Vector3.up * (waypointRadius * 1.5f), i.ToString(), style);
+                        Vector3 drawPos =
+                            GetGridCornerWorld(
+                                gizmoGrid,
+                                corner.x,
+                                corner.y
+                            ) +
+                            Vector3.up * yOffset;
 
-                        if (i > 0)
+                        bool isExit =
+                            i == corners.Count - 1;
+
+                        Gizmos.color =
+                            isExit
+                                ? Color.red
+                                : (i == 0
+                                    ? Color.yellow
+                                    : Color.magenta);
+
+                        Gizmos.DrawSphere(
+                            drawPos,
+                            waypointRadius
+                        );
+
+                        Handles.Label(
+                            drawPos +
+                            Vector3.up *
+                            (waypointRadius * 1.5f),
+                            i.ToString(),
+                            style
+                        );
+
+                        if (prevDrawn.HasValue)
                         {
-                            Vector3 prev = GetDisplayWorld(i - 1) + Vector3.up * yOffset;
-                            Handles.color = Color.magenta;
-                            Handles.DrawAAPolyLine(6f, prev, pos);
+                            Handles.color =
+                                Color.magenta;
+
+                            Handles.DrawAAPolyLine(
+                                6f,
+                                prevDrawn.Value,
+                                drawPos
+                            );
                         }
-                    }
-                    if (path.Count > 1)
-                    {
-                        Vector3 last = GetDisplayWorld(path.Count - 1) + Vector3.up * yOffset;
-                        Vector3 first = GetDisplayWorld(0) + Vector3.up * yOffset;
-                        Handles.color = new Color(1f, 0f, 1f, 0.4f);
-                        Handles.DrawDottedLine(last, first, 4f);
+
+                        prevDrawn = drawPos;
                     }
                 }
             }
