@@ -13,7 +13,14 @@ namespace RestaurantLoop.EditorTools
             Hamburger, Fries, Drink, Sushi, Steak, Dessert
         }
 
+        private enum QueuePaintMode
+        {
+            Erase, Hamburger, Fries, Drink, Sushi, Steak, Dessert
+        }
+
         private const float CellPixelSize = 22f;
+        private const int QueueExtraRowsBuffer = 3; // boyanmış son satırdan sonra kaç boş satır daha göster (genişleyebilsin diye)
+        private const int QueueMinRows = 5;
 
         private static readonly Dictionary<FoodType, Color> FoodColors = new()
         {
@@ -34,10 +41,28 @@ namespace RestaurantLoop.EditorTools
         private int undoGroupAtStroke;
         private Vector2 scrollPos;
 
+        private QueuePaintMode currentQueueMode = QueuePaintMode.Hamburger;
+        private int queuePaintCapacity = 10;
+        private bool isPaintingQueue;
+        private int lastPaintedQueueRow = -1, lastPaintedQueueCol = -1;
+        private int queueUndoGroupAtStroke;
+        private Vector2 queueScrollPos;
+
         public override void OnInspectorGUI()
         {
             var levelData = (LevelData)target;
 
+            DrawGridSection(levelData);
+            EditorGUILayout.Space(16);
+            DrawQueueSection(levelData);
+        }
+
+        // =====================================================================
+        // LEVEL GRID (conveyor / customer) — değişmedi
+        // =====================================================================
+
+        private void DrawGridSection(LevelData levelData)
+        {
             EditorGUILayout.LabelField("Level Grid Boyutu", EditorStyles.boldLabel);
             EditorGUI.BeginChangeCheck();
             int newRows = EditorGUILayout.IntField("Rows", levelData.rows);
@@ -61,12 +86,12 @@ namespace RestaurantLoop.EditorTools
             EditorGUILayout.LabelField("Fırça", EditorStyles.boldLabel);
 
             EditorGUILayout.BeginHorizontal();
-            DrawToolButton(PaintMode.Conveyor, "Conveyor (2x2)", ConveyorColor);
-            DrawToolButton(PaintMode.Erase, "Erase", Color.white);
+            DrawToolButton(PaintMode.Conveyor, "Conveyor (2x2 boya)", ConveyorColor);
+            DrawToolButton(PaintMode.Erase, "Erase (2x2)", Color.white);
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.BeginHorizontal();
-            DrawToolButton(PaintMode.SetBase, "Set Base (2x2)", BaseColor);
-            DrawToolButton(PaintMode.SetExit, "Set Exit (2x2)", ExitColor);
+            DrawToolButton(PaintMode.SetBase, "Set Base (2x2 blok)", BaseColor);
+            DrawToolButton(PaintMode.SetExit, "Set Exit (2x2 blok)", ExitColor);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
@@ -81,14 +106,13 @@ namespace RestaurantLoop.EditorTools
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.HelpBox(
-                "Conveyor 2x2'lik bloklar halinde boyanır. Set Base zorunlu — path Base'den başlayıp TÜM " +
-                "conveyor hücrelerini dolaşıp Base'e geri kapanır (en kısa yol değil, tam tur). Set Exit " +
-                "opsiyonel — sadece bu turun neresinde olduğunu işaretler (kırmızı nokta).",
-                MessageType.None);
+                "Conveyor 2x2'lik bloklar halinde boyanır. Base ve Exit de 2x2 blok — tıkladığın hücrenin " +
+                "ait olduğu blok otomatik Conveyor'a boyanır ve blok origin'i (sol-üst köşe) Base/Exit olur.",
+                MessageType.Info);
 
             var path = ConveyorPathBuilder.BuildPath(levelData, out bool pathValid, out string pathReason);
             EditorGUILayout.HelpBox(
-                pathValid ? $"✓ Loop geçerli — {path.Count} hücre, Base'e kapanıyor." : $"⚠ {pathReason}",
+                pathValid ? $"✓ Kontur geçerli — {path.Count} hücre." : $"⚠ {pathReason}",
                 pathValid ? MessageType.Info : MessageType.Warning);
 
             EditorGUILayout.Space(10);
@@ -149,9 +173,11 @@ namespace RestaurantLoop.EditorTools
 
                     EditorGUI.DrawRect(cellRect, color);
 
-                    if (isBase && r == levelData.baseRow && c == levelData.baseCol)
+                    bool isBaseOrigin = levelData.baseRow == r && levelData.baseCol == c;
+                    bool isExitOrigin = levelData.exitRow == r && levelData.exitCol == c;
+                    if (isBaseOrigin)
                         EditorGUI.LabelField(cellRect, "B", new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter });
-                    if (isExit && r == levelData.exitRow && c == levelData.exitCol)
+                    if (isExitOrigin)
                         EditorGUI.LabelField(cellRect, "E", new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter });
                 }
             }
@@ -227,23 +253,11 @@ namespace RestaurantLoop.EditorTools
                     break;
 
                 case PaintMode.SetBase:
-                    if (levelData.GetCell(row, col) == CellType.Conveyor)
-                    {
-                        int originRow = (row / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
-                        int originCol = (col / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
-                        levelData.baseRow = originRow;
-                        levelData.baseCol = originCol;
-                    }
+                    SetBaseOrExitBlock(levelData, row, col, isBase: true);
                     break;
 
                 case PaintMode.SetExit:
-                    if (levelData.GetCell(row, col) == CellType.Conveyor)
-                    {
-                        int originRow = (row / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
-                        int originCol = (col / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
-                        levelData.exitRow = originRow;
-                        levelData.exitCol = originCol;
-                    }
+                    SetBaseOrExitBlock(levelData, row, col, isBase: false);
                     break;
 
                 default:
@@ -251,6 +265,24 @@ namespace RestaurantLoop.EditorTools
                         levelData.SetCustomerAt(row, col, PaintModeToFood(currentMode));
                     break;
             }
+        }
+
+        private void SetBaseOrExitBlock(LevelData levelData, int row, int col, bool isBase)
+        {
+            int originRow = (row / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
+            int originCol = (col / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
+
+            if (originRow + LevelData.ConveyorBlockSize > levelData.rows ||
+                originCol + LevelData.ConveyorBlockSize > levelData.columns)
+            {
+                Debug.LogWarning($"Set {(isBase ? "Base" : "Exit")}: 2x2 blok grid sınırlarının dışına taşıyor.");
+                return;
+            }
+
+            PaintConveyorBlock(levelData, originRow, originCol);
+
+            if (isBase) { levelData.baseRow = originRow; levelData.baseCol = originCol; }
+            else { levelData.exitRow = originRow; levelData.exitCol = originCol; }
         }
 
         private void PaintConveyorBlock(LevelData levelData, int row, int col)
@@ -307,5 +339,182 @@ namespace RestaurantLoop.EditorTools
             PaintMode.Dessert   => FoodType.Dessert,
             _ => FoodType.Hamburger
         };
+
+        // =====================================================================
+        // FOOD STACK QUEUE — YENİ bölüm. Level grid'den tamamen bağımsız,
+        // kendi (row,col) koordinat uzayı. row 0 = en üst (ilk tıklanabilir
+        // satır), col arttıkça sağa gider — level grid ile birebir aynı
+        // yön kuralı.
+        // =====================================================================
+
+        private void DrawQueueSection(LevelData levelData)
+        {
+            EditorGUILayout.LabelField("Food Stack Queue", EditorStyles.boldLabel);
+
+            EditorGUI.BeginChangeCheck();
+            int newQueueColumns = EditorGUILayout.IntSlider("Queue Columns (üst sayısı)", levelData.queueColumns,
+                LevelData.QueueColumnsMin, LevelData.QueueColumnsMax);
+            if (EditorGUI.EndChangeCheck())
+            {
+                Undo.RecordObject(levelData, "Change Queue Columns");
+                levelData.queueColumns = newQueueColumns;
+                EditorUtility.SetDirty(levelData);
+            }
+
+            EditorGUILayout.HelpBox(
+                "row 0 = en üst (oyunda tıklanabilir ilk satır), col 0 = en sol. Derinlik (row) sınırsız — " +
+                "runtime'da sadece ilk birkaç satır görünür/tıklanabilir olur, geri kalanı sıradan geldikçe açılır.",
+                MessageType.Info);
+
+            EditorGUILayout.BeginHorizontal();
+            queuePaintCapacity = EditorGUILayout.IntField("Yerleştirilecek Kapasite", Mathf.Max(1, queuePaintCapacity));
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.BeginHorizontal();
+            DrawQueueToolButton(QueuePaintMode.Erase, "Erase", Color.white);
+            DrawQueueToolButton(QueuePaintMode.Hamburger, "Hamburger", FoodColors[FoodType.Hamburger]);
+            DrawQueueToolButton(QueuePaintMode.Fries, "Fries", FoodColors[FoodType.Fries]);
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.BeginHorizontal();
+            DrawQueueToolButton(QueuePaintMode.Drink, "Drink", FoodColors[FoodType.Drink]);
+            DrawQueueToolButton(QueuePaintMode.Sushi, "Sushi", FoodColors[FoodType.Sushi]);
+            DrawQueueToolButton(QueuePaintMode.Steak, "Steak", FoodColors[FoodType.Steak]);
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.BeginHorizontal();
+            DrawQueueToolButton(QueuePaintMode.Dessert, "Dessert", FoodColors[FoodType.Dessert]);
+            EditorGUILayout.EndHorizontal();
+
+            int maxUsedRow = -1;
+            foreach (var e in levelData.queue) if (e.row > maxUsedRow) maxUsedRow = e.row;
+            int totalRows = Mathf.Max(QueueMinRows, maxUsedRow + 1 + QueueExtraRowsBuffer);
+
+            float gridPixelWidth = levelData.queueColumns * CellPixelSize;
+            float gridPixelHeight = totalRows * CellPixelSize;
+
+            queueScrollPos = EditorGUILayout.BeginScrollView(queueScrollPos, GUILayout.Height(Mathf.Min(gridPixelHeight + 20, 300)));
+            Rect queueRect = GUILayoutUtility.GetRect(gridPixelWidth, gridPixelHeight);
+
+            HandleQueueMouseInput(levelData, queueRect, totalRows);
+            DrawQueueGrid(levelData, queueRect, totalRows);
+
+            EditorGUILayout.EndScrollView();
+
+            if (isPaintingQueue) Repaint();
+        }
+
+        private void DrawQueueToolButton(QueuePaintMode mode, string label, Color tint)
+        {
+            bool isActive = currentQueueMode == mode;
+            GUI.backgroundColor = tint;
+            if (GUILayout.Button(isActive ? "✓ " + label : label)) currentQueueMode = mode;
+            GUI.backgroundColor = Color.white;
+        }
+
+        private void DrawQueueGrid(LevelData levelData, Rect gridRect, int totalRows)
+        {
+            for (int r = 0; r < totalRows; r++)
+            {
+                for (int c = 0; c < levelData.queueColumns; c++)
+                {
+                    Rect cellRect = new Rect(
+                        gridRect.x + c * CellPixelSize,
+                        gridRect.y + r * CellPixelSize,
+                        CellPixelSize - 1, CellPixelSize - 1);
+
+                    Color color = new Color(0.18f, 0.18f, 0.18f);
+                    string label = null;
+
+                    if (levelData.TryGetQueueEntry(r, c, out var entry))
+                    {
+                        color = FoodColors[entry.food];
+                        label = entry.capacity.ToString();
+                    }
+
+                    // row 0 hafif farklı arka plan tonu — "bu satır tıklanabilir olacak" ipucu
+                    if (r == 0 && label == null) color = new Color(0.22f, 0.22f, 0.16f);
+
+                    EditorGUI.DrawRect(cellRect, color);
+
+                    if (label != null)
+                        EditorGUI.LabelField(cellRect, label, new GUIStyle(EditorStyles.miniBoldLabel)
+                        { alignment = TextAnchor.LowerRight, normal = { textColor = Color.black } });
+                }
+            }
+
+            Handles.color = new Color(1f, 1f, 1f, 0.08f);
+            for (int r = 0; r <= totalRows; r++)
+                Handles.DrawLine(new Vector3(gridRect.x, gridRect.y + r * CellPixelSize),
+                                  new Vector3(gridRect.xMax, gridRect.y + r * CellPixelSize));
+            for (int c = 0; c <= levelData.queueColumns; c++)
+                Handles.DrawLine(new Vector3(gridRect.x + c * CellPixelSize, gridRect.y),
+                                  new Vector3(gridRect.x + c * CellPixelSize, gridRect.yMax));
+
+            // row 0 sınırını kalın çizgiyle vurgula
+            Handles.color = new Color(1f, 0.85f, 0.2f, 0.6f);
+            Handles.DrawLine(new Vector3(gridRect.x, gridRect.y + CellPixelSize), new Vector3(gridRect.xMax, gridRect.y + CellPixelSize));
+        }
+
+        private void HandleQueueMouseInput(LevelData levelData, Rect gridRect, int totalRows)
+        {
+            Event e = Event.current;
+            if (!gridRect.Contains(e.mousePosition)) return;
+
+            bool isMouseDown = e.type == EventType.MouseDown && e.button == 0;
+            bool isMouseDrag  = e.type == EventType.MouseDrag && e.button == 0;
+            bool isMouseUp    = e.type == EventType.MouseUp && e.button == 0;
+            if (!isMouseDown && !isMouseDrag && !isMouseUp) return;
+
+            int col = Mathf.FloorToInt((e.mousePosition.x - gridRect.x) / CellPixelSize);
+            int row = Mathf.FloorToInt((e.mousePosition.y - gridRect.y) / CellPixelSize);
+            if (row < 0 || row >= totalRows || col < 0 || col >= levelData.queueColumns) return;
+
+            if (isMouseDown)
+            {
+                isPaintingQueue = true;
+                lastPaintedQueueRow = lastPaintedQueueCol = -1;
+                queueUndoGroupAtStroke = Undo.GetCurrentGroup();
+                Undo.RecordObject(levelData, "Paint Queue");
+                ApplyQueueBrush(levelData, row, col);
+                e.Use();
+            }
+            else if (isMouseDrag && isPaintingQueue)
+            {
+                if (row != lastPaintedQueueRow || col != lastPaintedQueueCol)
+                    ApplyQueueBrush(levelData, row, col);
+                e.Use();
+            }
+            else if (isMouseUp && isPaintingQueue)
+            {
+                isPaintingQueue = false;
+                Undo.CollapseUndoOperations(queueUndoGroupAtStroke);
+                EditorUtility.SetDirty(levelData);
+                e.Use();
+            }
+        }
+
+        private void ApplyQueueBrush(LevelData levelData, int row, int col)
+        {
+            lastPaintedQueueRow = row;
+            lastPaintedQueueCol = col;
+
+            if (currentQueueMode == QueuePaintMode.Erase)
+            {
+                levelData.RemoveQueueEntry(row, col);
+                return;
+            }
+
+            FoodType food = currentQueueMode switch
+            {
+                QueuePaintMode.Hamburger => FoodType.Hamburger,
+                QueuePaintMode.Fries     => FoodType.Fries,
+                QueuePaintMode.Drink     => FoodType.Drink,
+                QueuePaintMode.Sushi     => FoodType.Sushi,
+                QueuePaintMode.Steak     => FoodType.Steak,
+                QueuePaintMode.Dessert   => FoodType.Dessert,
+                _ => FoodType.Hamburger
+            };
+
+            levelData.SetQueueEntry(row, col, food, Mathf.Max(1, queuePaintCapacity));
+        }
     }
 }
