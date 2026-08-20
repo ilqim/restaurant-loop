@@ -366,7 +366,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5cfa1728629d2a944a8847b8d6aa0432, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  levelData: {fileID: 11400000, guid: 8e9a88d560e3c4c469893cccfeee336e, type: 2}
+  levelData: {fileID: 11400000, guid: ae7e8e59ffad3c14cb3cf23d58cf347a, type: 2}
   unityGrid: {fileID: 368813332}
   customerManager: {fileID: 1989108643}
   conveyorCellPrefab: {fileID: 8903834080389090876, guid: baeed4aaaf55dac49a442d3fbbd10987, type: 3}
@@ -1078,10 +1078,6 @@ PrefabInstance:
     - target: {fileID: 637324645510347922, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
       propertyPath: m_Name
       value: Hamburger
-      objectReference: {fileID: 0}
-    - target: {fileID: 1031462423939452789, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
-      propertyPath: loop
-      value: 1
       objectReference: {fileID: 0}
     - target: {fileID: 1031462423939452789, guid: 73c56c70c0abd1343a92bc683abdab10, type: 3}
       propertyPath: objectPool

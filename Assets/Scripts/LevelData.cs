@@ -11,7 +11,7 @@ namespace RestaurantLoop
     [CreateAssetMenu(fileName = "Level", menuName = "RestaurantLoop/LevelData")]
     public class LevelData : ScriptableObject
     {
-        public const int ConveyorBlockSize = 2;
+        public const int ConveyorBlockSize = 1;
 
         [Header("Level Grid boyutu — level tasarımcısı buradan ayarlar")]
         public int rows = 8;
