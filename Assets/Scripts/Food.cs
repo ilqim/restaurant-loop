@@ -1,3 +1,4 @@
+using System;
 using System.Collections;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -22,6 +23,9 @@ namespace RestaurantLoop
         [Tooltip("Boş bırakılırsa Start'ta otomatik aranır (sadece bir kez).")]
         [SerializeField] private CustomerManager customerManager;
 
+        [Tooltip("Boş bırakılırsa Start'ta otomatik aranır (sadece bir kez).")]
+        [SerializeField] private SlotManager slotManager;
+
         [Header("Bu yemeğin türü — hangi müşterilere gidebileceğini belirler")]
         [SerializeField] private FoodType foodType;
 
@@ -31,6 +35,7 @@ namespace RestaurantLoop
         [Header("Movement")]
         [SerializeField] private float stepDuration = 0.3f;
         [SerializeField] private float deliveryDuration = 0.25f;
+        [Tooltip("Exit'e varınca boş slot yoksa, tekrar Base'e dönüp turu tekrarlasın mı? Kapalıysa Served'a düşer ve durur.")]
         [SerializeField] private bool loop = false;
 
         [Header("Conveyor Kapasitesi")]
@@ -50,16 +55,24 @@ namespace RestaurantLoop
         [Header("Debug")]
         [SerializeField] private bool verboseLogging = true;
 
-        // Sahnedeki TÜM Food instance'ları arasında paylaşılan sayaç —
-        // "conveyor'da aynı anda en fazla N food" kuralı bununla uygulanıyor.
         private static int currentOnConveyorCount;
 
         private int currentIndex;
         private Coroutine moveRoutine;
         private int deliveryTryCounter;
-        private bool countedOnConveyor;
 
         public FoodState CurrentState => currentState;
+
+        /// <summary>Genel state bildirimi — bilgi amaçlı, artık slot mantığı buna dayanmıyor.</summary>
+        public event Action<Food, FoodState> StateChanged;
+
+        /// <summary>
+        /// Food slottayken tıklanınca AN SET olarak fırlatılır. Slot bu
+        /// event'e abone olup ÖNCE kendini boşaltır, SONRA
+        /// EnterConveyorFromSlot() çağırır — sıralama garanti, "slota
+        /// haber vermeden konveyöre geçme" artık yapısal olarak imkansız.
+        /// </summary>
+        public event Action<Food> ReenterConveyorRequested;
 
         private void OnEnable()
         {
@@ -72,10 +85,9 @@ namespace RestaurantLoop
             tapAction.performed -= OnTapped;
             tapAction.Disable();
 
-            if (countedOnConveyor)
+            if (currentState == FoodState.OnConveyor)
             {
                 currentOnConveyorCount = Mathf.Max(0, currentOnConveyorCount - 1);
-                countedOnConveyor = false;
             }
         }
 
@@ -99,24 +111,22 @@ namespace RestaurantLoop
             }
 
             if (customerManager == null) customerManager = FindFirstObjectByType<CustomerManager>();
+            if (slotManager == null) slotManager = FindFirstObjectByType<SlotManager>();
             if (raycastCamera == null) raycastCamera = Camera.main;
 
             if (deliveryPrefab == null)
                 Debug.LogWarning($"Food [{gameObject.name}]: Delivery Prefab atanmamış — müşteriye görsel klon fırlatılamayacak.");
 
+            if (slotManager == null)
+                Debug.LogWarning("Food: Sahnede bir SlotManager bulunamadı — Exit'e varan yemekler slota yerleşemeyecek.");
+
             ChangeState(FoodState.AvailableInQueue);
             currentIndex = 0;
         }
 
-        /// <summary>
-        /// ARTIK "herhangi bir yere basınca tetiklenmiyor" — tap event'i
-        /// geldiğinde, o an basılan ekran noktasından raycast atıp GERÇEKTEN
-        /// BU objeye (kendi collider'ına) çarpıp çarpmadığını kontrol
-        /// ediyor. Başka bir objeye/boşluğa basıldıysa hiçbir şey olmuyor.
-        /// </summary>
         private void OnTapped(InputAction.CallbackContext context)
         {
-            if (currentState != FoodState.AvailableInQueue)
+            if (currentState != FoodState.AvailableInQueue && currentState != FoodState.InFoodSlot)
                 return;
 
             if (!IsPointerOverThisObject())
@@ -128,6 +138,28 @@ namespace RestaurantLoop
                 return;
             }
 
+            if (currentState == FoodState.AvailableInQueue)
+            {
+                // Queue'dan giriş — slot hiç karışmıyor, direkt konveyöre.
+                MoveToConveyor();
+            }
+            else // InFoodSlot
+            {
+                // Slottan giriş — DİREKT MoveToConveyor ÇAĞIRMIYORUZ.
+                // Önce isteği fırlatıyoruz; slot bunu yakalayıp kendini
+                // boşalttıktan SONRA EnterConveyorFromSlot()'u çağıracak.
+                if (verboseLogging) Debug.Log($"Food [{gameObject.name}]: Slottan çıkış isteniyor.");
+                ReenterConveyorRequested?.Invoke(this);
+            }
+        }
+
+        /// <summary>
+        /// Slot, ReenterConveyorRequested'i yakalayıp KENDİNİ boşalttıktan
+        /// sonra bunu çağırır. Food ancak bu çağrı geldiğinde gerçekten
+        /// hareket etmeye başlar — slot her zaman önce boşalmış olur.
+        /// </summary>
+        public void EnterConveyorFromSlot()
+        {
             MoveToConveyor();
         }
 
@@ -144,8 +176,6 @@ namespace RestaurantLoop
 
             if (Physics.Raycast(ray, out RaycastHit hit, 1000f, raycastMask))
             {
-                // hit.transform kendi objemiz VEYA child'larından biri olabilir —
-                // ikisini de "bu objeye tıklandı" say.
                 return hit.transform == transform || hit.transform.IsChildOf(transform);
             }
 
@@ -161,7 +191,6 @@ namespace RestaurantLoop
             currentIndex = 0;
 
             currentOnConveyorCount++;
-            countedOnConveyor = true;
 
             ChangeState(FoodState.OnConveyor);
 
@@ -179,16 +208,21 @@ namespace RestaurantLoop
             while (true)
             {
                 int nextIndex = currentIndex + 1;
+                bool reachedExitEnd = nextIndex >= waypoints.Count;
 
-                if (nextIndex >= waypoints.Count)
+                if (reachedExitEnd)
                 {
+                    if (TryEnterSlot())
+                        yield break;
+
                     if (!loop)
                     {
-                        if (verboseLogging) Debug.Log($"Food [{gameObject.name}] Exit'e ulaştı.");
-                        ReleaseConveyorSlot();
+                        if (verboseLogging) Debug.Log($"Food [{gameObject.name}] Exit'e ulaştı ama boş slot yok, duruyor.");
+                        currentOnConveyorCount = Mathf.Max(0, currentOnConveyorCount - 1);
                         moveRoutine = null;
                         yield break;
                     }
+
                     nextIndex = 0;
                 }
 
@@ -199,14 +233,26 @@ namespace RestaurantLoop
             }
         }
 
-        private void ReleaseConveyorSlot()
+        private bool TryEnterSlot()
         {
-            if (countedOnConveyor)
-            {
+            if (slotManager == null) return false;
+
+            bool placed = slotManager.TryPlaceFood(this);
+            if (placed)
                 currentOnConveyorCount = Mathf.Max(0, currentOnConveyorCount - 1);
-                countedOnConveyor = false;
+
+            return placed;
+        }
+
+        public void SetInFoodSlot()
+        {
+            if (moveRoutine != null)
+            {
+                StopCoroutine(moveRoutine);
+                moveRoutine = null;
             }
-            ChangeState(FoodState.Served);
+
+            ChangeState(FoodState.InFoodSlot);
         }
 
         private void TryDeliverAtCell(Vector2Int cell)
@@ -282,6 +328,7 @@ namespace RestaurantLoop
         {
             currentState = newState;
             if (verboseLogging) Debug.Log($"Food [{gameObject.name}] State: {currentState}");
+            StateChanged?.Invoke(this, newState);
         }
     }
 }
