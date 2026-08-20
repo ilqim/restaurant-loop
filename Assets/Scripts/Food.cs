@@ -38,8 +38,12 @@ namespace RestaurantLoop
         [Header("State")]
         [SerializeField] private FoodState currentState = FoodState.AvailableInQueue;
 
+        [Header("Debug")]
+        [SerializeField] private bool verboseLogging = true;
+
         private int currentIndex;
         private Coroutine moveRoutine;
+        private int deliveryTryCounter;
 
         public FoodState CurrentState => currentState;
 
@@ -101,6 +105,10 @@ namespace RestaurantLoop
 
             ChangeState(FoodState.OnConveyor);
 
+            // Base hücresi (path[0]) de tekil bir hücre — girer girmez orada
+            // teslimat mümkünse tek seferlik kontrol.
+            TryDeliverAtCell(gridManager.WaypointBlockOrigins[0]);
+
             if (moveRoutine != null) StopCoroutine(moveRoutine);
             moveRoutine = StartCoroutine(MoveOnConveyor());
         }
@@ -108,6 +116,7 @@ namespace RestaurantLoop
         private IEnumerator MoveOnConveyor()
         {
             var waypoints = gridManager.WaypointWorldPositions;
+            var pathCells = gridManager.WaypointBlockOrigins; // artık path'teki HER eleman zaten tekil bir (row,col)
 
             while (true)
             {
@@ -117,7 +126,7 @@ namespace RestaurantLoop
                 {
                     if (!loop)
                     {
-                        Debug.Log($"Food [{gameObject.name}] Exit'e ulaştı.");
+                        if (verboseLogging) Debug.Log($"Food [{gameObject.name}] Exit'e ulaştı.");
                         moveRoutine = null;
                         yield break;
                     }
@@ -127,55 +136,62 @@ namespace RestaurantLoop
                 yield return StartCoroutine(MoveTo(waypoints[nextIndex]));
                 currentIndex = nextIndex;
 
-                TryDeliverAtCurrentWaypoint();
+                // Path artık native 1-hücre çözünürlüğünde — her adımda
+                // TEK bir hücre kontrol ediliyor, aynı anda 2 müşteriye
+                // birden ateş etme ihtimali yapısal olarak ortadan kalktı.
+                TryDeliverAtCell(pathCells[currentIndex]);
             }
         }
 
-        private void TryDeliverAtCurrentWaypoint()
+        private void TryDeliverAtCell(Vector2Int cell)
         {
             if (customerManager == null) return;
-            if (gridManager.WaypointBlockOrigins == null) return;
-            if (currentIndex < 0 || currentIndex >= gridManager.WaypointBlockOrigins.Count) return;
 
-            Vector2Int blockOrigin = gridManager.WaypointBlockOrigins[currentIndex];
-
-            if (!customerManager.TryFindDeliverableCustomer(
-                    foodType, blockOrigin, LevelData.ConveyorBlockSize, out Customer target))
+            deliveryTryCounter++;
+            if (verboseLogging)
             {
+                Debug.Log($"Delivery try {deliveryTryCounter} started");
+                Debug.Log($"Cell: ({cell.x}, {cell.y})");
+            }
+
+            if (!customerManager.TryFindDeliverableCustomer(foodType, cell, 1, out Customer target))
+            {
+                if (verboseLogging) Debug.Log($"Delivery try {deliveryTryCounter} — no match");
                 return;
             }
 
+            if (verboseLogging) Debug.Log($"Found customer {target.name} at ({cell.x},{cell.y})");
+
             target.ReceiveFood();
-            StartCoroutine(DeliverClone(target));
+            StartCoroutine(DeliverClone(target, transform.position));
+
+            if (verboseLogging) Debug.Log($"Delivery try {deliveryTryCounter} finished");
         }
 
-        private IEnumerator DeliverClone(Customer target)
+        private IEnumerator DeliverClone(Customer target, Vector3 launchPosition)
         {
             if (deliveryPrefab == null || ObjectPool.Instance == null) yield break;
 
-            GameObject clone = ObjectPool.Instance.Get(deliveryPrefab, transform.position, transform.rotation);
+            GameObject clone = ObjectPool.Instance.Get(deliveryPrefab, launchPosition, transform.rotation);
             if (clone == null) yield break;
 
-            Vector3 start = transform.position;
+            Vector3 start = launchPosition;
+            Vector3 targetPos = target.transform.position;
             float elapsed = 0f;
 
             while (elapsed < deliveryDuration)
             {
-                if (clone == null || target == null)
-                {
-                    if (clone != null) ObjectPool.Instance.Return(clone);
-                    yield break;
-                }
+                if (clone == null) yield break;
 
                 elapsed += Time.deltaTime;
                 float t = Mathf.Clamp01(elapsed / deliveryDuration);
-                clone.transform.position = Vector3.Lerp(start, target.transform.position, t);
+                clone.transform.position = Vector3.Lerp(start, targetPos, t);
                 yield return null;
             }
 
             if (clone != null)
             {
-                if (target != null) clone.transform.position = target.transform.position;
+                clone.transform.position = targetPos;
                 ObjectPool.Instance.Return(clone);
             }
         }
@@ -199,7 +215,7 @@ namespace RestaurantLoop
         private void ChangeState(FoodState newState)
         {
             currentState = newState;
-            Debug.Log($"Food [{gameObject.name}] State: {currentState}");
+            if (verboseLogging) Debug.Log($"Food [{gameObject.name}] State: {currentState}");
         }
     }
 }

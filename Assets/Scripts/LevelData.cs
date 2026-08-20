@@ -23,11 +23,11 @@ namespace RestaurantLoop
         [SerializeField, HideInInspector] private int lastAppliedRows;
         [SerializeField, HideInInspector] private int lastAppliedColumns;
 
-        [Header("Conveyor — Base (giriş)")]
+        [Header("Conveyor — Base (2x2 blok origin — sol-üst köşe)")]
         public int baseRow = -1;
         public int baseCol = -1;
 
-        [Header("Conveyor — Exit (stack'in rafa/slota geçtiği nokta — loop üzerinde bir işaret)")]
+        [Header("Conveyor — Exit (2x2 blok origin)")]
         public int exitRow = -1;
         public int exitCol = -1;
 

@@ -61,12 +61,12 @@ namespace RestaurantLoop.EditorTools
             EditorGUILayout.LabelField("Fırça", EditorStyles.boldLabel);
 
             EditorGUILayout.BeginHorizontal();
-            DrawToolButton(PaintMode.Conveyor, "Conveyor (2x2)", ConveyorColor);
-            DrawToolButton(PaintMode.Erase, "Erase", Color.white);
+            DrawToolButton(PaintMode.Conveyor, "Conveyor (2x2 boya)", ConveyorColor);
+            DrawToolButton(PaintMode.Erase, "Erase (2x2)", Color.white);
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.BeginHorizontal();
-            DrawToolButton(PaintMode.SetBase, "Set Base (2x2)", BaseColor);
-            DrawToolButton(PaintMode.SetExit, "Set Exit (2x2)", ExitColor);
+            DrawToolButton(PaintMode.SetBase, "Set Base (TEKİL hücre)", BaseColor);
+            DrawToolButton(PaintMode.SetExit, "Set Exit (TEKİL hücre)", ExitColor);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
@@ -81,14 +81,15 @@ namespace RestaurantLoop.EditorTools
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.HelpBox(
-                "Conveyor 2x2'lik bloklar halinde boyanır. Set Base zorunlu — path Base'den başlayıp TÜM " +
-                "conveyor hücrelerini dolaşıp Base'e geri kapanır (en kısa yol değil, tam tur). Set Exit " +
-                "opsiyonel — sadece bu turun neresinde olduğunu işaretler (kırmızı nokta).",
-                MessageType.None);
+                "Conveyor 2x2'lik bloklar halinde boyanır — bu SADECE görsel kalınlık için, hareket path'i " +
+                "bunu kullanmıyor. Set Base/Set Exit artık BLOĞA hizalamıyor — tam tıkladığın hücreyi kullanıyor, " +
+                "bu yüzden Base/Exit'i mutlaka boyanmış şeridin DIŞ kenarındaki bir hücreye koy (iç sıraya koyarsan " +
+                "path o hücreden başlayamaz).",
+                MessageType.Warning);
 
             var path = ConveyorPathBuilder.BuildPath(levelData, out bool pathValid, out string pathReason);
             EditorGUILayout.HelpBox(
-                pathValid ? $"✓ Loop geçerli — {path.Count} hücre, Base'e kapanıyor." : $"⚠ {pathReason}",
+                pathValid ? $"✓ Kontur geçerli — {path.Count} hücre (tekil, dış sınır)." : $"⚠ {pathReason}",
                 pathValid ? MessageType.Info : MessageType.Warning);
 
             EditorGUILayout.Space(10);
@@ -134,8 +135,9 @@ namespace RestaurantLoop.EditorTools
                         CellPixelSize - 1, CellPixelSize - 1);
 
                     CellType type = levelData.GetCell(r, c);
-                    bool isBase = levelData.IsCellInBaseBlock(r, c);
-                    bool isExit = levelData.IsCellInExitBlock(r, c);
+                    // Artık TEKİL hücre eşitliği — blok kontrolü değil.
+                    bool isBase = levelData.baseRow == r && levelData.baseCol == c;
+                    bool isExit = levelData.exitRow == r && levelData.exitCol == c;
 
                     Color color = type switch
                     {
@@ -149,9 +151,9 @@ namespace RestaurantLoop.EditorTools
 
                     EditorGUI.DrawRect(cellRect, color);
 
-                    if (isBase && r == levelData.baseRow && c == levelData.baseCol)
+                    if (isBase)
                         EditorGUI.LabelField(cellRect, "B", new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter });
-                    if (isExit && r == levelData.exitRow && c == levelData.exitCol)
+                    if (isExit)
                         EditorGUI.LabelField(cellRect, "E", new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter });
                 }
             }
@@ -227,22 +229,27 @@ namespace RestaurantLoop.EditorTools
                     break;
 
                 case PaintMode.SetBase:
+                    // BLOĞA hizalama KALDIRILDI — tam tıkladığın hücre kullanılıyor.
                     if (levelData.GetCell(row, col) == CellType.Conveyor)
                     {
-                        int originRow = (row / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
-                        int originCol = (col / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
-                        levelData.baseRow = originRow;
-                        levelData.baseCol = originCol;
+                        levelData.baseRow = row;
+                        levelData.baseCol = col;
+                    }
+                    else
+                    {
+                        Debug.LogWarning("Set Base: seçilen hücre Conveyor değil.");
                     }
                     break;
 
                 case PaintMode.SetExit:
                     if (levelData.GetCell(row, col) == CellType.Conveyor)
                     {
-                        int originRow = (row / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
-                        int originCol = (col / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
-                        levelData.exitRow = originRow;
-                        levelData.exitCol = originCol;
+                        levelData.exitRow = row;
+                        levelData.exitCol = col;
+                    }
+                    else
+                    {
+                        Debug.LogWarning("Set Exit: seçilen hücre Conveyor değil.");
                     }
                     break;
 
@@ -283,9 +290,9 @@ namespace RestaurantLoop.EditorTools
                         int rr = originRow + dr, cc = originCol + dc;
                         if (rr >= levelData.rows || cc >= levelData.columns) continue;
                         levelData.SetCell(rr, cc, CellType.Empty);
-                        if (levelData.baseRow == originRow && levelData.baseCol == originCol)
+                        if (levelData.baseRow == rr && levelData.baseCol == cc)
                         { levelData.baseRow = -1; levelData.baseCol = -1; }
-                        if (levelData.exitRow == originRow && levelData.exitCol == originCol)
+                        if (levelData.exitRow == rr && levelData.exitCol == cc)
                         { levelData.exitRow = -1; levelData.exitCol = -1; }
                     }
                 }

@@ -25,7 +25,7 @@ namespace RestaurantLoop
         [Tooltip("Boş bırakılırsa Start'ta otomatik aranır (sadece bir kez).")]
         [SerializeField] private CustomerManager customerManager;
 
-        [Header("Conveyor Görseli")]
+        [Header("Conveyor Görseli (her Conveyor hücresine 1x1 basılır — 2x2 boyama zaten görsel genişlik veriyor, ekstra ölçekleme YOK)")]
         [SerializeField] private GameObject conveyorCellPrefab;
 
         [Header("Customer Prefabs — her yemek tipi için ayrı prefab sürükle")]
@@ -58,8 +58,22 @@ namespace RestaurantLoop
         public LevelData LevelDataRef => levelData;
         public Grid UnityGridRef => unityGrid;
 
+        /// <summary>
+        /// Servis/hareket için GÖRSEL hedef noktalar. Normal path
+        /// hücrelerinde tam hücre merkezi; index 0 (Base) ve
+        /// ExitWaypointIndex'te (varsa) 2x2 BLOK merkezi kullanılır —
+        /// token buradan doğar/burada kaybolur.
+        /// </summary>
         public List<Vector3> WaypointWorldPositions { get; private set; } = new();
+
+        /// <summary>
+        /// Servis/hedefleme MANTIĞI için — HER ZAMAN gerçek, tekil
+        /// (row,col). WaypointWorldPositions'taki blok-merkezi
+        /// override'ından etkilenmez; TryFindDeliverableCustomer bu
+        /// listeyi kullanır.
+        /// </summary>
         public List<Vector2Int> WaypointBlockOrigins { get; private set; } = new();
+
         public int ExitWaypointIndex { get; private set; } = -1;
 
         private readonly Dictionary<Vector2Int, GameObject> spawnedCustomers = new();
@@ -125,11 +139,6 @@ namespace RestaurantLoop
             }
         }
 
-        /// <summary>
-        /// Artık her zaman ObjectPool.Instance (lazy-static) kullanıyor —
-        /// GridManager'ın kendi Object Pool referansını elle bağlamana
-        /// gerek kalmadı, o alan tamamen kaldırıldı.
-        /// </summary>
         private GameObject SpawnFromPool(GameObject prefab, Vector3 pos, Quaternion rot, string name)
         {
             GameObject instance = ObjectPool.Instance != null
@@ -139,10 +148,10 @@ namespace RestaurantLoop
             return instance;
         }
 
-        private Vector3 GetBlockCenterWorld(Vector2Int origin)
+        private Vector3 GetBlockCenterWorld(int originRow, int originCol)
         {
-            Vector3 a = Grid.GetCellCenterWorld(origin.x, origin.y);
-            Vector3 b = Grid.GetCellCenterWorld(origin.x + 1, origin.y + 1);
+            Vector3 a = Grid.GetCellCenterWorld(originRow, originCol);
+            Vector3 b = Grid.GetCellCenterWorld(originRow + 1, originCol + 1);
             return (a + b) * 0.5f;
         }
 
@@ -159,13 +168,24 @@ namespace RestaurantLoop
                 return;
             }
 
-            foreach (var blockOrigin in path)
-            {
-                WaypointWorldPositions.Add(GetBlockCenterWorld(blockOrigin));
-                WaypointBlockOrigins.Add(blockOrigin);
-            }
+            int exitIdx = ConveyorPathBuilder.FindExitIndex(data, path);
+            ExitWaypointIndex = exitIdx;
 
-            ExitWaypointIndex = ConveyorPathBuilder.FindExitIndex(data, path);
+            for (int i = 0; i < path.Count; i++)
+            {
+                var cell = path[i];
+                WaypointBlockOrigins.Add(cell); // her zaman GERÇEK hücre — servis mantığı için
+
+                Vector3 worldPos;
+                if (i == 0)
+                    worldPos = GetBlockCenterWorld(data.baseRow, data.baseCol); // Base bloğunun TAM ortası
+                else if (i == exitIdx)
+                    worldPos = GetBlockCenterWorld(data.exitRow, data.exitCol); // Exit bloğunun TAM ortası
+                else
+                    worldPos = Grid.GetCellCenterWorld(cell.x, cell.y); // normal hücrelerde tam hücre merkezi
+
+                WaypointWorldPositions.Add(worldPos);
+            }
         }
 
         private GameObject GetCustomerPrefab(FoodType food)
@@ -242,32 +262,43 @@ namespace RestaurantLoop
                     var style = new GUIStyle { normal = { textColor = Color.white }, fontSize = 11, fontStyle = FontStyle.Bold };
                     float yOffset = Mathf.Max(g.cellSize.x, g.cellSize.z) * 0.4f;
 
-                    Vector3 GetWorld(Vector2Int origin)
+                    Vector3 GetDisplayWorld(int index)
                     {
-                        Vector3 a = gizmoGrid.GetCellCenterWorld(origin.x, origin.y);
-                        Vector3 b = gizmoGrid.GetCellCenterWorld(origin.x + 1, origin.y + 1);
-                        return (a + b) * 0.5f;
+                        var cell = path[index];
+                        if (index == 0)
+                        {
+                            Vector3 a = gizmoGrid.GetCellCenterWorld(levelData.baseRow, levelData.baseCol);
+                            Vector3 b = gizmoGrid.GetCellCenterWorld(levelData.baseRow + 1, levelData.baseCol + 1);
+                            return (a + b) * 0.5f;
+                        }
+                        if (index == exitIdx)
+                        {
+                            Vector3 a = gizmoGrid.GetCellCenterWorld(levelData.exitRow, levelData.exitCol);
+                            Vector3 b = gizmoGrid.GetCellCenterWorld(levelData.exitRow + 1, levelData.exitCol + 1);
+                            return (a + b) * 0.5f;
+                        }
+                        return gizmoGrid.GetCellCenterWorld(cell.x, cell.y);
                     }
 
                     for (int i = 0; i < path.Count; i++)
                     {
-                        Vector3 pos = GetWorld(path[i]) + Vector3.up * yOffset;
+                        Vector3 pos = GetDisplayWorld(i) + Vector3.up * yOffset;
 
-                        Gizmos.color = (i == exitIdx) ? Color.red : Color.magenta;
+                        Gizmos.color = (i == exitIdx) ? Color.red : (i == 0 ? Color.yellow : Color.magenta);
                         Gizmos.DrawSphere(pos, waypointRadius);
                         Handles.Label(pos + Vector3.up * (waypointRadius * 1.5f), i.ToString(), style);
 
                         if (i > 0)
                         {
-                            Vector3 prev = GetWorld(path[i - 1]) + Vector3.up * yOffset;
+                            Vector3 prev = GetDisplayWorld(i - 1) + Vector3.up * yOffset;
                             Handles.color = Color.magenta;
                             Handles.DrawAAPolyLine(6f, prev, pos);
                         }
                     }
                     if (path.Count > 1)
                     {
-                        Vector3 last = GetWorld(path[^1]) + Vector3.up * yOffset;
-                        Vector3 first = GetWorld(path[0]) + Vector3.up * yOffset;
+                        Vector3 last = GetDisplayWorld(path.Count - 1) + Vector3.up * yOffset;
+                        Vector3 first = GetDisplayWorld(0) + Vector3.up * yOffset;
                         Handles.color = new Color(1f, 0f, 1f, 0.4f);
                         Handles.DrawDottedLine(last, first, 4f);
                     }
