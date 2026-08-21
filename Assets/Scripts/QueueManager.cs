@@ -2,7 +2,6 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
-using UnityEngine.InputSystem;
 
 namespace RestaurantLoop
 {
@@ -21,6 +20,7 @@ namespace RestaurantLoop
         [SerializeField] private GridManager gridManager;
 
         [Header("Food Prefabs — her yemek tipi için conveyor'a giren gerçek Food prefabı")]
+        [Tooltip("ÖNEMLİ: Bu prefabların artık Collider'a ihtiyacı YOK. Tıklanabilir alan QueueSlot prefabında.")]
         [SerializeField]
         private List<FoodTypePrefab> foodPrefabs = new()
         {
@@ -31,6 +31,10 @@ namespace RestaurantLoop
             new FoodTypePrefab { food = FoodType.Steak },
             new FoodTypePrefab { food = FoodType.Dessert },
         };
+
+        [Header("Queue Slot Prefab — collider'ı taşıyan, tıklanabilir hücre")]
+        [Tooltip("QueueSlot component'i taşıyan prefab. Her görünür hücre için food ile BİRLİKTE bu da spawn edilir.")]
+        [SerializeField] private GameObject queueSlotPrefab;
 
         [Header("Yerleşim — sabit Transform listesi YOK, matematikle hesaplanıyor")]
         [Tooltip("Queue'nun sahnedeki başlangıç noktası — grid'in merkezinin hizalandığı yer.")]
@@ -49,30 +53,11 @@ namespace RestaurantLoop
         [Range(0f, 1f)]
         [SerializeField] private float lockedAlpha = 0.35f;
 
-        [Header("Input — TEK global tap dinleyicisi (Food objeleri artık kendi InputAction'ını dinlemiyor)")]
-        [Tooltip("Bir tap geldiğinde SADECE BURADAN bir kez raycast atılır, hangi Food'a çarptıysa sadece o işlenir.")]
-        [SerializeField] private InputAction tapAction;
-        [Tooltip("Raycast için kullanılacak kamera. Boşsa Camera.main kullanılır.")]
-        [SerializeField] private Camera raycastCamera;
-        [Tooltip("Raycast'in hangi layer'ları görmezden geleceği (opsiyonel).")]
-        [SerializeField] private LayerMask raycastMask = ~0;
-
         private readonly Dictionary<int, List<QueueEntry>> columnData = new();
         private readonly Dictionary<int, List<GameObject>> columnVisuals = new();
+        private readonly Dictionary<int, List<GameObject>> columnSlotVisuals = new();
         private readonly Dictionary<Food, int> availableFoodColumn = new();
         private Coroutine pendingRebuild;
-
-        private void OnEnable()
-        {
-            tapAction.Enable();
-            tapAction.performed += OnTapped;
-        }
-
-        private void OnDisable()
-        {
-            tapAction.performed -= OnTapped;
-            tapAction.Disable();
-        }
 
         private void Start()
         {
@@ -94,28 +79,15 @@ namespace RestaurantLoop
                 return;
             }
 
-            if (raycastCamera == null) raycastCamera = Camera.main;
+            if (queueSlotPrefab == null)
+            {
+                Debug.LogError("QueueManager: Queue Slot Prefab atanmamış.");
+                enabled = false;
+                return;
+            }
 
             BuildColumnData();
             RebuildAllVisibleRows();
-        }
-
-        private void OnTapped(InputAction.CallbackContext context)
-        {
-            if (raycastCamera == null) raycastCamera = Camera.main;
-            if (raycastCamera == null) return;
-
-            Vector2 screenPos = Pointer.current != null
-                ? Pointer.current.position.ReadValue()
-                : (Vector2)Mouse.current.position.ReadValue();
-
-            Ray ray = raycastCamera.ScreenPointToRay(screenPos);
-            if (!Physics.Raycast(ray, out RaycastHit hit, 1000f, raycastMask)) return;
-
-            var food = hit.transform.GetComponentInParent<Food>();
-            if (food == null) return;
-
-            food.ActivateFromTap();
         }
 
         private void BuildColumnData()
@@ -141,6 +113,9 @@ namespace RestaurantLoop
         /// asla kaymaz / çapraz durmaz — gerçek bir sabit grid gibi
         /// davranır (örn. 1,2,3 / 4,5,6 düzeninde "1" gidince "4" tam
         /// "1"in eski yerine gelir, "2" ve "3" hiç kıpırdamaz).
+        ///
+        /// Her hücrede food'un YANINDA bir QueueSlot da spawn edilir —
+        /// tıklanabilir collider food'ta değil, bu QueueSlot'ta duruyor.
         /// </summary>
         private void RebuildAllVisibleRows()
         {
@@ -158,15 +133,16 @@ namespace RestaurantLoop
                     float xOffset = (col - (levelData.queueColumns - 1) / 2f) * cellSpacingX;
                     float zOffset = -visualRow * cellSpacingZ;
 
-                    Vector3 pos = originPoint.position + originPoint.right * xOffset + originPoint.forward * zOffset;
-                    pos.y += foodYOffset;
+                    Vector3 basePos = originPoint.position + originPoint.right * xOffset + originPoint.forward * zOffset;
+                    Vector3 foodPos = basePos;
+                    foodPos.y += foodYOffset;
 
-                    SpawnAt(col, visualRow, entry, pos);
+                    SpawnAt(col, visualRow, entry, basePos, foodPos);
                 }
             }
         }
 
-        private void SpawnAt(int col, int visualRow, QueueEntry entry, Vector3 worldPos)
+        private void SpawnAt(int col, int visualRow, QueueEntry entry, Vector3 slotPos, Vector3 foodPos)
         {
             GameObject prefab = GetPrefab(entry.food);
             if (prefab == null)
@@ -175,16 +151,16 @@ namespace RestaurantLoop
                 return;
             }
 
-            var go = Instantiate(prefab, worldPos, prefab.transform.rotation);
+            var foodGo = Instantiate(prefab, foodPos, prefab.transform.rotation);
 
             if (!columnVisuals.TryGetValue(col, out var visuals))
             {
                 visuals = new List<GameObject>();
                 columnVisuals[col] = visuals;
             }
-            visuals.Add(go);
+            visuals.Add(foodGo);
 
-            var food = go.GetComponent<Food>();
+            var food = foodGo.GetComponent<Food>();
             if (food == null)
             {
                 Debug.LogWarning($"'{prefab.name}' prefabında Food component'i yok.");
@@ -196,6 +172,26 @@ namespace RestaurantLoop
             // her hücre için ayrı seçilebiliyor).
             food.PresetCapacity(entry.capacity);
 
+            // Tıklanabilir hücre — food'un pozisyonuyla AYNI kaynaktan
+            // (slotPos) türetiliyor, iki ayrı yerde offset tanımlanmıyor.
+            var slotGo = Instantiate(queueSlotPrefab, slotPos, Quaternion.identity);
+            if (!columnSlotVisuals.TryGetValue(col, out var slotVisuals))
+            {
+                slotVisuals = new List<GameObject>();
+                columnSlotVisuals[col] = slotVisuals;
+            }
+            slotVisuals.Add(slotGo);
+
+            var queueSlot = slotGo.GetComponent<QueueSlot>();
+            if (queueSlot == null)
+            {
+                Debug.LogWarning($"'{queueSlotPrefab.name}' prefabında QueueSlot component'i yok.");
+            }
+            else
+            {
+                queueSlot.AssignFood(food);
+            }
+
             if (visualRow == 0)
             {
                 food.PresetQueueState(FoodState.AvailableInQueue);
@@ -205,7 +201,7 @@ namespace RestaurantLoop
             else
             {
                 food.PresetQueueState(FoodState.LockedInQueue);
-                ApplyLockedVisual(go);
+                ApplyLockedVisual(foodGo);
             }
         }
 
@@ -238,6 +234,20 @@ namespace RestaurantLoop
             }
             columnVisuals.Clear();
             availableFoodColumn.Clear();
+
+            // QueueSlot'lar hiçbir gameplay state'i taşımıyor, sadece
+            // "hangi food burada" bilgisini tutuyor — food konveyöre
+            // geçse bile queue hücresi olarak burası artık geçersiz,
+            // o yüzden istisnasız hepsi yok edilip yeniden kuruluyor.
+            foreach (var slotVisuals in columnSlotVisuals.Values)
+            {
+                foreach (var slotGo in slotVisuals)
+                {
+                    if (slotGo == null) continue;
+                    Destroy(slotGo);
+                }
+            }
+            columnSlotVisuals.Clear();
         }
 
         private void OnAvailableFoodStateChanged(Food food, FoodState newState)

@@ -24,6 +24,7 @@ namespace RestaurantLoop
     public class CustomerManager : MonoBehaviour
     {
         private readonly Dictionary<Vector2Int, Customer> customersByCell = new();
+        public int RemainingCustomerCount => customersByCell.Count;
 
         public void RegisterCustomer(Customer customer)
         {
