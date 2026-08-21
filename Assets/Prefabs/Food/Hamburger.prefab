@@ -126,9 +126,28 @@ MonoBehaviour:
   slotManager: {fileID: 0}
   foodType: 0
   deliveryPrefab: {fileID: 637324645510347922, guid: 95a5ad973ae3c344daa0e879cd39d13c, type: 3}
+  capacity: 10
+  showCapacityLabel: 1
+  labelHeight: 0.6
+  labelFontSize: 48
+  labelCharacterSize: 0.12
+  labelColor: {r: 1, g: 1, b: 1, a: 1}
   stepDuration: 0.15
   deliveryDuration: 0.15
   loop: 0
   maxOnConveyor: 5
+  tapAction:
+    m_Name: Tap
+    m_Type: 0
+    m_ExpectedControlType: 
+    m_Id: f3722512-0b77-4937-8c68-4422d98955ee
+    m_Processors: 
+    m_Interactions: 
+    m_SingletonActionBindings: []
+    m_Flags: 0
+  raycastCamera: {fileID: 0}
+  raycastMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
   currentState: 1
   verboseLogging: 1

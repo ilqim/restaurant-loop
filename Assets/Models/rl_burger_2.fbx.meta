@@ -1,9 +1,34 @@
 fileFormatVersion: 2
-guid: 4b7d2cc92a6fbdf4c97d341badbcbf2e
+guid: efb39fd7edadc13438cccee1d9add418
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: Material
+    second: {fileID: 2100000, guid: 4aa57b26b64ec4f428f48884ff19154a, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: beef
+    second: {fileID: 2100000, guid: c434e2f6c1da48a4dbc5a451074ff695, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: bun
+    second: {fileID: 2100000, guid: 57e017b35edac804789c83a923085011, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: cheese
+    second: {fileID: 2100000, guid: b2b0e7d902f03f64d91e6d4ebe522acd, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: lettuce
+    second: {fileID: 2100000, guid: aeb62c8b3e134fa408612df469fd91cd, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0
