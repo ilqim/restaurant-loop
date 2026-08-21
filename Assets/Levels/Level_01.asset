@@ -118,42 +118,6 @@ MonoBehaviour:
   - row: 8
     col: 7
     food: 0
-  - row: 13
-    col: 4
-    food: 0
-  - row: 8
-    col: 11
-    food: 0
-  - row: 4
-    col: 2
-    food: 0
-  - row: 7
-    col: 2
-    food: 0
-  - row: 3
-    col: 11
-    food: 0
-  - row: 2
-    col: 6
-    food: 0
-  - row: 2
-    col: 9
-    food: 0
-  - row: 2
-    col: 3
-    food: 0
-  - row: 11
-    col: 2
-    food: 0
-  - row: 10
-    col: 2
-    food: 0
-  - row: 13
-    col: 9
-    food: 0
-  - row: 10
-    col: 11
-    food: 0
   - row: 3
     col: 5
     food: 1
@@ -169,17 +133,11 @@ MonoBehaviour:
   - row: 11
     col: 4
     food: 1
-  - row: 13
-    col: 2
-    food: 1
   - row: 5
     col: 6
     food: 1
   - row: 3
     col: 8
-    food: 1
-  - row: 5
-    col: 2
     food: 1
   - row: 6
     col: 10
@@ -187,17 +145,11 @@ MonoBehaviour:
   - row: 4
     col: 7
     food: 1
-  - row: 2
-    col: 4
-    food: 1
   - row: 9
     col: 10
     food: 1
   - row: 7
     col: 5
-    food: 1
-  - row: 13
-    col: 11
     food: 1
   - row: 10
     col: 4
@@ -205,29 +157,65 @@ MonoBehaviour:
   - row: 6
     col: 8
     food: 1
+  - row: 2
+    col: 3
+    food: 0
+  - row: 2
+    col: 6
+    food: 0
+  - row: 2
+    col: 9
+    food: 0
+  - row: 2
+    col: 4
+    food: 1
+  - row: 5
+    col: 2
+    food: 1
   - row: 4
+    col: 2
+    food: 0
+  - row: 7
+    col: 2
+    food: 0
+  - row: 10
+    col: 2
+    food: 0
+  - row: 11
+    col: 2
+    food: 0
+  - row: 8
+    col: 2
+    food: 1
+  - row: 13
+    col: 2
+    food: 1
+  - row: 13
+    col: 4
+    food: 0
+  - row: 13
+    col: 9
+    food: 0
+  - row: 13
     col: 11
     food: 1
   - row: 6
     col: 11
     food: 1
-  - row: 8
-    col: 2
+  - row: 4
+    col: 11
     food: 1
+  - row: 3
+    col: 11
+    food: 0
+  - row: 8
+    col: 11
+    food: 0
+  - row: 10
+    col: 11
+    food: 0
   queueColumns: 3
   queue:
-  - row: 0
-    col: 0
-    food: 0
-    capacity: 10
-  - row: 0
-    col: 2
-    food: 0
-    capacity: 10
-  - row: 1
-    col: 0
-    food: 0
-    capacity: 10
   - row: 1
     col: 2
     food: 0
@@ -235,10 +223,22 @@ MonoBehaviour:
   - row: 2
     col: 2
     food: 1
+    capacity: 10
+  - row: 0
+    col: 2
+    food: 0
     capacity: 10
   - row: 0
     col: 1
     food: 1
+    capacity: 10
+  - row: 0
+    col: 0
+    food: 0
+    capacity: 10
+  - row: 1
+    col: 0
+    food: 0
     capacity: 10
   - row: 1
     col: 1

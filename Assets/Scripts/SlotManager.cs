@@ -21,15 +21,26 @@ namespace RestaurantLoop
                 if (slot == null)
                     continue;
 
-                // Dolu slotları geç.
+                // Doluysa geç.
                 if (!slot.IsEmpty)
                     continue;
 
                 // İlk boş slota yerleştir.
-                return slot.TryPlaceFood(food);
+                bool placed = slot.TryPlaceFood(food);
+
+                if (placed)
+                    return true;
             }
 
-            // Hiç boş slot yok.
+            // Buraya geldiysek hiçbir slot boş değil.
+            Debug.Log("SlotManager: TÜM SLOT'LAR DOLU!");
+
+            // GameManager'a FAIL bildir.
+            if (GameManager.Instance != null)
+            {
+                GameManager.Instance.FailLevel();
+            }
+
             return false;
         }
     }

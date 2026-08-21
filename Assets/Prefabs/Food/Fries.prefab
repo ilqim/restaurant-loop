@@ -74,9 +74,6 @@ PrefabInstance:
     m_AddedComponents:
     - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 2eaca85ed8fdab04ab76fb3c7dcacda1, type: 3}
       insertIndex: -1
-      addedObject: {fileID: 6093093690235972884}
-    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 2eaca85ed8fdab04ab76fb3c7dcacda1, type: 3}
-      insertIndex: -1
       addedObject: {fileID: 6186990247684464904}
   m_SourcePrefab: {fileID: 100100000, guid: 2eaca85ed8fdab04ab76fb3c7dcacda1, type: 3}
 --- !u!1 &5260628140295068741 stripped
@@ -84,27 +81,6 @@ GameObject:
   m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 2eaca85ed8fdab04ab76fb3c7dcacda1, type: 3}
   m_PrefabInstance: {fileID: 5026273069870293268}
   m_PrefabAsset: {fileID: 0}
---- !u!65 &6093093690235972884
-BoxCollider:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5260628140295068741}
-  m_Material: {fileID: 0}
-  m_IncludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_ExcludeLayers:
-    serializedVersion: 2
-    m_Bits: 0
-  m_LayerOverridePriority: 0
-  m_IsTrigger: 0
-  m_ProvidesContacts: 0
-  m_Enabled: 1
-  serializedVersion: 3
-  m_Size: {x: 1.4782257, y: 1.7559074, z: 0.7840252}
-  m_Center: {x: 0, y: 0.8793209, z: 0.046279907}
 --- !u!114 &6186990247684464904
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -122,6 +98,12 @@ MonoBehaviour:
   slotManager: {fileID: 0}
   foodType: 1
   deliveryPrefab: {fileID: 5260628140295068741, guid: d8efbd58bece2954f8a4cd157584e0d6, type: 3}
+  capacity: 10
+  showCapacityLabel: 1
+  labelHeight: 0.6
+  labelFontSize: 48
+  labelCharacterSize: 0.12
+  labelColor: {r: 1, g: 1, b: 1, a: 1}
   stepDuration: 0.4
   deliveryDuration: 0.3
   loop: 0

@@ -8,7 +8,13 @@ namespace RestaurantLoop
         Occupied
     }
 
-    public class Slot : MonoBehaviour
+    /// <summary>
+    /// Food-slot (konveyör sonu). Tıklanabilir collider'ı DA burada taşıyor
+    /// — ayrı bir "SlotClickTarget" component'ine gerek yok, Slot kendisi
+    /// IQueueClickable implement ediyor. Food'un kendisinde collider yok.
+    /// </summary>
+    [RequireComponent(typeof(Collider))]
+    public class Slot : MonoBehaviour, IQueueClickable
     {
         [Header("State")]
         [SerializeField] private SlotState currentState = SlotState.Empty;
@@ -70,6 +76,16 @@ namespace RestaurantLoop
 
             currentFood = null;
             currentState = SlotState.Empty;
+        }
+
+        /// <summary>
+        /// Eski SlotClickTarget'ın yaptığı iş — artık ayrı bir component
+        /// değil, doğrudan Slot'un kendisi. IQueueClickable.HandleClick.
+        /// </summary>
+        public void HandleClick()
+        {
+            if (IsEmpty) return;
+            CurrentFood?.ActivateFromTap();
         }
     }
 }
