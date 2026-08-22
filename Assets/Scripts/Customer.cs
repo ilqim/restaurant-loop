@@ -21,6 +21,10 @@ namespace RestaurantLoop
         [Range(0f, 1f)]
         [SerializeField] private float blockedAlpha = 0.35f;
 
+        [Header("Customer Order Bubble")]
+        [Tooltip("Prefab içindeki adı 'Bubble' olan child obje otomatik bulunur. Inspector'dan atamana gerek yok.")]
+        [SerializeField] private Transform orderBubble;
+
         [Header("Debug")]
         [SerializeField] private CustomerState currentState = CustomerState.Blocked;
 
@@ -46,6 +50,60 @@ namespace RestaurantLoop
         // Başka bir Food şu anda bu müşteriye gidiyor mu?
         public bool IsReceivingFood => incomingFood != null;
 
+
+        // ============================================================
+        // AWAKE
+        // ============================================================
+
+        private void Awake()
+        {
+            // Renderer'ları otomatik bul.
+            if (renderersToFade == null || renderersToFade.Length == 0)
+                renderersToFade = GetComponentsInChildren<Renderer>(true);
+
+            // Prefab içindeki "Bubble" child'ını otomatik bul.
+            FindOrderBubble();
+
+            // MaterialPropertyBlock hazırla.
+            mpb = new MaterialPropertyBlock();
+
+            // Bubble'ı instantiate edilir edilmez kameraya hizala.
+            AlignOrderBubbleToCamera();
+        }
+
+
+        // ============================================================
+        // BUBBLE BULMA
+        // ============================================================
+
+        private void FindOrderBubble()
+        {
+            // Zaten atanmışsa tekrar arama.
+            if (orderBubble != null)
+                return;
+
+            Transform[] children =
+                GetComponentsInChildren<Transform>(true);
+
+            foreach (Transform child in children)
+            {
+                if (child.name == "Bubble")
+                {
+                    orderBubble = child;
+                    return;
+                }
+            }
+
+            Debug.LogWarning(
+                $"Customer [{name}]: Child objeler arasında 'Bubble' isimli obje bulunamadı."
+            );
+        }
+
+
+        // ============================================================
+        // INIT
+        // ============================================================
+
         public void Init(
             int row,
             int col,
@@ -61,13 +119,23 @@ namespace RestaurantLoop
 
             incomingFood = null;
 
-            if (renderersToFade == null || renderersToFade.Length == 0)
-                renderersToFade = GetComponentsInChildren<Renderer>();
+            // Pool'dan tekrar kullanılıyorsa Bubble referansını
+            // garantiye al.
+            FindOrderBubble();
 
-            mpb = new MaterialPropertyBlock();
+            if (renderersToFade == null || renderersToFade.Length == 0)
+                renderersToFade =
+                    GetComponentsInChildren<Renderer>(true);
+
+            if (mpb == null)
+                mpb = new MaterialPropertyBlock();
 
             CacheOriginalColors();
             ApplyVisual();
+
+            // Init sırasında da tekrar hizala.
+            // Böylece pool'dan geri geldiğinde de doğru olur.
+            AlignOrderBubbleToCamera();
 
             initialized = true;
 
@@ -83,6 +151,40 @@ namespace RestaurantLoop
             }
         }
 
+
+        // ============================================================
+        // BUBBLE KAMERAYA HİZALAMA
+        // ============================================================
+
+        private void AlignOrderBubbleToCamera()
+        {
+            if (orderBubble == null)
+                return;
+
+            Camera cam = Camera.main;
+
+            if (cam == null)
+                return;
+
+            /*
+             * Bubble'ın yüzeyini kameranın görüş düzlemine paralel yapıyoruz.
+             *
+             * Kamera sabit olduğu için her frame billboard yapmıyoruz.
+             * Sadece oluşturulurken / pool'dan geri alınırken bir kez
+             * hizalanıyor.
+             */
+            orderBubble.rotation =
+                Quaternion.LookRotation(
+                    cam.transform.forward,
+                    cam.transform.up
+                );
+        }
+
+
+        // ============================================================
+        // FOOD RESERVATION
+        // ============================================================
+
         /// <summary>
         /// Bir Food bu müşteriye gönderilmeden önce müşteriyi rezerve eder.
         /// Aynı müşteriye ikinci bir Food gönderilmesini engeller.
@@ -96,20 +198,24 @@ namespace RestaurantLoop
             if (incomingFood != null)
                 return false;
 
-            // Diğer mevcut müşteri koşulları yine geçerli.
+            // Müşteri Blocked olmamalı.
             if (currentState == CustomerState.Blocked)
                 return false;
 
+            // Müşteri Idle olmalı.
             if (currentState != CustomerState.Idle)
                 return false;
 
+            // İstenen yemek ile gönderilen yemek eşleşmeli.
             if (DesiredFood != food.FoodTypeValue)
                 return false;
 
+            // Müşteriyi bu Food için kilitle.
             incomingFood = food;
 
             return true;
         }
+
 
         /// <summary>
         /// Food müşteriye ulaştığında rezervasyonu kaldırır.
@@ -120,14 +226,26 @@ namespace RestaurantLoop
                 incomingFood = null;
         }
 
+
+        // ============================================================
+        // FOOD RECEIVED
+        // ============================================================
+
         public void ReceiveFood()
         {
             SetState(CustomerState.Eating);
+
             SetState(CustomerState.HappyJump);
+
             SetState(CustomerState.Leaving);
 
             Despawn();
         }
+
+
+        // ============================================================
+        // STATE
+        // ============================================================
 
         public void SetState(CustomerState newState)
         {
@@ -138,6 +256,11 @@ namespace RestaurantLoop
 
             ApplyVisual();
         }
+
+
+        // ============================================================
+        // DESPAWN
+        // ============================================================
 
         private void Despawn()
         {
@@ -150,14 +273,24 @@ namespace RestaurantLoop
             }
 
             if (ObjectPool.Instance != null)
+            {
                 ObjectPool.Instance.Return(gameObject);
+            }
             else
+            {
                 gameObject.SetActive(false);
+            }
         }
+
+
+        // ============================================================
+        // VISUAL
+        // ============================================================
 
         private void ApplyVisual()
         {
-            if (renderersToFade == null || originalColors == null)
+            if (renderersToFade == null ||
+                originalColors == null)
                 return;
 
             float alpha =
@@ -183,11 +316,19 @@ namespace RestaurantLoop
             }
         }
 
+
+        // ============================================================
+        // ORIGINAL COLORS
+        // ============================================================
+
         private void CacheOriginalColors()
         {
-            originalColors = new Color[renderersToFade.Length];
+            originalColors =
+                new Color[renderersToFade.Length];
 
-            for (int i = 0; i < renderersToFade.Length; i++)
+            for (int i = 0;
+                i < renderersToFade.Length;
+                i++)
             {
                 var mat =
                     renderersToFade[i] != null
@@ -195,16 +336,25 @@ namespace RestaurantLoop
                         : null;
 
                 originalColors[i] =
-                    mat != null && mat.HasProperty(BaseColorId)
+                    mat != null &&
+                    mat.HasProperty(BaseColorId)
                         ? mat.GetColor(BaseColorId)
                         : Color.white;
             }
         }
 
+
+        // ============================================================
+        // DESTROY
+        // ============================================================
+
         private void OnDestroy()
         {
-            if (initialized && customerManager != null)
+            if (initialized &&
+                customerManager != null)
+            {
                 customerManager.UnregisterCustomer(this);
+            }
         }
     }
 }
