@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace RestaurantLoop
 {
@@ -27,11 +28,18 @@ namespace RestaurantLoop
         public bool removeFromTopFirst;
 
         [Header("Hız")]
-        [Tooltip("Tray'in waypointler arası geçiş süresi.")]
-        public float stepDuration;
+        [Tooltip("Tray'in conveyor üzerindeki SABİT hızı (dünya birimi/saniye) — SÜRE değil. " +
+                 "Köşeler yuvarlatıldığında waypoint'ler arası mesafe artık eşit olmadığı için " +
+                 "(köşedeki kısa yay adımları, düz kısımdaki uzun adımlar) süre-bazlı hareket " +
+                 "köşelerde yavaşlama/hızlanma gibi görünürdü. Hız sabit, süre = mesafe / hız.")]
+        [FormerlySerializedAs("stepDuration")]
+        public float conveyorSpeed;
 
-        [Tooltip("Müşteriye fırlatılan parçanın uçuş süresi.")]
-        public float deliveryDuration;
+        [Tooltip("Müşteriye fırlatılan parçanın SABİT hızı (dünya birimi/saniye) — SÜRE değil. " +
+                 "Böylece yakın müşteriye giden parça da uzak müşteriye giden parça da AYNI HIZDA gider; " +
+                 "sadece varış süresi mesafeye göre değişir (mesafe/hız). Eskiden bu 'deliveryDuration' " +
+                 "(sabit SÜRE) idi — o zaman yakın müşteriye giden parça yavaş, uzağa giden hızlı görünüyordu.")]
+        public float deliverySpeed;
     }
 
     public class TrayManager : MonoBehaviour
@@ -232,9 +240,9 @@ namespace RestaurantLoop
 
                 removeFromTopFirst = false,
 
-                stepDuration = 0.3f,
+                conveyorSpeed = 3f,
 
-                deliveryDuration = 0.25f
+                deliverySpeed = 4f
             };
         }
 
