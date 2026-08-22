@@ -5,20 +5,16 @@ namespace RestaurantLoop
 {
     public static class ConveyorPathBuilder
     {
-        // Saat yönünde, Kuzey'den başlayan 8 komşu yön. Artık bu yönler
-        // tek tek hücreler arasında değil, BLOK (2x2) merkezleri arasında
-        // uygulanıyor — her adım bir sonraki bloğa geçiyor, bloğun içindeki
-        // 4 hücreyi tek tek dolaşmıyor.
+        // Saat yönünde, Kuzey'den başlayan 8 komşu — TEKİL HÜCRE bazlı.
+        // Kalın (2 hücre) boyanmış bir şeritte bu trace SADECE dış konturu
+        // izler; iç sıradaki hücreler ziyaret edilmez ve bu artık bir hata
+        // değil — onlar sadece görsel genişlik dolgusu.
         private static readonly Vector2Int[] Dirs =
         {
             new(-1, 0), new(-1, 1), new(0, 1), new(1, 1),
             new(1, 0),  new(1, -1), new(0, -1), new(-1, -1),
         };
 
-        /// Döndürülen liste, her elemanı bir 2x2 bloğun SOL-ÜST hücre
-        /// koordinatı (origin) olan bir path'tir — Base'in ve Exit'in
-        /// origin'iyle birebir aynı formatta, GridManager bunu blok
-        /// MERKEZİNE çevirip world pozisyonu hesaplıyor.
         public static List<Vector2Int> BuildPath(LevelData data, out bool valid, out string reason,
             bool reverseDirection = false)
         {
@@ -31,69 +27,55 @@ namespace RestaurantLoop
                 return new List<Vector2Int>();
             }
 
-            int step = LevelData.ConveyorBlockSize;
-
-            // Conveyor hücrelerinden, ait oldukları blok origin'lerini
-            // (her zaman 'step'in katı) çıkar — tekilleştirilmiş blok kümesi.
-            var blockOrigins = new HashSet<Vector2Int>();
+            var conveyorSet = new HashSet<Vector2Int>();
             for (int r = 0; r < data.rows; r++)
-            {
                 for (int c = 0; c < data.columns; c++)
-                {
-                    if (data.GetCell(r, c) != CellType.Conveyor) continue;
-                    int originR = (r / step) * step;
-                    int originC = (c / step) * step;
-                    blockOrigins.Add(new Vector2Int(originR, originC));
-                }
-            }
+                    if (data.GetCell(r, c) == CellType.Conveyor)
+                        conveyorSet.Add(new Vector2Int(r, c));
 
-            if (blockOrigins.Count < 2)
+            if (conveyorSet.Count < 4)
             {
-                reason = "Conveyor bloğu sayısı çok az (en az 2 blok gerekli).";
+                reason = "Conveyor hücre sayısı çok az (en az 4 gerekli).";
                 return new List<Vector2Int>();
             }
 
             var start = new Vector2Int(data.baseRow, data.baseCol);
-            if (!blockOrigins.Contains(start))
+            if (!conveyorSet.Contains(start))
             {
-                reason = "Base bloğu Conveyor değil.";
+                reason = "Base hücresi Conveyor değil — dış kontur üzerinde tekil bir hücreye Base koymalısın.";
                 return new List<Vector2Int>();
             }
 
-            int backtrackDir = 6; // "Batı'dan geldik" varsayımıyla başla
+            int backtrackDir = 6; // "Batı'dan geldik" varsayımı
 
             var path = new List<Vector2Int> { start };
             var current = start;
             int steps = 0;
-            int maxSteps = blockOrigins.Count * 6 + 16;
+            int maxSteps = conveyorSet.Count * 8 + 32;
 
             while (true)
             {
                 int foundDirIndex = -1;
                 for (int k = 1; k <= 8; k++)
                 {
-                    // reverseDirection=false (varsayılan/işaretsiz) artık
-                    // senin doğru bulduğun yönü veriyor — önceki turdaki
-                    // "işaretlemem gerekiyor" kafa karışıklığı burada
-                    // tersine çevrilerek çözüldü.
                     int idx = reverseDirection
-                        ? (backtrackDir + k) % 8
-                        : ((backtrackDir - k) % 8 + 8) % 8;
+                        ? ((backtrackDir - k) % 8 + 8) % 8
+                        : (backtrackDir + k) % 8;
 
-                    var candidateOrigin = current + Dirs[idx] * step;
-                    if (blockOrigins.Contains(candidateOrigin)) { foundDirIndex = idx; break; }
+                    var candidate = current + Dirs[idx];
+                    if (conveyorSet.Contains(candidate)) { foundDirIndex = idx; break; }
                 }
 
                 if (foundDirIndex == -1)
                 {
-                    reason = "İzole/erişilemez bir conveyor bloğuna ulaşıldı — path devam edemiyor.";
+                    reason = "Base tekil hücreden devam eden bir kontur bulunamadı — Base'in dış sınırda olduğundan emin ol.";
                     return path;
                 }
 
-                var next = current + Dirs[foundDirIndex] * step;
+                var next = current + Dirs[foundDirIndex];
 
                 if (next == start && path.Count > 1)
-                    break; // loop Base'e kapandı
+                    break; // kontur Base'e kapandı
 
                 path.Add(next);
                 current = next;
@@ -107,23 +89,23 @@ namespace RestaurantLoop
                 }
             }
 
-            if (path.Count < 2)
+            if (path.Count < 4)
             {
-                reason = "Kapanan loop çok kısa.";
+                reason = "Kapanan kontur çok kısa.";
                 return path;
             }
 
+            // ARTIK "allVisited" kontrolü YOK — kalın şeritteki iç sıra
+            // hücreleri kasıtlı olarak ziyaret edilmiyor, bu geçerli.
             valid = true;
             return path;
         }
 
-        /// Path içindeki Exit bloğunun index'i (origin karşılaştırması,
-        /// ekstra bölme işlemi gerekmiyor çünkü path zaten origin tutuyor).
         public static int FindExitIndex(LevelData data, List<Vector2Int> path)
         {
             if (data.exitRow < 0 || data.exitCol < 0) return -1;
-            var exitOrigin = new Vector2Int(data.exitRow, data.exitCol);
-            return path.IndexOf(exitOrigin);
+            var exitCell = new Vector2Int(data.exitRow, data.exitCol);
+            return path.IndexOf(exitCell);
         }
     }
 }

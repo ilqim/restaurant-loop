@@ -5,20 +5,26 @@ namespace RestaurantLoop
 {
     /// <summary>
     /// Sahnedeki tüm bekleyen (Idle/Blocked) müşterileri (row,col) bazında
-    /// tutar ve erişilebilirliği hesaplar.
+    /// tutar.
     ///
-    /// KURAL: Bir müşteri, KENDİ SATIRINDA en küçük veya en büyük dolu
-    /// kolon index'ine sahipse YA DA KENDİ SÜTUNUNDA en küçük veya en
-    /// büyük dolu satır index'ine sahipse -> Idle. Aksi halde -> Blocked.
+    /// RecalculateAccessibility() sadece GÖRSEL saydamlık için global
+    /// "en az bir yönden açık mı" hesabı yapar — bu artık SERVİS kararı
+    /// için kullanılmıyor, çünkü yöne duyarsız (bir müşteri satırın diğer
+    /// ucundan açıksa, stack'in geldiği yönden önünde biri olsa bile
+    /// "Idle" görünüyordu — asıl bug buydu).
     ///
-    /// Hesaplama HER FRAME değil, sadece bir müşteri sahneye
-    /// girdiğinde (RegisterCustomer) veya ayrıldığında (UnregisterCustomer)
-    /// tetiklenir. Level başına müşteri sayısı küçük olduğu için
-    /// (grid boyutuyla sınırlı) bu O(n) hesap mobilde önemsizdir.
+    /// TryFindDeliverableCustomer artık KENDİ BAŞINA, stack'in konumundan
+    /// bakarak "bu hatta gerçekten en yakın müşteri kim" diye hesaplıyor.
+    /// Üç şart burada birlikte, doğru sırayla garanti ediliyor:
+    ///   1) Blocked olmama  -> hatta en yakın olmayan hiç aday olamaz.
+    ///   2) Aynı food type  -> en yakın olan, istenen tipte değilse hiç
+    ///      kimseye servis yapılmaz (arkadaki doğru tipe ASLA atlanmaz).
+    ///   3) Önünde engel yok -> "en yakın" tanımının kendisi bu.
     /// </summary>
     public class CustomerManager : MonoBehaviour
     {
         private readonly Dictionary<Vector2Int, Customer> customersByCell = new();
+        public int RemainingCustomerCount => customersByCell.Count;
 
         public void RegisterCustomer(Customer customer)
         {
@@ -35,21 +41,13 @@ namespace RestaurantLoop
             RecalculateAccessibility();
         }
 
-        /// <summary>
-        /// Dışarıdan (örn. bir müşteri Leaving'i tamamlayıp hücresini
-        /// boşalttığında ama obje hemen Destroy edilmiyorsa) manuel
-        /// tetiklemek istersen kullanabilirsin.
-        /// </summary>
         public void ForceRecalculate() => RecalculateAccessibility();
 
         /// <summary>
         /// Food.cs, conveyor üzerindeki her waypoint adımında bunu çağırır.
-        /// blockOrigin/blockSize, conveyor'ın o anki 2x2 (veya farklı boyutlu)
-        /// bloğunun kapladığı satır/sütun aralığını temsil eder. Bir müşteri,
-        /// bu blokla AYNI SATIR ya da AYNI SÜTUN aralığındaysa (tam aynı hücre
-        /// olması gerekmiyor — blok birden fazla satır/sütun kaplayabilir),
-        /// istediği yemek türü eşleşiyorsa ve Idle durumdaysa uygun adaydır.
-        /// Birden fazla aday varsa blok merkezine en yakın olan seçilir.
+        /// Artık global Idle bayrağına HİÇ bakmıyor — her aday için
+        /// kendi satırında/sütununda gerçekten en yakın (yani önünde
+        /// kimse olmayan) olup olmadığını ayrı ayrı hesaplıyor.
         /// </summary>
         public bool TryFindDeliverableCustomer(FoodType food, Vector2Int blockOrigin, int blockSize, out Customer result)
         {
@@ -64,28 +62,104 @@ namespace RestaurantLoop
 
             foreach (var kvp in customersByCell)
             {
-                var customer = kvp.Value;
-                if (customer.CurrentState != CustomerState.Idle) continue;
-                if (customer.DesiredFood != food) continue;
+                var candidate = kvp.Value;
 
-                bool rowAligned = customer.Row >= rowMin && customer.Row <= rowMax;
-                bool colAligned = customer.Col >= colMin && customer.Col <= colMax;
+                // Eating/HappyJump/Leaving/Angry -> zaten servis sürecinde, aday olamaz.
+                if (!candidate.IsWaiting) continue;
+
+                bool rowAligned = candidate.Row >= rowMin && candidate.Row <= rowMax;
+                bool colAligned = candidate.Col >= colMin && candidate.Col <= colMax;
                 if (!rowAligned && !colAligned) continue;
 
-                float dRow = customer.Row - blockCenter.x;
-                float dCol = customer.Col - blockCenter.y;
+                // Asıl düzeltme: candidate, kendi satırında/sütununda
+                // GERÇEKTEN en yakın mı? Değilse aradaki (herhangi bir
+                // tipteki) müşteri onu engelliyor demektir — food type'ı
+                // ne olursa olsun bu candidate şu an servis edilemez.
+                bool losRow = rowAligned && IsNearestAlongRow(candidate, blockCenter.y);
+                bool losCol = colAligned && IsNearestAlongColumn(candidate, blockCenter.x);
+                if (!losRow && !losCol) continue;
+
+                // Hat açık (en yakın candidate bu) — şimdi food type kontrolü.
+                // Yanlış tipteyse bu STACK ona hizmet edemez; ama bu satırda/
+                // sütunda ondan daha uzaktaki doğru tipteki başka birine de
+                // ASLA atlamayız, çünkü onlar zaten yukarıdaki IsNearestAlong
+                // kontrolünden geçemeyip elenmiş olurdu (candidate onları
+                // engelliyor).
+                if (candidate.DesiredFood != food) continue;
+
+                float dRow = candidate.Row - blockCenter.x;
+                float dCol = candidate.Col - blockCenter.y;
                 float distSqr = dRow * dRow + dCol * dCol;
 
                 if (distSqr < bestDistSqr)
                 {
                     bestDistSqr = distSqr;
-                    result = customer;
+                    result = candidate;
                 }
             }
 
             return result != null;
         }
 
+        /// <summary>
+        /// candidate'in kendi satırında (candidate.Row), approachCol'a en
+        /// yakın müşteri GERÇEKTEN candidate'in kendisi mi? (Food type
+        /// fark etmeksizin TÜM müşteriler arasında.)
+        /// </summary>
+        private bool IsNearestAlongRow(Customer candidate, float approachCol)
+        {
+            Customer nearest = null;
+            float bestDist = float.MaxValue;
+
+            foreach (var kvp in customersByCell)
+            {
+                var c = kvp.Value;
+                if (c.Row != candidate.Row) continue;
+                if (!c.IsWaiting) continue; // servis sürecindeki biri fiziksel engel sayılmaz (yakında ayrılacak)
+
+                float d = Mathf.Abs(c.Col - approachCol);
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    nearest = c;
+                }
+            }
+
+            return nearest == candidate;
+        }
+
+        /// <summary>Aynı mantık, sütun ekseninde.</summary>
+        private bool IsNearestAlongColumn(Customer candidate, float approachRow)
+        {
+            Customer nearest = null;
+            float bestDist = float.MaxValue;
+
+            foreach (var kvp in customersByCell)
+            {
+                var c = kvp.Value;
+                if (c.Col != candidate.Col) continue;
+                if (!c.IsWaiting) continue;
+
+                float d = Mathf.Abs(c.Row - approachRow);
+                if (d < bestDist)
+                {
+                    bestDist = d;
+                    nearest = c;
+                }
+            }
+
+            return nearest == candidate;
+        }
+
+        /// <summary>
+        /// SADECE GÖRSEL saydamlık için — "en az bir yönden açık mı" global
+        /// hesabı. Servis kararında ARTIK kullanılmıyor (TryFindDeliverableCustomer
+        /// kendi satır/sütun bazlı en-yakın hesabını yapıyor). Bu yüzden bir
+        /// müşteri burada "Idle" (parlak) görünse bile, stack'in geldiği
+        /// spesifik yönden önünde biri varsa servis edilmeyebilir — bu bilinen
+        /// bir basitleştirme, tamamen yön-duyarlı görsel istersen ayrıca
+        /// söyle, ApplyVisual'ı da bu hesaba bağlarız.
+        /// </summary>
         private void RecalculateAccessibility()
         {
             if (customersByCell.Count == 0) return;
@@ -111,8 +185,6 @@ namespace RestaurantLoop
                 var cell = kvp.Key;
                 var customer = kvp.Value;
 
-                // Eating/HappyJump/Leaving/Angry state'indeki müşteriye dokunma —
-                // sadece bekleyen (Idle/Blocked) müşteriler bu sistemle güncellenir.
                 if (!customer.IsWaiting) continue;
 
                 bool isRowEdge = cell.y == rowMinCol[cell.x] || cell.y == rowMaxCol[cell.x];
