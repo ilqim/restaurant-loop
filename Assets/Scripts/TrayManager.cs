@@ -1,0 +1,255 @@
+using System.Collections.Generic;
+using UnityEngine;
+
+namespace RestaurantLoop
+{
+    [System.Serializable]
+    public struct TrayVisualConfig
+    {
+        public FoodType food;
+
+        [Header("Görsel Stack (2x2 kat düzeni sabit — 4 parça/kat)")]
+        public GameObject stackPiecePrefab;
+
+        [Tooltip("Yemeğin EN ALT kısmının Tray yüzeyinden ne kadar yukarıda başlayacağı.")]
+        public float foodBaseYOffset;
+
+        [Tooltip("Bir kattaki 2x2'nin merkezden ne kadar açık duracağı.")]
+        public float pieceSpacing;
+
+        [Tooltip("Katlar arası dikey yükseklik farkı.")]
+        public float pieceHeightSpacing;
+
+        [Tooltip("Performans için görsel parça sayısı üst sınırı.")]
+        public int maxVisualPieces;
+
+        [Tooltip("Açıksa yemekler her zaman EN ÜST kattan verilir; kapalıysa EN ALT kattan verilir.")]
+        public bool removeFromTopFirst;
+
+        [Header("Hız")]
+        [Tooltip("Tray'in waypointler arası geçiş süresi.")]
+        public float stepDuration;
+
+        [Tooltip("Müşteriye fırlatılan parçanın uçuş süresi.")]
+        public float deliveryDuration;
+    }
+
+    public class TrayManager : MonoBehaviour
+    {
+        [Header("References")]
+        [SerializeField] private GridManager gridManager;
+        [SerializeField] private CustomerManager customerManager;
+        [SerializeField] private SlotManager slotManager;
+
+        [Header("Tray Prefab")]
+        [Tooltip("Tray component'i taşıyan prefab.")]
+        [SerializeField] private GameObject trayPrefab;
+
+        [Header("Konveyör Kapasitesi")]
+        [Tooltip("Aynı anda konveyörde en fazla kaç Tray olabilir.")]
+        [SerializeField] private int maxActiveTrays = 5;
+
+        [Header("Waypoint Y Offset")]
+        [Tooltip("Tray'in tüm conveyor waypointlerinde Y ekseninde ne kadar yukarı/aşağı duracağını belirler.")]
+        [SerializeField] private float waypointYOffset = 0f;
+
+        [Header("Food Type Başına Görsel/Hız Ayarları")]
+        [SerializeField] private List<TrayVisualConfig> visualConfigs = new();
+
+        [Header("Exit")]
+        [Tooltip("Exit'te slotlar doluysa Tray tekrar conveyor turuna başlasın mı?")]
+        [SerializeField] private bool loopIfSlotsFull = false;
+
+        [Header("Merge-back")]
+        [Tooltip("Tray'de kalan yemek slot'a dönerken kullanılacak Food prefabları.")]
+        [SerializeField]
+        private List<FoodTypePrefab> foodPrefabsForMerge = new()
+        {
+            new FoodTypePrefab { food = FoodType.Hamburger },
+            new FoodTypePrefab { food = FoodType.Fries },
+            new FoodTypePrefab { food = FoodType.Drink },
+            new FoodTypePrefab { food = FoodType.Sushi },
+            new FoodTypePrefab { food = FoodType.Steak },
+            new FoodTypePrefab { food = FoodType.Dessert },
+        };
+
+        private int currentActiveTrays;
+
+        public GridManager GridManagerRef => gridManager;
+        public CustomerManager CustomerManagerRef => customerManager;
+        public SlotManager SlotManagerRef => slotManager;
+
+        public bool LoopIfSlotsFull => loopIfSlotsFull;
+
+        public float WaypointYOffset => waypointYOffset;
+
+        private void Awake()
+        {
+            if (gridManager == null)
+                gridManager = FindFirstObjectByType<GridManager>();
+
+            if (customerManager == null)
+                customerManager = FindFirstObjectByType<CustomerManager>();
+
+            if (slotManager == null)
+                slotManager = FindFirstObjectByType<SlotManager>();
+        }
+
+        /// <summary>
+        /// Tray'in belirli waypoint'teki gerçek pozisyonunu verir.
+        /// Waypoint Y değerine WaypointYOffset eklenir.
+        /// </summary>
+        public Vector3 GetWaypointPosition(int index)
+        {
+            if (gridManager == null ||
+                gridManager.WaypointWorldPositions == null ||
+                index < 0 ||
+                index >= gridManager.WaypointWorldPositions.Count)
+            {
+                return Vector3.zero;
+            }
+
+            Vector3 position = gridManager.WaypointWorldPositions[index];
+
+            position.y += waypointYOffset;
+
+            return position;
+        }
+
+        /// <summary>
+        /// Yeni bir Tray oluşturur ve conveyor'a gönderir.
+        /// </summary>
+        public bool TryLaunchTray(FoodType foodType, int capacity)
+        {
+            if (currentActiveTrays >= maxActiveTrays)
+                return false;
+
+            if (trayPrefab == null)
+            {
+                Debug.LogError("TrayManager: Tray Prefab atanmamış.");
+                return false;
+            }
+
+            if (gridManager == null ||
+                gridManager.WaypointWorldPositions == null ||
+                gridManager.WaypointWorldPositions.Count == 0)
+            {
+                Debug.LogWarning("TrayManager: Conveyor waypoint listesi boş.");
+                return false;
+            }
+
+            Vector3 spawnPosition = GetWaypointPosition(0);
+
+            GameObject trayGo;
+
+            if (ObjectPool.Instance != null)
+            {
+                trayGo = ObjectPool.Instance.Get(
+                    trayPrefab,
+                    spawnPosition,
+                    trayPrefab.transform.rotation
+                );
+            }
+            else
+            {
+                trayGo = Instantiate(
+                    trayPrefab,
+                    spawnPosition,
+                    trayPrefab.transform.rotation
+                );
+            }
+
+            if (trayGo == null)
+            {
+                Debug.LogError("TrayManager: Tray oluşturulamadı.");
+                return false;
+            }
+
+            Tray tray = trayGo.GetComponent<Tray>();
+
+            if (tray == null)
+            {
+                Debug.LogError(
+                    $"'{trayPrefab.name}' prefabında Tray component'i yok."
+                );
+
+                if (ObjectPool.Instance != null)
+                    ObjectPool.Instance.Return(trayGo);
+                else
+                    Destroy(trayGo);
+
+                return false;
+            }
+
+            currentActiveTrays++;
+
+            tray.Init(
+                this,
+                foodType,
+                capacity
+            );
+
+            return true;
+        }
+
+        /// <summary>
+        /// Bir Tray conveyor'dan çıktığında kapasiteyi serbest bırakır.
+        /// </summary>
+        public void ReleaseTraySlot()
+        {
+            currentActiveTrays =
+                Mathf.Max(0, currentActiveTrays - 1);
+        }
+
+        /// <summary>
+        /// FoodType'a göre görsel/hız ayarlarını getirir.
+        /// </summary>
+        public TrayVisualConfig GetVisualConfig(FoodType food)
+        {
+            foreach (var config in visualConfigs)
+            {
+                if (config.food == food)
+                    return config;
+            }
+
+            Debug.LogWarning(
+                $"TrayManager: '{food}' için Visual Config yok, varsayılan kullanılıyor."
+            );
+
+            return new TrayVisualConfig
+            {
+                food = food,
+
+                stackPiecePrefab = null,
+
+                foodBaseYOffset = 0f,
+
+                pieceSpacing = 0.3f,
+
+                pieceHeightSpacing = 0.25f,
+
+                maxVisualPieces = 20,
+
+                removeFromTopFirst = false,
+
+                stepDuration = 0.3f,
+
+                deliveryDuration = 0.25f
+            };
+        }
+
+        /// <summary>
+        /// Tray exit'e geldiğinde kalan Food'u oluşturmak için prefab getirir.
+        /// </summary>
+        public GameObject GetFoodPrefab(FoodType food)
+        {
+            foreach (var entry in foodPrefabsForMerge)
+            {
+                if (entry.food == food)
+                    return entry.prefab;
+            }
+
+            return null;
+        }
+    }
+}

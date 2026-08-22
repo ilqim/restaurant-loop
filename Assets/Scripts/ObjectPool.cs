@@ -54,12 +54,6 @@ namespace RestaurantLoop
             }
         }
 
-        /// <summary>
-        /// N tane inaktif instance önceden üretip stack'e koyar. Inspector'daki
-        /// prewarmConfigs listesi zaten Awake'te bunu otomatik çağırıyor —
-        /// bunu ayrıca runtime'da (örn. level başlarken, o levelin gerçek
-        /// müşteri sayısına göre) elle de çağırabilirsin.
-        /// </summary>
         public void Prewarm(GameObject prefab, int count)
         {
             if (prefab == null || count <= 0) return;
@@ -75,13 +69,13 @@ namespace RestaurantLoop
                 var spawned = Instantiate(prefab);
                 var pooled = spawned.AddComponent<PooledObject>();
                 pooled.SourcePrefab = prefab;
+                pooled.OriginalLocalScale = prefab.transform.localScale;
                 spawned.SetActive(false);
-                spawned.transform.SetParent(transform);
+                spawned.transform.SetParent(transform, false);
                 stack.Push(spawned);
             }
         }
 
-        /// <summary>Şu an bir prefab için havuzda bekleyen (inaktif) instance sayısı — debug/kontrol için.</summary>
         public int GetPooledCount(GameObject prefab)
         {
             return pools.TryGetValue(prefab, out var stack) ? stack.Count : 0;
@@ -101,13 +95,36 @@ namespace RestaurantLoop
                 pools[prefab] = stack;
             }
 
-            GameObject spawned = stack.Count > 0 ? stack.Pop() : Instantiate(prefab);
+            GameObject spawned;
+            Vector3 originalScale;
+
+            if (stack.Count > 0)
+            {
+                spawned = stack.Pop();
+                var existingPooled = spawned.GetComponent<PooledObject>();
+                // Zaten kayıtlıysa onu kullan, yoksa (teorik olarak
+                // olmamalı ama güvenlik için) prefab'tan oku.
+                originalScale = existingPooled != null ? existingPooled.OriginalLocalScale : prefab.transform.localScale;
+            }
+            else
+            {
+                spawned = Instantiate(prefab);
+                originalScale = prefab.transform.localScale;
+            }
 
             var pooled = spawned.GetComponent<PooledObject>();
             if (pooled == null) pooled = spawned.AddComponent<PooledObject>();
             pooled.SourcePrefab = prefab;
+            pooled.OriginalLocalScale = originalScale;
 
-            if (parent != null) spawned.transform.SetParent(parent);
+            // worldPositionStays=false: Unity'nin varsayılan reparent
+            // davranışı (eski dünya boyutunu korumak için scale'i otomatik
+            // yeniden hesaplaması) burada devre dışı — biz scale'i zaten
+            // aşağıda ELLE, prefab'ın KENDİ orijinal değerine sıfırlıyoruz.
+            if (parent != null)
+                spawned.transform.SetParent(parent, false);
+
+            spawned.transform.localScale = originalScale;
             spawned.transform.SetPositionAndRotation(position, rotation);
             spawned.SetActive(true);
             return spawned;
@@ -126,6 +143,7 @@ namespace RestaurantLoop
             }
 
             instance.SetActive(false);
+            instance.transform.SetParent(transform, false);
 
             if (!pools.TryGetValue(pooled.SourcePrefab, out var stack))
             {
