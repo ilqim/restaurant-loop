@@ -340,6 +340,9 @@ namespace RestaurantLoop
                 );
             }
 
+            // Banttaki food müşteriyle eşleştiğinde.
+            AudioEvents.PlayOrderDelivered();
+
             SetState(CustomerState.Eating);
 
             SetState(CustomerState.HappyJump);
