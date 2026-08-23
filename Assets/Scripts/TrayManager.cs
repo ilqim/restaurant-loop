@@ -78,7 +78,7 @@ namespace RestaurantLoop
             new FoodTypePrefab { food = FoodType.Drink },
             new FoodTypePrefab { food = FoodType.Sushi },
             new FoodTypePrefab { food = FoodType.Steak },
-            new FoodTypePrefab { food = FoodType.Dessert },
+            new FoodTypePrefab { food = FoodType.Donut },
         };
 
         private int currentActiveTrays;

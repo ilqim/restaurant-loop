@@ -580,7 +580,7 @@ Camera:
   far clip plane: 1000
   field of view: 60
   orthographic: 1
-  orthographic size: 10
+  orthographic size: 9.7
   m_Depth: -1
   m_CullingMask:
     serializedVersion: 2
@@ -605,7 +605,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: 0.5264197, y: 0.00037211727, z: -0.00060100836, w: 0.8502246}
-  m_LocalPosition: {x: 5.3, y: 22.8, z: -18.9}
+  m_LocalPosition: {x: 5.46, y: 22.8, z: -18.9}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -669,7 +669,7 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   referenceWidth: 1080
   referenceHeight: 1920
-  referenceOrthoSize: 10
+  referenceOrthoSize: 9.7
 --- !u!1 &368813330
 GameObject:
   m_ObjectHideFlags: 0
@@ -720,9 +720,9 @@ MonoBehaviour:
   invertRow: 1
   invertCol: 0
   swapAxes: 0
-  reversePathDirection: 1
-  cornerRadius: 1
-  cornerSegments: 7
+  reversePathDirection: 0
+  cornerRadius: 0.93
+  cornerSegments: 4
   invertFacingSide: 0
   drawGridGizmo: 1
   gizmoLineColor: {r: 1, g: 1, b: 1, a: 0.15}
@@ -736,7 +736,7 @@ Grid:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 368813330}
   m_Enabled: 1
-  m_CellSize: {x: 0.75, y: 1, z: 0.75}
+  m_CellSize: {x: 0.78, y: 1, z: 0.75}
   m_CellGap: {x: 0, y: 0, z: 0}
   m_CellLayout: 0
   m_CellSwizzle: 0
@@ -3551,11 +3551,11 @@ MonoBehaviour:
   - food: 2
     prefab: {fileID: 7669723658021224773, guid: c865fe7153bf55e4cb9ce17741bc1163, type: 3}
   - food: 3
-    prefab: {fileID: 0}
+    prefab: {fileID: 1076883276192951387, guid: 401b01ca600c4e04cb946793503776e0, type: 3}
   - food: 4
-    prefab: {fileID: 0}
+    prefab: {fileID: 5710328474086436543, guid: f28df733caa96704b8d94410ffebfccc, type: 3}
   - food: 5
-    prefab: {fileID: 0}
+    prefab: {fileID: 5351175414685016865, guid: 01fe2072149b27f48a6f886538a773b2, type: 3}
   queueSlotPrefab: {fileID: 1459162228004834857, guid: ff25dd7b1360e2242b6a8fe7c0cfae29, type: 3}
   originPoint: {fileID: 2008343122}
   cellSpacingX: 1.3

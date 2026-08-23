@@ -93,20 +93,13 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: bfae21a2d1b3e5e44a84bb237c7172a0, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  gridManager: {fileID: 0}
-  customerManager: {fileID: 0}
-  slotManager: {fileID: 0}
+  trayManager: {fileID: 0}
   foodType: 2
-  deliveryPrefab: {fileID: 3849605167686110678, guid: 6a6f017856b00ef41afab09386558ec4, type: 3}
   capacity: 10
   showCapacityLabel: 1
   labelHeight: 0.6
   labelFontSize: 48
   labelCharacterSize: 0.12
   labelColor: {r: 1, g: 1, b: 1, a: 1}
-  stepDuration: 0.4
-  deliveryDuration: 0.3
-  loop: 0
-  maxOnConveyor: 5
   currentState: 1
   verboseLogging: 1
