@@ -1,6 +1,5 @@
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Serialization;
 
 namespace RestaurantLoop
 {
@@ -32,7 +31,7 @@ namespace RestaurantLoop
                  "Köşeler yuvarlatıldığında waypoint'ler arası mesafe artık eşit olmadığı için " +
                  "(köşedeki kısa yay adımları, düz kısımdaki uzun adımlar) süre-bazlı hareket " +
                  "köşelerde yavaşlama/hızlanma gibi görünürdü. Hız sabit, süre = mesafe / hız.")]
-        [FormerlySerializedAs("stepDuration")]
+        [UnityEngine.Serialization.FormerlySerializedAs("stepDuration")]
         public float conveyorSpeed;
 
         [Tooltip("Müşteriye fırlatılan parçanın SABİT hızı (dünya birimi/saniye) — SÜRE değil. " +
@@ -101,6 +100,21 @@ namespace RestaurantLoop
 
             if (slotManager == null)
                 slotManager = FindFirstObjectByType<SlotManager>();
+        }
+
+        /// <summary>
+        /// Öncelik kuyruğu artık burada DEĞİL — TrayDeliveryQueue statik
+        /// sınıfında, food type başına GLOBAL olarak tutuluyor. Bunun
+        /// sebebi: sahnede satır/sütun gibi birden fazla TrayManager
+        /// olsa bile, hangi tepsinin önce ateş edeceği TÜM sahne
+        /// genelinde tutarlı olmalı. Bu yüzden burada sadece o global
+        /// koordinatörü tetikliyoruz; birden fazla TrayManager aynı
+        /// frame'de bunu çağırsa bile TrayDeliveryQueue işi frame
+        /// başına sadece bir kez yapar.
+        /// </summary>
+        private void LateUpdate()
+        {
+            TrayDeliveryQueue.ProcessAllQueuesOncePerFrame();
         }
 
         /// <summary>

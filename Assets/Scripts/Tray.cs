@@ -20,8 +20,55 @@ namespace RestaurantLoop
         [Header("Debug")]
         [SerializeField] private bool verboseLogging = true;
 
-        private static readonly HashSet<Customer> reservedCustomers = new();
+        // Bu tray'in şu an rezerve ettiği (yemek yola çıkmış ama henüz
+        // ulaşmamış) müşteriler. Rezervasyonun asıl kaydı burada DEĞİL,
+        // Customer.incomingDeliverySource'ta tutuluyor (Food ile ORTAK) —
+        // bu set sadece "bu Tray beklenmedik şekilde disable olursa hangi
+        // rezervasyonları serbest bırakmam gerekiyor" bilgisini tutan
+        // yerel bir defter.
+        //
+        // ÖNEMLİ (bug fix notu): Bir müşteri ateşlendiği (FireDeliveryAt)
+        // ANDA bu setten HEMEN çıkarılıyor — çünkü o andan itibaren
+        // rezervasyonun kaderi artık asenkron DeliverCloneRoutine'in
+        // elinde (klon ulaşınca ya da kaybolsa bile ReceiveFood() onu
+        // çağırıp müşteriyi despawn edecek, Customer kendi
+        // incomingDeliverySource'unu kendi Despawn'ında temizleyecek).
+        // Bu setin ARTIK bu müşteriyi tutmaması gerekiyor, çünkü bu Tray
+        // kapasitesi bittiği için genelde AYNI FRAME'DE senkron olarak
+        // Despawn() çağırıyor -> OnDisable() -> ReleaseAllCustomerReservations().
+        // Eğer müşteri o anda hâlâ bu sette duruyorsa, klon havadayken
+        // rezervasyon ERKEN serbest bırakılır, müşteri "Serving"den anında
+        // "Idle"a döner ve başka bir Tray/Food onu klon daha ulaşmadan
+        // tekrar bulup ateş edebilir. Asıl bug buydu.
         private readonly HashSet<Customer> customersReservedByThisTray = new();
+
+        // ============================================================
+        // TEK ATOMİK ADIM + GLOBAL, FOOD-TYPE BAZLI ÖNCELİK KUYRUĞU
+        //
+        //   Checkpoint'e ulaşılınca -> hücre pendingCheckCells'e eklenir
+        //                     (henüz arama/rezervasyon YAPILMAZ).
+        //
+        //   ProcessCheckedDeliveryPlans() -> her hücre için ARAMA VE
+        //                     REZERVASYON aynı fonksiyon içinde, arada
+        //                     hiçbir başka kod çalışmadan art arda
+        //                     yapılır, hemen ardından ateşlenir. Bu
+        //                     tepsinin KENDİ LateUpdate()'inden DEĞİL,
+        //                     TrayDeliveryQueue (statik, GLOBAL, food
+        //                     type başına ayrı FIFO kuyruk) tarafından,
+        //                     konveyöre GİRİŞ SIRASINA göre çağrılır.
+        //                     Sahnede kaç tane TrayManager / konveyör
+        //                     hattı olursa olsun (satır, sütun, vb.) bu
+        //                     kuyruk GLOBAL olduğu için öncelik tüm
+        //                     sahnede tutarlıdır — hangi hatta olduğu
+        //                     fark etmez.
+        //
+        // Bu sayede: iki tepsi aynı müşteriyi hedeflese bile önce giren
+        // tepsi HER ZAMAN önce dener; kaybeden otomatik pas geçer.
+        // Çakışma yoksa hiçbir tepsi "bekletilmez" — herkes normal
+        // şekilde aynı frame'de ateş eder.
+        // ============================================================
+
+        private readonly List<Vector2Int> pendingCheckCells = new();
 
         private class StackPieceInfo
         {
@@ -68,6 +115,7 @@ namespace RestaurantLoop
             trayManager = manager;
             foodType = type;
             capacity = startCapacity;
+
             config = trayManager.GetVisualConfig(foodType);
 
             currentIndex = 0;
@@ -75,6 +123,12 @@ namespace RestaurantLoop
             depleted = false;
 
             customersReservedByThisTray.Clear();
+            pendingCheckCells.Clear();
+
+            // Global, food-type bazlı öncelik kuyruğuna kaydol. İlk giren
+            // tepsi kendi food type'ının kuyruğunda başta kalır ve
+            // ateşleme önceliğine sahip olur (bkz. TrayDeliveryQueue).
+            TrayDeliveryQueue.Register(this, foodType);
 
             var gridManager = trayManager.GridManagerRef;
             var waypoints = gridManager.WaypointWorldPositions;
@@ -134,18 +188,19 @@ namespace RestaurantLoop
 
             if (deliveryCheckpoints.Count > 0)
             {
-                TryDeliverAtCell(
+                // Direkt ateş edilmiyor — ilk checkpoint kontrol
+                // kuyruğuna eklenir; bu frame'in Update()'i kontrol
+                // edecek, TrayDeliveryQueue (öncelik sırasına göre)
+                // ateşleyecek.
+                QueueDeliveryCheck(
                     deliveryCheckpoints[0].cell
                 );
             }
 
-            if (!depleted)
-            {
-                moveRoutine =
-                    StartCoroutine(
-                        MoveOnConveyor()
-                    );
-            }
+            moveRoutine =
+                StartCoroutine(
+                    MoveOnConveyor()
+                );
         }
 
 
@@ -153,9 +208,18 @@ namespace RestaurantLoop
         {
             ReleaseAllCustomerReservations();
 
+            pendingCheckCells.Clear();
+
+            TrayDeliveryQueue.Unregister(this, foodType);
+
             trayManager?.ReleaseTraySlot();
         }
 
+
+        // ============================================================
+        // ETİKET YÖNLENDİRME — bu tepsiye özel, sıraya girmesine gerek
+        // yok, kendi LateUpdate()'inde kalabilir.
+        // ============================================================
 
         private void LateUpdate()
         {
@@ -173,6 +237,175 @@ namespace RestaurantLoop
                     capacityLabel.transform.position -
                     labelFacingCamera.transform.position
                 );
+        }
+
+
+        // ============================================================
+        // ARAMA + REZERVASYON + ATEŞLEME — ARTIK BU TEPSİNİN KENDİSİ
+        // ÇAĞIRMIYOR. TrayDeliveryQueue (global, food-type bazlı FIFO
+        // kuyruk), bu metodu konveyöre GİRİŞ SIRASINA göre (önce giren
+        // önce) tek tek çağırır.
+        //
+        // Her hücre için arama VE rezervasyon AYNI ADIMDA, aralarında
+        // hiçbir başka kodun çalışmasına izin vermeden yapılır — bu
+        // yüzden "arama anında müsaitti ama rezervasyon anında değildi"
+        // senaryosu yapısal olarak imkânsızdır (bkz. sınıf başındaki not).
+        // ============================================================
+
+        public void ProcessCheckedDeliveryPlans()
+        {
+            if (pendingCheckCells.Count == 0)
+                return;
+
+            // Anlık kopya: FireDeliveryAt() kapasiteyi tüketip Despawn()
+            // çağırabilir, bu da OnDisable() üzerinden pendingCheckCells'i
+            // TEMİZLER. Aynı listeyi enumerate ederken temizlemek
+            // "Collection was modified" hatasına yol açıyordu — bu yüzden
+            // önce kopya alınıp orijinal liste hemen boşaltılıyor.
+            var cellsSnapshot = new List<Vector2Int>(pendingCheckCells);
+            pendingCheckCells.Clear();
+
+            var customerManager = trayManager != null
+                ? trayManager.CustomerManagerRef
+                : null;
+
+            if (customerManager == null)
+                return;
+
+            foreach (Vector2Int cell in cellsSnapshot)
+            {
+                if (depleted || capacity <= 0)
+                    break;
+
+                deliveryTryCounter++;
+
+                // --------------------------------------------------
+                // ATOMİK ADIM: arama ve rezervasyon art arda, aynı
+                // fonksiyon çağrısı içinde yapılır. Bu iki satır
+                // arasına Unity'nin tek thread'li yapısı gereği HİÇBİR
+                // başka Tray'in kodu giremez.
+                // --------------------------------------------------
+                if (!customerManager.TryFindDeliverableCustomer(
+                        foodType,
+                        cell,
+                        1,
+                        out Customer target) ||
+                    target == null)
+                {
+                    continue;
+                }
+
+                if (!target.TryReserveForDelivery(this, foodType))
+                {
+                    // Teorik olarak burada HİÇ düşmemeli — arama zaten
+                    // "müsait" dedi ve hemen ardından rezervasyon
+                    // deneniyor. Yine de savunma amaçlı bırakıyoruz:
+                    // eğer buraya düşerse, arama/rezervasyon mantığında
+                    // hâlâ bir tutarsızlık var demektir ve loglanmalı.
+                    if (verboseLogging)
+                    {
+                        Debug.LogWarning(
+                            $"Tray [{gameObject.name}] " +
+                            $"BEKLENMEDİK SKIP (arama müsait dedi ama " +
+                            $"rezervasyon reddetti) -> {target.name} " +
+                            $"(ID={target.GetInstanceID()}, " +
+                            $"Session={target.OrderSessionId}, " +
+                            $"state={target.CurrentState}) " +
+                            $"cell ({cell.x},{cell.y})"
+                        );
+                    }
+
+                    continue;
+                }
+
+                customersReservedByThisTray.Add(target);
+
+                if (verboseLogging)
+                {
+                    Debug.Log(
+                        $"Tray [{gameObject.name}] " +
+                        $"delivery FIRE -> {target.name} " +
+                        $"(ID={target.GetInstanceID()}, " +
+                        $"Session={target.OrderSessionId}) " +
+                        $"cell ({cell.x},{cell.y})"
+                    );
+                }
+
+                FireDeliveryAt(target);
+            }
+        }
+
+
+        /// <summary>
+        /// Rezervasyonu zaten alınmış bir müşteriye gerçek teslimatı
+        /// gerçekleştirir: kapasiteyi düşürür, görsel parçayı eksiltir,
+        /// klonu fırlatır, gerekiyorsa tepsiyi tüketir.
+        /// </summary>
+        private void FireDeliveryAt(Customer target)
+        {
+            capacity =
+                Mathf.Max(
+                    0,
+                    capacity - 1
+                );
+
+            // Parça seçimi müşterinin gerçek konumuna göre değil,
+            // tepsinin kendi ön yönüne (transform.forward) göre yapılıyor.
+            // Tepsi her zaman "önü nereyi gösteriyorsa" oradaki gruptan
+            // ateş eder.
+            RemoveStackPieceTowardCustomer(
+                transform.forward
+            );
+
+            UpdateCapacityLabel();
+
+            LaunchDeliveryClone(
+                target,
+                transform.position
+            );
+
+            // ------------------------------------------------------
+            // *** BUG FİX ***
+            // Teslimat artık ASENKRON DeliverCloneRoutine'e devredildi
+            // — o rutin, klon gerçekten müşteriye ulaşana (ya da yolda
+            // kaybolsa bile) kadar ReceiveFood()'u kendisi çağıracak;
+            // Customer da kendi Despawn'ında incomingDeliverySource'unu
+            // kendisi temizleyecek. Bu yüzden bu rezervasyonu ARTIK bu
+            // Tray'in yerel "disable olursam serbest bırak" defterinde
+            // (customersReservedByThisTray) TUTMUYORUZ — sorumluluk
+            // devredildi.
+            //
+            // NEDEN KRİTİK: Kapasite tam bu teslimatta bittiyse, hemen
+            // aşağıda depleted=true olup Despawn() SENKRON olarak
+            // çağrılacak (aynı çağrı zinciri, aynı frame). Despawn ->
+            // OnDisable -> ReleaseAllCustomerReservations çalışır; bu
+            // müşteri o anda hâlâ sette duruyor olsaydı, KLON HAVADAYKEN
+            // rezervasyon ERKEN serbest bırakılırdı — müşteri "Serving"
+            // yerine anında "Idle"a döner, başka bir Tray/Food onu klon
+            // daha ulaşmadan tekrar bulup ateş edebilirdi. Şimdi bu
+            // satır, o pencereyi tamamen kapatıyor: müşteri ateşlendiği
+            // anda bu tepsinin "disable olursa serbest bırakacakları"
+            // listesinden çıkıyor, artık SADECE DeliverCloneRoutine'in
+            // (ya da Customer'ın kendi Despawn'ının) sorumluluğunda.
+            // ------------------------------------------------------
+            customersReservedByThisTray.Remove(target);
+
+            if (capacity <= 0 &&
+                !depleted)
+            {
+                depleted = true;
+
+                if (moveRoutine != null)
+                {
+                    StopCoroutine(
+                        moveRoutine
+                    );
+
+                    moveRoutine = null;
+                }
+
+                Despawn();
+            }
         }
 
 
@@ -303,37 +536,17 @@ namespace RestaurantLoop
         /// <summary>
         /// Müşteriye gönderilecek yemek parçasını seçer.
         ///
-        /// KURAL:
+        /// NOT: Seçim müşterinin gerçek pozisyonuna göre DEĞİL,
+        /// tepsinin kendi ÖN yönüne (transform.forward) göre yapılır.
+        /// Yani tepsi her zaman "önü nereyi gösteriyorsa" o taraftaki
+        /// parça grubundan eksiltmeye başlar; müşteri fiilen sağda,
+        /// solda ya da arkada olsa bile bu seçim değişmez.
         ///
-        /// Müşteri yukarıdaysa:
+        /// Tepsinin önü +Z ise:
         ///
-        ///      MÜŞTERİ
-        ///         ↓
-        ///      0   1    ← ÖNCE
-        ///      2   3    ← SONRA
+        ///      0   1    ← ÖNCE (ön grup tamamen bitmeden
+        ///      2   3    ← SONRA    arka gruba geçilmez)
         ///
-        /// Müşteri aşağıdaysa:
-        ///
-        ///      0   1
-        ///      2   3    ← ÖNCE
-        ///         ↑
-        ///      MÜŞTERİ
-        ///
-        /// Müşteri sağdaysa:
-        ///
-        ///      0 | 1    ← ÖNCE
-        ///      2 | 3
-        ///        ↑
-        ///
-        /// Müşteri soldaysa:
-        ///
-        ///      0 | 1
-        ///      2 | 3
-        ///      ↑
-        ///
-        /// Yani seçim, parçanın müşteriye olan yönüne göre
-        /// yapılır. Müşteriye yakın grup tamamen bitmeden
-        /// uzak gruba geçilmez.
         /// </summary>
         private void RemoveStackPieceTowardCustomer(
             Vector3 dirToCustomerWorld
@@ -379,7 +592,10 @@ namespace RestaurantLoop
 
 
             // --------------------------------------------------------
-            // 2. Müşterinin yönünü WORLD -> LOCAL çevir.
+            // 2. Yönü WORLD -> LOCAL çevir.
+            //    (dirToCustomerWorld artık her zaman transform.forward
+            //    olarak gönderiliyor, bu yüzden localDir sabit biçimde
+            //    tepsinin "ön"ünü (local +Z) verir.)
             // --------------------------------------------------------
 
             Vector3 localDir =
@@ -405,15 +621,15 @@ namespace RestaurantLoop
 
 
             // --------------------------------------------------------
-            // 3. Her parçanın müşteriye yakınlık skorunu hesapla.
+            // 3. Her parçanın "ön yöne" yakınlık skorunu hesapla.
             // --------------------------------------------------------
             //
             // Dot product sayesinde:
             //
-            // Müşteriye bakan parçalar -> yüksek skor
-            // Müşteriden uzak parçalar -> düşük skor
+            // Ön yöndeki parçalar -> yüksek skor
+            // Arka yöndeki parçalar -> düşük skor
             //
-            // Örneğin müşteri +Z tarafındaysa:
+            // Örneğin ön +Z ise:
             //
             // 0 = +Z
             // 1 = +Z
@@ -534,7 +750,7 @@ namespace RestaurantLoop
                     $"stack piece removed. " +
                     $"Layer={targetLayer}, " +
                     $"LocalOffset={chosen.offsetXZ}, " +
-                    $"CustomerDir={customerDirection}"
+                    $"FrontDir={customerDirection}"
                 );
             }
         }
@@ -799,7 +1015,12 @@ namespace RestaurantLoop
 
                 nextCheckpointIndex++;
 
-                TryDeliverAtCell(
+                // Direkt ateş edilmiyor — checkpoint sadece kontrol
+                // kuyruğuna eklenir. Kontrol Update()'te, ateşleme
+                // TrayDeliveryQueue'nun (global, food-type bazlı öncelik
+                // sırasına göre) tetiklediği ProcessCheckedDeliveryPlans
+                // içinde yapılır.
+                QueueDeliveryCheck(
                     checkpoint.cell
                 );
 
@@ -811,101 +1032,18 @@ namespace RestaurantLoop
 
 
         // ============================================================
-        // TESLİMAT
+        // TESLİMAT — KUYRUĞA EKLEME (gerçek arama/ateşleme burada
+        // yapılmaz, bkz. Update() / ProcessCheckedDeliveryPlans())
         // ============================================================
 
-        private void TryDeliverAtCell(
+        private void QueueDeliveryCheck(
             Vector2Int cell
         )
         {
-            var customerManager =
-                trayManager.CustomerManagerRef;
-
-            if (customerManager == null)
+            if (capacity <= 0 || depleted)
                 return;
 
-            if (capacity <= 0)
-                return;
-
-
-            deliveryTryCounter++;
-
-
-            if (verboseLogging)
-            {
-                Debug.Log(
-                    $"Tray [{gameObject.name}] " +
-                    $"delivery try {deliveryTryCounter}, " +
-                    $"cell ({cell.x},{cell.y})"
-                );
-            }
-
-
-            if (!customerManager.TryFindDeliverableCustomer(
-                    foodType,
-                    cell,
-                    1,
-                    out Customer target))
-            {
-                return;
-            }
-
-
-            if (target == null)
-                return;
-
-
-            if (IsCustomerReservedByAnotherTray(target))
-                return;
-
-
-            ReserveCustomer(target);
-
-
-            capacity =
-                Mathf.Max(
-                    0,
-                    capacity - 1
-                );
-
-
-            Vector3 dirToCustomer =
-                target.transform.position -
-                transform.position;
-
-
-            RemoveStackPieceTowardCustomer(
-                dirToCustomer
-            );
-
-
-            UpdateCapacityLabel();
-
-
-            LaunchDeliveryClone(
-                target,
-                transform.position
-            );
-
-
-            if (capacity <= 0 &&
-                !depleted)
-            {
-                depleted = true;
-
-
-                if (moveRoutine != null)
-                {
-                    StopCoroutine(
-                        moveRoutine
-                    );
-
-                    moveRoutine = null;
-                }
-
-
-                Despawn();
-            }
+            pendingCheckCells.Add(cell);
         }
 
 
@@ -917,11 +1055,10 @@ namespace RestaurantLoop
             if (config.stackPiecePrefab == null)
             {
                 if (target != null)
+                {
                     target.ReceiveFood();
-
-                ReleaseCustomerReservation(
-                    target
-                );
+                    customersReservedByThisTray.Remove(target);
+                }
 
                 return;
             }
@@ -930,11 +1067,10 @@ namespace RestaurantLoop
             if (ObjectPool.Instance == null)
             {
                 if (target != null)
+                {
                     target.ReceiveFood();
-
-                ReleaseCustomerReservation(
-                    target
-                );
+                    customersReservedByThisTray.Remove(target);
+                }
 
                 return;
             }
@@ -942,6 +1078,7 @@ namespace RestaurantLoop
 
             ObjectPool.Instance.StartCoroutine(
                 DeliverCloneRoutine(
+                    this,
                     config.stackPiecePrefab,
                     launchPosition,
                     transform.rotation,
@@ -953,6 +1090,7 @@ namespace RestaurantLoop
 
 
         private static IEnumerator DeliverCloneRoutine(
+            Tray sourceTray,
             GameObject prefab,
             Vector3 launchPosition,
             Quaternion launchRotation,
@@ -971,7 +1109,10 @@ namespace RestaurantLoop
             if (clone == null)
             {
                 if (target != null)
+                {
                     target.ReceiveFood();
+                    sourceTray?.customersReservedByThisTray.Remove(target);
+                }
 
                 yield break;
             }
@@ -1007,7 +1148,34 @@ namespace RestaurantLoop
             while (elapsed < duration)
             {
                 if (clone == null)
+                {
+                    // Klon yolculuk sırasında kayboldu (ör. pool geri
+                    // alındı). Rezervasyon SERBEST BIRAKILMIYOR — teslimat
+                    // görselsiz ama KESİN olarak tamamlanıyor. Bkz. Tray
+                    // sınıfının başındaki not: rezervasyonun kaderi artık
+                    // bu Tray'in disable/despawn akışından bağımsız,
+                    // sadece bu rutinin ve Customer'ın kendi Despawn'ının
+                    // elinde.
+                    if (sourceTray != null && sourceTray.verboseLogging)
+                    {
+                        Debug.LogWarning(
+                            $"Tray [{(sourceTray != null ? sourceTray.gameObject.name : "?")}] " +
+                            $"klon yolculuk sırasında kayboldu -> " +
+                            $"{(target != null ? target.name : "null")} " +
+                            $"(Session={(target != null ? target.OrderSessionId : -1)}) " +
+                            $"teslimat GÖRSELSİZ olarak tamamlanıyor " +
+                            $"(rezervasyon SERBEST BIRAKILMIYOR)."
+                        );
+                    }
+
+                    if (target != null)
+                    {
+                        target.ReceiveFood();
+                        sourceTray?.customersReservedByThisTray.Remove(target);
+                    }
+
                     yield break;
+                }
 
 
                 elapsed += Time.deltaTime;
@@ -1043,66 +1211,16 @@ namespace RestaurantLoop
 
 
             if (target != null)
-                target.ReceiveFood();
-        }
-
-
-        // ============================================================
-        // CUSTOMER RESERVATION
-        // ============================================================
-
-        private bool IsCustomerReservedByAnotherTray(
-            Customer customer
-        )
-        {
-            if (customer == null)
-                return false;
-
-            if (customersReservedByThisTray.Contains(
-                    customer))
             {
-                return true;
+                target.ReceiveFood();
+                sourceTray?.customersReservedByThisTray.Remove(target);
             }
-
-            return reservedCustomers.Contains(
-                customer
-            );
         }
 
 
-        private void ReserveCustomer(
-            Customer customer
-        )
-        {
-            if (customer == null)
-                return;
-
-            reservedCustomers.Add(
-                customer
-            );
-
-            customersReservedByThisTray.Add(
-                customer
-            );
-        }
-
-
-        private void ReleaseCustomerReservation(
-            Customer customer
-        )
-        {
-            if (customer == null)
-                return;
-
-            customersReservedByThisTray.Remove(
-                customer
-            );
-
-            reservedCustomers.Remove(
-                customer
-            );
-        }
-
+        // ============================================================
+        // CUSTOMER RESERVATION (yerel defter — asıl kayıt Customer'da)
+        // ============================================================
 
         private void ReleaseAllCustomerReservations()
         {
@@ -1115,9 +1233,7 @@ namespace RestaurantLoop
                 in customersReservedByThisTray)
             {
                 if (customer != null)
-                    reservedCustomers.Remove(
-                        customer
-                    );
+                    customer.ReleaseDeliveryReservation(this);
             }
 
 

@@ -15,11 +15,19 @@ namespace RestaurantLoop
     ///
     /// TryFindDeliverableCustomer artık KENDİ BAŞINA, stack'in konumundan
     /// bakarak "bu hatta gerçekten en yakın müşteri kim" diye hesaplıyor.
-    /// Üç şart burada birlikte, doğru sırayla garanti ediliyor:
+    /// Dört şart burada birlikte, doğru sırayla garanti ediliyor:
     ///   1) Blocked olmama  -> hatta en yakın olmayan hiç aday olamaz.
-    ///   2) Aynı food type  -> en yakın olan, istenen tipte değilse hiç
+    ///   2) Zaten rezerve edilmemiş olma -> başka bir Food/Tray ZATEN bu
+    ///      müşteriye yemek getiriyorsa (henüz ulaşmamış olsa bile) bir
+    ///      daha aday olarak seçilmez. (Bkz. Customer.IsReceivingFood /
+    ///      TryReserveForDelivery — rezervasyon artık Food ve Tray
+    ///      arasında ORTAK, çünkü eskiden Tray kendi ayrı rezervasyon
+    ///      setini tutuyordu ve bu kontrol hiç yapılmıyordu; bu da aynı
+    ///      müşteriye birden fazla yemek gönderilmesine yol açan asıl
+    ///      sebepti.)
+    ///   3) Aynı food type  -> en yakın olan, istenen tipte değilse hiç
     ///      kimseye servis yapılmaz (arkadaki doğru tipe ASLA atlanmaz).
-    ///   3) Önünde engel yok -> "en yakın" tanımının kendisi bu.
+    ///   4) Önünde engel yok -> "en yakın" tanımının kendisi bu.
     /// </summary>
     public class CustomerManager : MonoBehaviour
     {
@@ -44,10 +52,11 @@ namespace RestaurantLoop
         public void ForceRecalculate() => RecalculateAccessibility();
 
         /// <summary>
-        /// Food.cs, conveyor üzerindeki her waypoint adımında bunu çağırır.
+        /// Food.cs / Tray.cs, teslimat denemesi sırasında bunu çağırır.
         /// Artık global Idle bayrağına HİÇ bakmıyor — her aday için
         /// kendi satırında/sütununda gerçekten en yakın (yani önünde
-        /// kimse olmayan) olup olmadığını ayrı ayrı hesaplıyor.
+        /// kimse olmayan) VE henüz rezerve edilmemiş olup olmadığını
+        /// ayrı ayrı hesaplıyor.
         /// </summary>
         public bool TryFindDeliverableCustomer(FoodType food, Vector2Int blockOrigin, int blockSize, out Customer result)
         {
@@ -66,6 +75,13 @@ namespace RestaurantLoop
 
                 // Eating/HappyJump/Leaving/Angry -> zaten servis sürecinde, aday olamaz.
                 if (!candidate.IsWaiting) continue;
+
+                // Zaten başka bir Food/Tray tarafından rezerve edilmiş
+                // (yemek yola çıkmış ama henüz ulaşmamış) -> aday olamaz.
+                // NOT: Rezervasyon candidate'in state'ini DEĞİŞTİRMEZ
+                // (hâlâ Idle görünür), bu yüzden bu kontrol IsWaiting'den
+                // AYRI ve MUTLAKA gerekli.
+                if (candidate.IsReceivingFood) continue;
 
                 bool rowAligned = candidate.Row >= rowMin && candidate.Row <= rowMax;
                 bool colAligned = candidate.Col >= colMin && candidate.Col <= colMax;
@@ -104,7 +120,9 @@ namespace RestaurantLoop
         /// <summary>
         /// candidate'in kendi satırında (candidate.Row), approachCol'a en
         /// yakın müşteri GERÇEKTEN candidate'in kendisi mi? (Food type
-        /// fark etmeksizin TÜM müşteriler arasında.)
+        /// fark etmeksizin TÜM bekleyen müşteriler arasında — rezerve
+        /// edilmiş olsa bile, çünkü fiziksel olarak hâlâ oradadır ve
+        /// arkasındakileri engellemeye devam eder.)
         /// </summary>
         private bool IsNearestAlongRow(Customer candidate, float approachCol)
         {
@@ -186,6 +204,13 @@ namespace RestaurantLoop
                 var customer = kvp.Value;
 
                 if (!customer.IsWaiting) continue;
+
+                // Serving durumundaki müşteri zaten bir teslimatı
+                // bekliyor — bu global görsel yeniden hesaplama onun
+                // state'ini Idle/Blocked'a geri ÇEVİRMEMELİ, yoksa
+                // rezervasyon sürerken state sessizce Idle'a döner ve
+                // state üzerinden bakan kontroller yanıltılır.
+                if (customer.CurrentState == CustomerState.Serving) continue;
 
                 bool isRowEdge = cell.y == rowMinCol[cell.x] || cell.y == rowMaxCol[cell.x];
                 bool isColEdge = cell.x == colMinRow[cell.y] || cell.x == colMaxRow[cell.y];

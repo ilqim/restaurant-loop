@@ -88,26 +88,26 @@ namespace RestaurantLoop
 
                     effectiveReverse = backwardDot < forwardDot;
 
-                    Debug.Log(
-                        $"[ConveyorPathBuilder] Start={start} TrayBase={trayBase} " +
-                        $"forwardFirstStep={forwardFirstStep} (dot={forwardDot}, {forwardPath.Count} hücre) " +
-                        $"backwardFirstStep={backwardFirstStep} (dot={backwardDot}, {backwardPath.Count} hücre) " +
-                        $"=> effectiveReverse={effectiveReverse}"
-                    );
+                    // Debug.Log(
+                    //     $"[ConveyorPathBuilder] Start={start} TrayBase={trayBase} " +
+                    //     $"forwardFirstStep={forwardFirstStep} (dot={forwardDot}, {forwardPath.Count} hücre) " +
+                    //     $"backwardFirstStep={backwardFirstStep} (dot={backwardDot}, {backwardPath.Count} hücre) " +
+                    //     $"=> effectiveReverse={effectiveReverse}"
+                    // );
                 }
                 else if (backwardValid && !forwardValid)
                 {
                     effectiveReverse = true;
-                    Debug.Log("[ConveyorPathBuilder] Sadece backward yön geçerli, onu kullanıyorum.");
+                    // Debug.Log("[ConveyorPathBuilder] Sadece backward yön geçerli, onu kullanıyorum.");
                 }
                 else if (forwardValid && !backwardValid)
                 {
                     effectiveReverse = false;
-                    Debug.Log("[ConveyorPathBuilder] Sadece forward yön geçerli, onu kullanıyorum.");
+                    // Debug.Log("[ConveyorPathBuilder] Sadece forward yön geçerli, onu kullanıyorum.");
                 }
                 else
                 {
-                    Debug.LogWarning("[ConveyorPathBuilder] Tray Base var ama ne forward ne backward yön geçerli — asıl trace kendi hatasını verecek.");
+                    // Debug.LogWarning("[ConveyorPathBuilder] Tray Base var ama ne forward ne backward yön geçerli — asıl trace kendi hatasını verecek.");
                 }
                 // İkisi de geçersizse aşağıdaki asıl trace zaten kendi
                 // hata mesajını üretecek — burada susuyoruz.
