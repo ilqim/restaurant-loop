@@ -87,6 +87,8 @@ namespace RestaurantLoop
 
             if (currentState == FoodState.AvailableInQueue)
             {
+                // Queue'deki food'u banda göndermek için tıklama.
+                AudioEvents.PlayFoodClick();
                 TryLaunchAndDespawn();
             }
             else

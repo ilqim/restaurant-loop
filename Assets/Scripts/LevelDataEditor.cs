@@ -9,13 +9,13 @@ namespace RestaurantLoop.EditorTools
     {
         private enum PaintMode
         {
-            Conveyor, Erase, SetBase, SetExit,
-            Hamburger, Fries, Drink, Sushi, Steak, Dessert
+            Conveyor, Erase, SetStart, SetExit, SetTrayBase,
+            Hamburger, Fries, Drink, Sushi, Steak, Donut
         }
 
         private enum QueuePaintMode
         {
-            Erase, Hamburger, Fries, Drink, Sushi, Steak, Dessert
+            Erase, Hamburger, Fries, Drink, Sushi, Steak, Donut
         }
 
         private const float CellPixelSize = 22f;
@@ -29,11 +29,12 @@ namespace RestaurantLoop.EditorTools
             { FoodType.Drink,     new Color(0.20f, 0.45f, 0.95f) },
             { FoodType.Sushi,     new Color(0.20f, 0.75f, 0.30f) },
             { FoodType.Steak,     new Color(0.45f, 0.28f, 0.15f) },
-            { FoodType.Dessert,   new Color(0.65f, 0.25f, 0.85f) },
+            { FoodType.Donut,   new Color(0.65f, 0.25f, 0.85f) },
         };
         private static readonly Color ConveyorColor = new Color(0.55f, 0.55f, 0.55f);
-        private static readonly Color BaseColor = new Color(1f, 0.85f, 0.2f);
+        private static readonly Color StartColor = new Color(1f, 0.85f, 0.2f);      // eskiden "Base" rengi — artık "Start"
         private static readonly Color ExitColor = new Color(0.2f, 0.9f, 0.85f);
+        private static readonly Color TrayBaseColor = new Color(0.85f, 0.45f, 0.95f); // yeni — boş tepsi park yeri
 
         private PaintMode currentMode = PaintMode.Conveyor;
         private bool isPainting;
@@ -58,7 +59,7 @@ namespace RestaurantLoop.EditorTools
         }
 
         // =====================================================================
-        // LEVEL GRID (conveyor / customer) — değişmedi
+        // LEVEL GRID (conveyor / customer)
         // =====================================================================
 
         private void DrawGridSection(LevelData levelData)
@@ -90,8 +91,11 @@ namespace RestaurantLoop.EditorTools
             DrawToolButton(PaintMode.Erase, "Erase (2x2)", Color.white);
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.BeginHorizontal();
-            DrawToolButton(PaintMode.SetBase, "Set Base (2x2 blok)", BaseColor);
+            DrawToolButton(PaintMode.SetStart, "Set Start (2x2 blok)", StartColor);
             DrawToolButton(PaintMode.SetExit, "Set Exit (2x2 blok)", ExitColor);
+            EditorGUILayout.EndHorizontal();
+            EditorGUILayout.BeginHorizontal();
+            DrawToolButton(PaintMode.SetTrayBase, "Set Tray Base (2x2 blok)", TrayBaseColor);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
@@ -102,13 +106,17 @@ namespace RestaurantLoop.EditorTools
             EditorGUILayout.BeginHorizontal();
             DrawToolButton(PaintMode.Sushi, "Sushi", FoodColors[FoodType.Sushi]);
             DrawToolButton(PaintMode.Steak, "Steak", FoodColors[FoodType.Steak]);
-            DrawToolButton(PaintMode.Dessert, "Dessert", FoodColors[FoodType.Dessert]);
+            DrawToolButton(PaintMode.Donut, "Donut", FoodColors[FoodType.Donut]);
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.HelpBox(
-                "Conveyor 2x2'lik bloklar halinde boyanır. Base ve Exit de 2x2 blok — tıkladığın hücrenin " +
-                "ait olduğu blok otomatik Conveyor'a boyanır ve blok origin'i (sol-üst köşe) Base/Exit olur.",
-                MessageType.Info);
+    "Conveyor 2x2'lik bloklar halinde boyanır. Start ve Exit 2x2 Conveyor bloklarıdır. " +
+    "Tray Base ise 2x2'lik ayrı bir alandır ve Conveyor'ın parçası değildir.\n\n" +
+    "• Start: yemekler conveyor'a buradan girer (eskiden 'Base' diye adlandırılıyordu).\n" +
+    "• Exit: conveyor'dan çıkış noktası.\n" +
+    "• Tray Base: boş traylerin park ettiği/stackleneceği yer. " +
+    "Sadece referans noktası olarak kullanılır ve conveyor yolunu etkilemez.",
+    MessageType.Info);
 
             var path = ConveyorPathBuilder.BuildPath(levelData, out bool pathValid, out string pathReason);
             EditorGUILayout.HelpBox(
@@ -158,27 +166,32 @@ namespace RestaurantLoop.EditorTools
                         CellPixelSize - 1, CellPixelSize - 1);
 
                     CellType type = levelData.GetCell(r, c);
-                    bool isBase = levelData.IsCellInBaseBlock(r, c);
+                    bool isStart = levelData.IsCellInBaseBlock(r, c);
                     bool isExit = levelData.IsCellInExitBlock(r, c);
+                    bool isTrayBase = levelData.IsCellInTrayBaseBlock(r, c);
 
                     Color color = type switch
                     {
-                        CellType.Conveyor     => ConveyorColor,
+                        CellType.Conveyor => ConveyorColor,
                         CellType.CustomerSlot => levelData.TryGetCustomerFood(r, c, out var food)
                                                     ? FoodColors[food] : new Color(0.25f, 0.25f, 0.25f),
-                        _                     => new Color(0.18f, 0.18f, 0.18f)
+                        _ => new Color(0.18f, 0.18f, 0.18f)
                     };
-                    if (isBase) color = BaseColor;
+                    if (isStart) color = StartColor;
                     else if (isExit) color = ExitColor;
+                    else if (isTrayBase) color = TrayBaseColor;
 
                     EditorGUI.DrawRect(cellRect, color);
 
-                    bool isBaseOrigin = levelData.baseRow == r && levelData.baseCol == c;
+                    bool isStartOrigin = levelData.baseRow == r && levelData.baseCol == c;
                     bool isExitOrigin = levelData.exitRow == r && levelData.exitCol == c;
-                    if (isBaseOrigin)
-                        EditorGUI.LabelField(cellRect, "B", new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter });
+                    bool isTrayBaseOrigin = levelData.trayBaseRow == r && levelData.trayBaseCol == c;
+                    if (isStartOrigin)
+                        EditorGUI.LabelField(cellRect, "S", new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter });
                     if (isExitOrigin)
                         EditorGUI.LabelField(cellRect, "E", new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter });
+                    if (isTrayBaseOrigin)
+                        EditorGUI.LabelField(cellRect, "T", new GUIStyle(EditorStyles.boldLabel) { alignment = TextAnchor.MiddleCenter });
                 }
             }
 
@@ -205,8 +218,8 @@ namespace RestaurantLoop.EditorTools
             if (!gridRect.Contains(e.mousePosition)) return;
 
             bool isMouseDown = e.type == EventType.MouseDown && e.button == 0;
-            bool isMouseDrag  = e.type == EventType.MouseDrag && e.button == 0;
-            bool isMouseUp    = e.type == EventType.MouseUp && e.button == 0;
+            bool isMouseDrag = e.type == EventType.MouseDrag && e.button == 0;
+            bool isMouseUp = e.type == EventType.MouseUp && e.button == 0;
             if (!isMouseDown && !isMouseDrag && !isMouseUp) return;
 
             int col = Mathf.FloorToInt((e.mousePosition.x - gridRect.x) / CellPixelSize);
@@ -252,12 +265,16 @@ namespace RestaurantLoop.EditorTools
                     EraseAt(levelData, row, col);
                     break;
 
-                case PaintMode.SetBase:
-                    SetBaseOrExitBlock(levelData, row, col, isBase: true);
+                case PaintMode.SetStart:
+                    SetSpecialBlock(levelData, row, col, SpecialBlock.Start);
                     break;
 
                 case PaintMode.SetExit:
-                    SetBaseOrExitBlock(levelData, row, col, isBase: false);
+                    SetSpecialBlock(levelData, row, col, SpecialBlock.Exit);
+                    break;
+
+                case PaintMode.SetTrayBase:
+                    SetSpecialBlock(levelData, row, col, SpecialBlock.TrayBase);
                     break;
 
                 default:
@@ -267,7 +284,9 @@ namespace RestaurantLoop.EditorTools
             }
         }
 
-        private void SetBaseOrExitBlock(LevelData levelData, int row, int col, bool isBase)
+        private enum SpecialBlock { Start, Exit, TrayBase }
+
+        private void SetSpecialBlock(LevelData levelData, int row, int col, SpecialBlock kind)
         {
             int originRow = (row / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
             int originCol = (col / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
@@ -275,14 +294,56 @@ namespace RestaurantLoop.EditorTools
             if (originRow + LevelData.ConveyorBlockSize > levelData.rows ||
                 originCol + LevelData.ConveyorBlockSize > levelData.columns)
             {
-                Debug.LogWarning($"Set {(isBase ? "Base" : "Exit")}: 2x2 blok grid sınırlarının dışına taşıyor.");
+                Debug.LogWarning($"Set {kind}: 2x2 blok grid sınırlarının dışına taşıyor.");
                 return;
             }
 
-            PaintConveyorBlock(levelData, originRow, originCol);
+            // ---------------------------------------------------------
+            // START ve EXIT conveyor'ın parçasıdır.
+            // TRAY BASE conveyor'ın parçası DEĞİLDİR.
+            // ---------------------------------------------------------
+            if (kind == SpecialBlock.Start || kind == SpecialBlock.Exit)
+            {
+                PaintConveyorBlock(levelData, originRow, originCol);
+            }
+            else if (kind == SpecialBlock.TrayBase)
+            {
+                // Tray Base'in bulunduğu 2x2 alan boş kalır.
+                // Böylece conveyor konturuna dahil olmaz.
+                for (int dr = 0; dr < LevelData.ConveyorBlockSize; dr++)
+                {
+                    for (int dc = 0; dc < LevelData.ConveyorBlockSize; dc++)
+                    {
+                        int rr = originRow + dr;
+                        int cc = originCol + dc;
 
-            if (isBase) { levelData.baseRow = originRow; levelData.baseCol = originCol; }
-            else { levelData.exitRow = originRow; levelData.exitCol = originCol; }
+                        if (rr >= levelData.rows || cc >= levelData.columns)
+                            continue;
+
+                        levelData.SetCell(rr, cc, CellType.Empty);
+                        levelData.RemoveCustomerAt(rr, cc);
+                    }
+                }
+            }
+
+            // Özel bloğun koordinatını kaydet
+            switch (kind)
+            {
+                case SpecialBlock.Start:
+                    levelData.baseRow = originRow;
+                    levelData.baseCol = originCol;
+                    break;
+
+                case SpecialBlock.Exit:
+                    levelData.exitRow = originRow;
+                    levelData.exitCol = originCol;
+                    break;
+
+                case SpecialBlock.TrayBase:
+                    levelData.trayBaseRow = originRow;
+                    levelData.trayBaseCol = originCol;
+                    break;
+            }
         }
 
         private void PaintConveyorBlock(LevelData levelData, int row, int col)
@@ -304,26 +365,109 @@ namespace RestaurantLoop.EditorTools
 
         private void EraseAt(LevelData levelData, int row, int col)
         {
-            if (levelData.GetCell(row, col) == CellType.Conveyor)
+            int originRow = (row / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
+            int originCol = (col / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
+
+            // ---------------------------------------------------------
+            // Önce özel blokları kontrol et
+            // ---------------------------------------------------------
+
+            // START
+            if (levelData.baseRow == originRow &&
+                levelData.baseCol == originCol)
             {
-                int originRow = (row / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
-                int originCol = (col / LevelData.ConveyorBlockSize) * LevelData.ConveyorBlockSize;
                 for (int dr = 0; dr < LevelData.ConveyorBlockSize; dr++)
                 {
                     for (int dc = 0; dc < LevelData.ConveyorBlockSize; dc++)
                     {
-                        int rr = originRow + dr, cc = originCol + dc;
-                        if (rr >= levelData.rows || cc >= levelData.columns) continue;
+                        int rr = originRow + dr;
+                        int cc = originCol + dc;
+
+                        if (rr >= levelData.rows || cc >= levelData.columns)
+                            continue;
+
                         levelData.SetCell(rr, cc, CellType.Empty);
-                        if (levelData.baseRow == originRow && levelData.baseCol == originCol)
-                        { levelData.baseRow = -1; levelData.baseCol = -1; }
-                        if (levelData.exitRow == originRow && levelData.exitCol == originCol)
-                        { levelData.exitRow = -1; levelData.exitCol = -1; }
+                        levelData.RemoveCustomerAt(rr, cc);
+                    }
+                }
+
+                levelData.baseRow = -1;
+                levelData.baseCol = -1;
+                return;
+            }
+
+            // EXIT
+            if (levelData.exitRow == originRow &&
+                levelData.exitCol == originCol)
+            {
+                for (int dr = 0; dr < LevelData.ConveyorBlockSize; dr++)
+                {
+                    for (int dc = 0; dc < LevelData.ConveyorBlockSize; dc++)
+                    {
+                        int rr = originRow + dr;
+                        int cc = originCol + dc;
+
+                        if (rr >= levelData.rows || cc >= levelData.columns)
+                            continue;
+
+                        levelData.SetCell(rr, cc, CellType.Empty);
+                        levelData.RemoveCustomerAt(rr, cc);
+                    }
+                }
+
+                levelData.exitRow = -1;
+                levelData.exitCol = -1;
+                return;
+            }
+
+            // TRAY BASE
+            if (levelData.trayBaseRow == originRow &&
+                levelData.trayBaseCol == originCol)
+            {
+                for (int dr = 0; dr < LevelData.ConveyorBlockSize; dr++)
+                {
+                    for (int dc = 0; dc < LevelData.ConveyorBlockSize; dc++)
+                    {
+                        int rr = originRow + dr;
+                        int cc = originCol + dc;
+
+                        if (rr >= levelData.rows || cc >= levelData.columns)
+                            continue;
+
+                        levelData.SetCell(rr, cc, CellType.Empty);
+                        levelData.RemoveCustomerAt(rr, cc);
+                    }
+                }
+
+                levelData.trayBaseRow = -1;
+                levelData.trayBaseCol = -1;
+                return;
+            }
+
+            // ---------------------------------------------------------
+            // Normal Conveyor bloğu
+            // ---------------------------------------------------------
+
+            if (levelData.GetCell(row, col) == CellType.Conveyor)
+            {
+                for (int dr = 0; dr < LevelData.ConveyorBlockSize; dr++)
+                {
+                    for (int dc = 0; dc < LevelData.ConveyorBlockSize; dc++)
+                    {
+                        int rr = originRow + dr;
+                        int cc = originCol + dc;
+
+                        if (rr >= levelData.rows || cc >= levelData.columns)
+                            continue;
+
+                        levelData.SetCell(rr, cc, CellType.Empty);
+                        levelData.RemoveCustomerAt(rr, cc);
                     }
                 }
             }
             else
             {
+                // Normal boş/hücre silme
                 levelData.SetCell(row, col, CellType.Empty);
                 levelData.RemoveCustomerAt(row, col);
             }
@@ -332,19 +476,16 @@ namespace RestaurantLoop.EditorTools
         private static FoodType PaintModeToFood(PaintMode mode) => mode switch
         {
             PaintMode.Hamburger => FoodType.Hamburger,
-            PaintMode.Fries     => FoodType.Fries,
-            PaintMode.Drink     => FoodType.Drink,
-            PaintMode.Sushi     => FoodType.Sushi,
-            PaintMode.Steak     => FoodType.Steak,
-            PaintMode.Dessert   => FoodType.Dessert,
+            PaintMode.Fries => FoodType.Fries,
+            PaintMode.Drink => FoodType.Drink,
+            PaintMode.Sushi => FoodType.Sushi,
+            PaintMode.Steak => FoodType.Steak,
+            PaintMode.Donut => FoodType.Donut,
             _ => FoodType.Hamburger
         };
 
         // =====================================================================
-        // FOOD STACK QUEUE — YENİ bölüm. Level grid'den tamamen bağımsız,
-        // kendi (row,col) koordinat uzayı. row 0 = en üst (ilk tıklanabilir
-        // satır), col arttıkça sağa gider — level grid ile birebir aynı
-        // yön kuralı.
+        // FOOD STACK QUEUE — değişmedi
         // =====================================================================
 
         private void DrawQueueSection(LevelData levelData)
@@ -381,7 +522,7 @@ namespace RestaurantLoop.EditorTools
             DrawQueueToolButton(QueuePaintMode.Steak, "Steak", FoodColors[FoodType.Steak]);
             EditorGUILayout.EndHorizontal();
             EditorGUILayout.BeginHorizontal();
-            DrawQueueToolButton(QueuePaintMode.Dessert, "Dessert", FoodColors[FoodType.Dessert]);
+            DrawQueueToolButton(QueuePaintMode.Donut, "Donut", FoodColors[FoodType.Donut]);
             EditorGUILayout.EndHorizontal();
 
             int maxUsedRow = -1;
@@ -460,8 +601,8 @@ namespace RestaurantLoop.EditorTools
             if (!gridRect.Contains(e.mousePosition)) return;
 
             bool isMouseDown = e.type == EventType.MouseDown && e.button == 0;
-            bool isMouseDrag  = e.type == EventType.MouseDrag && e.button == 0;
-            bool isMouseUp    = e.type == EventType.MouseUp && e.button == 0;
+            bool isMouseDrag = e.type == EventType.MouseDrag && e.button == 0;
+            bool isMouseUp = e.type == EventType.MouseUp && e.button == 0;
             if (!isMouseDown && !isMouseDrag && !isMouseUp) return;
 
             int col = Mathf.FloorToInt((e.mousePosition.x - gridRect.x) / CellPixelSize);
@@ -506,11 +647,11 @@ namespace RestaurantLoop.EditorTools
             FoodType food = currentQueueMode switch
             {
                 QueuePaintMode.Hamburger => FoodType.Hamburger,
-                QueuePaintMode.Fries     => FoodType.Fries,
-                QueuePaintMode.Drink     => FoodType.Drink,
-                QueuePaintMode.Sushi     => FoodType.Sushi,
-                QueuePaintMode.Steak     => FoodType.Steak,
-                QueuePaintMode.Dessert   => FoodType.Dessert,
+                QueuePaintMode.Fries => FoodType.Fries,
+                QueuePaintMode.Drink => FoodType.Drink,
+                QueuePaintMode.Sushi => FoodType.Sushi,
+                QueuePaintMode.Steak => FoodType.Steak,
+                QueuePaintMode.Donut => FoodType.Donut,
                 _ => FoodType.Hamburger
             };
 

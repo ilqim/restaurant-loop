@@ -37,7 +37,7 @@ namespace RestaurantLoop
             new FoodCustomerPrefab { food = FoodType.Drink },
             new FoodCustomerPrefab { food = FoodType.Sushi },
             new FoodCustomerPrefab { food = FoodType.Steak },
-            new FoodCustomerPrefab { food = FoodType.Dessert },
+            new FoodCustomerPrefab { food = FoodType.Donut },
         };
 
         [Header("Koordinat Yönü — (0,0) HER ZAMAN bu objenin transform pozisyonunda olur")]
@@ -299,13 +299,17 @@ namespace RestaurantLoop
 
             var path = fullPath.GetRange(0, exitIdx + 1);
 
-            if (path.Count >= 3)
-            {
-                Vector3 baseWorld = GetGridCornerWorld(Grid, data.baseRow + 1, data.baseCol + 1);
-                Vector2Int firstCorner = GetCenterlineCorner(data, path, 1);
-                Vector3 firstWorld = GetGridCornerWorld(Grid, firstCorner.x, firstCorner.y);
-                if (firstWorld.z < baseWorld.z) path.Reverse();
-            }
+            // NOT: Burada eskiden path'in dünya Z ekseninde her zaman
+            // pozitif yönde başlamasını zorlayan bir "path.Reverse()"
+            // bloğu vardı. O blok KALDIRILDI çünkü ConveyorPathBuilder
+            // artık Tray Base'e göre DOĞRU yönü zaten seçiyor (bkz.
+            // ConveyorPathBuilder.BuildPath — Tray Base tanımlıysa ilk
+            // adımı ondan uzağa giden yönü otomatik buluyor) — bu Z
+            // tabanlı zorlama, o doğru kararı görmezden gelip path'i
+            // tekrar Tray Base yönüne çevirebiliyordu. Yön kontrolü artık
+            // TEK bir yerde (ConveyorPathBuilder) ve TEK bir kaynağa
+            // (Tray Base konumu, yoksa manuel reversePathDirection) göre
+            // yapılıyor.
 
             var fineCorners = BuildCornerSequence(data, path);
 
