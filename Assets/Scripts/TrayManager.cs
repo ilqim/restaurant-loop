@@ -27,36 +27,16 @@ namespace RestaurantLoop
         public bool removeFromTopFirst;
 
         [Header("Hız")]
-        [Tooltip("Tray'in conveyor üzerindeki SABİT hızı (dünya birimi/saniye) — SÜRE değil. " +
-                 "Köşeler yuvarlatıldığında waypoint'ler arası mesafe artık eşit olmadığı için " +
-                 "(köşedeki kısa yay adımları, düz kısımdaki uzun adımlar) süre-bazlı hareket " +
-                 "köşelerde yavaşlama/hızlanma gibi görünürdü. Hız sabit, süre = mesafe / hız.")]
+        [Tooltip("Tray'in conveyor üzerindeki SABİT hızı (dünya birimi/saniye) — SÜRE değil.")]
         [UnityEngine.Serialization.FormerlySerializedAs("stepDuration")]
         public float conveyorSpeed;
 
-        [Tooltip("Müşteriye fırlatılan parçanın SABİT hızı (dünya birimi/saniye) — SÜRE değil. " +
-                 "Böylece yakın müşteriye giden parça da uzak müşteriye giden parça da AYNI HIZDA gider; " +
-                 "sadece varış süresi mesafeye göre değişir (mesafe/hız). Eskiden bu 'deliveryDuration' " +
-                 "(sabit SÜRE) idi — o zaman yakın müşteriye giden parça yavaş, uzağa giden hızlı görünüyordu.")]
+        [Tooltip("Müşteriye fırlatılan parçanın SABİT hızı (dünya birimi/saniye) — SÜRE değil.")]
         public float deliverySpeed;
     }
 
     public class TrayManager : MonoBehaviour
     {
-        [Header("Tray Base Stack Settings")]
-        [Tooltip("Başlangıçta Tray Base alanında üst üste duracak boş tepsi sayısı.")]
-        [SerializeField] private int initialBaseTrays = 6;
-        [Tooltip("Tepsiler üst üste stacklendiğinde aralarındaki dikey mesafe.")]
-        [SerializeField] private float baseStackYOffset = 0.08f;
-        [Tooltip("Tepsinin işi bittiğinde Base'e geri dönüş hızı.")]
-        [SerializeField] private float returnSpeed = 6f;
-
-        private readonly List<Tray> trayBaseStack = new();
-        private static readonly Quaternion BaseTrayFacingRotation = Quaternion.Euler(0f, 90f, 0f);
-        private Vector3 trayBaseWorldCenter;
-
-        public float ReturnSpeed => returnSpeed;
-
         [Header("References")]
         [SerializeField] private GridManager gridManager;
         [SerializeField] private CustomerManager customerManager;
@@ -69,6 +49,14 @@ namespace RestaurantLoop
         [Header("Konveyör Kapasitesi")]
         [Tooltip("Aynı anda konveyörde en fazla kaç Tray olabilir.")]
         [SerializeField] private int maxActiveTrays = 5;
+
+        [Header("Tray Base Stack Settings")]
+        [Tooltip("Başlangıçta Tray Base alanında üst üste duracak boş tepsi sayısı.")]
+        [SerializeField] private int initialBaseTrays = 6;
+        [Tooltip("Tepsiler üst üste stacklendiğinde aralarındaki dikey mesafe.")]
+        [SerializeField] private float baseStackYOffset = 0.08f;
+        [Tooltip("Tepsinin işi bittiğinde Base'e geri dönüş hızı.")]
+        [SerializeField] private float returnSpeed = 6f;
 
         [Header("Waypoint Y Offset")]
         [Tooltip("Tray'in tüm conveyor waypointlerinde Y ekseninde ne kadar yukarı/aşağı duracağını belirler.")]
@@ -95,14 +83,16 @@ namespace RestaurantLoop
         };
 
         private int currentActiveTrays;
+        private readonly List<Tray> trayBaseStack = new();
+        private Vector3 trayBaseWorldCenter;
 
         public GridManager GridManagerRef => gridManager;
         public CustomerManager CustomerManagerRef => customerManager;
         public SlotManager SlotManagerRef => slotManager;
 
         public bool LoopIfSlotsFull => loopIfSlotsFull;
-
         public float WaypointYOffset => waypointYOffset;
+        public float ReturnSpeed => returnSpeed;
 
         private void Awake()
         {
@@ -116,58 +106,43 @@ namespace RestaurantLoop
                 slotManager = FindFirstObjectByType<SlotManager>();
         }
 
-        /// <summary>
-        /// Öncelik kuyruğu artık burada DEĞİL — TrayDeliveryQueue statik
-        /// sınıfında, food type başına GLOBAL olarak tutuluyor. Bunun
-        /// sebebi: sahnede satır/sütun gibi birden fazla TrayManager
-        /// olsa bile, hangi tepsinin önce ateş edeceği TÜM sahne
-        /// genelinde tutarlı olmalı. Bu yüzden burada sadece o global
-        /// koordinatörü tetikliyoruz; birden fazla TrayManager aynı
-        /// frame'de bunu çağırsa bile TrayDeliveryQueue işi frame
-        /// başına sadece bir kez yapar.
-        /// </summary>
+        private void Start()
+        {
+            InitializeBaseTrayStack();
+        }
+
         private void LateUpdate()
         {
             TrayDeliveryQueue.ProcessAllQueuesOncePerFrame();
         }
 
-        private void Start()
-{
-    InitializeBaseTrayStack();
-}
-
-private void InitializeBaseTrayStack()
-{
-    if (gridManager == null || trayPrefab == null)
-        return;
-
-    trayBaseWorldCenter = gridManager.GetTrayBaseCenterWorld();
-
-    for (int i = 0; i < initialBaseTrays; i++)
-    {
-        Vector3 spawnPos = GetBaseStackPosition(i);
-        // Instantiated facing right:
-        GameObject trayGo = Instantiate(trayPrefab, spawnPos, BaseTrayFacingRotation, transform);
-        Tray tray = trayGo.GetComponent<Tray>();
-        if (tray != null)
+        private void InitializeBaseTrayStack()
         {
-            tray.ParkAtBase(this, spawnPos);
-            trayBaseStack.Add(tray);
+            if (gridManager == null || trayPrefab == null)
+                return;
+
+            trayBaseWorldCenter = gridManager.GetTrayBaseCenterWorld();
+
+            for (int i = 0; i < initialBaseTrays; i++)
+            {
+                Vector3 spawnPos = GetBaseStackPosition(i);
+                GameObject trayGo = Instantiate(trayPrefab, spawnPos, Quaternion.identity, transform);
+                Tray tray = trayGo.GetComponent<Tray>();
+                if (tray != null)
+                {
+                    tray.ParkAtBase(this, spawnPos);
+                    trayBaseStack.Add(tray);
+                }
+            }
         }
-    }
-}
 
-public Vector3 GetBaseStackPosition(int index)
-{
-    Vector3 pos = trayBaseWorldCenter;
-    pos.y += waypointYOffset + (index * baseStackYOffset);
-    return pos;
-}
+        public Vector3 GetBaseStackPosition(int index)
+        {
+            Vector3 pos = trayBaseWorldCenter;
+            pos.y += waypointYOffset + (index * baseStackYOffset);
+            return pos;
+        }
 
-        /// <summary>
-        /// Tray'in belirli waypoint'teki gerçek pozisyonunu verir.
-        /// Waypoint Y değerine WaypointYOffset eklenir.
-        /// </summary>
         public Vector3 GetWaypointPosition(int index)
         {
             if (gridManager == null ||
@@ -179,74 +154,68 @@ public Vector3 GetBaseStackPosition(int index)
             }
 
             Vector3 position = gridManager.WaypointWorldPositions[index];
-
             position.y += waypointYOffset;
-
             return position;
         }
 
-        /// <summary>
-        /// Yeni bir Tray oluşturur ve conveyor'a gönderir.
-        /// </summary>
         public bool TryLaunchTray(FoodType foodType, int capacity)
         {
-            // CHANGED INSIDE TryLaunchTray:
-Tray trayToLaunch;
+            if (currentActiveTrays >= maxActiveTrays)
+                return false;
 
-if (trayBaseStack.Count > 0)
-{
-    trayToLaunch = trayBaseStack[^1];
-    trayBaseStack.RemoveAt(trayBaseStack.Count - 1);
-}
-else
-{
-    Vector3 spawnPos = GetWaypointPosition(0);
-    GameObject trayGo = Instantiate(trayPrefab, spawnPos, trayPrefab.transform.rotation, transform);
-    trayToLaunch = trayGo.GetComponent<Tray>();
-}
+            if (gridManager == null ||
+                gridManager.WaypointWorldPositions == null ||
+                gridManager.WaypointWorldPositions.Count == 0)
+            {
+                Debug.LogWarning("TrayManager: Conveyor waypoint listesi boş.");
+                return false;
+            }
 
-if (trayToLaunch == null)
-{
-    Debug.LogError("TrayManager: Tray başlatılamadı.");
-    return false;
-}
+            Tray trayToLaunch;
 
-currentActiveTrays++;
-trayToLaunch.transform.position = GetWaypointPosition(0);
-trayToLaunch.Init(this, foodType, capacity);
+            if (trayBaseStack.Count > 0)
+            {
+                trayToLaunch = trayBaseStack[^1];
+                trayBaseStack.RemoveAt(trayBaseStack.Count - 1);
+            }
+            else
+            {
+                Vector3 spawnPos = GetWaypointPosition(0);
+                GameObject trayGo = Instantiate(trayPrefab, spawnPos, trayPrefab.transform.rotation, transform);
+                trayToLaunch = trayGo.GetComponent<Tray>();
+            }
 
-return true;
+            if (trayToLaunch == null)
+            {
+                Debug.LogError("TrayManager: Tray başlatılamadı.");
+                return false;
+            }
+
+            currentActiveTrays++;
+            trayToLaunch.transform.position = GetWaypointPosition(0);
+            trayToLaunch.Init(this, foodType, capacity);
+
+            return true;
         }
 
-public void ReturnTrayToBase(Tray tray)
-{
-    currentActiveTrays = Mathf.Max(0, currentActiveTrays - 1);
+        public void ReturnTrayToBase(Tray tray)
+        {
+            currentActiveTrays = Mathf.Max(0, currentActiveTrays - 1);
 
-    if (!trayBaseStack.Contains(tray))
-    {
-        int targetIndex = trayBaseStack.Count;
-        trayBaseStack.Add(tray);
-        Vector3 targetPos = GetBaseStackPosition(targetIndex);
-        
-        // Directly park/teleport back to the stack:
-        tray.ParkAtBase(this, targetPos);
-    }
-}
+            if (!trayBaseStack.Contains(tray))
+            {
+                int targetIndex = trayBaseStack.Count;
+                trayBaseStack.Add(tray);
+                Vector3 targetPos = GetBaseStackPosition(targetIndex);
+                tray.GlideBackToBase(targetPos);
+            }
+        }
 
-        /// <summary>
-        /// Bir Tray conveyor'dan çıktığında kapasiteyi serbest bırakır.
-        /// </summary>
         public void ReleaseTraySlot()
         {
-            currentActiveTrays =
-                Mathf.Max(0, currentActiveTrays - 1);
+            currentActiveTrays = Mathf.Max(0, currentActiveTrays - 1);
         }
 
-        
-
-        /// <summary>
-        /// FoodType'a göre görsel/hız ayarlarını getirir.
-        /// </summary>
         public TrayVisualConfig GetVisualConfig(FoodType food)
         {
             foreach (var config in visualConfigs)
@@ -255,35 +224,20 @@ public void ReturnTrayToBase(Tray tray)
                     return config;
             }
 
-            Debug.LogWarning(
-                $"TrayManager: '{food}' için Visual Config yok, varsayılan kullanılıyor."
-            );
-
             return new TrayVisualConfig
             {
                 food = food,
-
                 stackPiecePrefab = null,
-
                 foodBaseYOffset = 0f,
-
                 pieceSpacing = 0.3f,
-
                 pieceHeightSpacing = 0.25f,
-
                 maxVisualPieces = 20,
-
                 removeFromTopFirst = false,
-
                 conveyorSpeed = 3f,
-
                 deliverySpeed = 4f
             };
         }
 
-        /// <summary>
-        /// Tray exit'e geldiğinde kalan Food'u oluşturmak için prefab getirir.
-        /// </summary>
         public GameObject GetFoodPrefab(FoodType food)
         {
             foreach (var entry in foodPrefabsForMerge)

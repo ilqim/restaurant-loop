@@ -20,69 +20,18 @@ namespace RestaurantLoop
         [Header("Debug")]
         [SerializeField] private bool verboseLogging = true;
 
-        // Bu tray'in şu an rezerve ettiği (yemek yola çıkmış ama henüz
-        // ulaşmamış) müşteriler. Rezervasyonun asıl kaydı burada DEĞİL,
-        // Customer.incomingDeliverySource'ta tutuluyor (Food ile ORTAK) —
-        // bu set sadece "bu Tray beklenmedik şekilde disable olursa hangi
-        // rezervasyonları serbest bırakmam gerekiyor" bilgisini tutan
-        // yerel bir defter.
-        //
-        // ÖNEMLİ (bug fix notu): Bir müşteri ateşlendiği (FireDeliveryAt)
-        // ANDA bu setten HEMEN çıkarılıyor — çünkü o andan itibaren
-        // rezervasyonun kaderi artık asenkron DeliverCloneRoutine'in
-        // elinde (klon ulaşınca ya da kaybolsa bile ReceiveFood() onu
-        // çağırıp müşteriyi despawn edecek, Customer kendi
-        // incomingDeliverySource'unu kendi Despawn'ında temizleyecek).
-        // Bu setin ARTIK bu müşteriyi tutmaması gerekiyor, çünkü bu Tray
-        // kapasitesi bittiği için genelde AYNI FRAME'DE senkron olarak
-        // Despawn() çağırıyor -> OnDisable() -> ReleaseAllCustomerReservations().
-        // Eğer müşteri o anda hâlâ bu sette duruyorsa, klon havadayken
-        // rezervasyon ERKEN serbest bırakılır, müşteri "Serving"den anında
-        // "Idle"a döner ve başka bir Tray/Food onu klon daha ulaşmadan
-        // tekrar bulup ateş edebilir. Asıl bug buydu.
         private readonly HashSet<Customer> customersReservedByThisTray = new();
-
-        // ============================================================
-        // TEK ATOMİK ADIM + GLOBAL, FOOD-TYPE BAZLI ÖNCELİK KUYRUĞU
-        //
-        //   Checkpoint'e ulaşılınca -> hücre pendingCheckCells'e eklenir
-        //                     (henüz arama/rezervasyon YAPILMAZ).
-        //
-        //   ProcessCheckedDeliveryPlans() -> her hücre için ARAMA VE
-        //                     REZERVASYON aynı fonksiyon içinde, arada
-        //                     hiçbir başka kod çalışmadan art arda
-        //                     yapılır, hemen ardından ateşlenir. Bu
-        //                     tepsinin KENDİ LateUpdate()'inden DEĞİL,
-        //                     TrayDeliveryQueue (statik, GLOBAL, food
-        //                     type başına ayrı FIFO kuyruk) tarafından,
-        //                     konveyöre GİRİŞ SIRASINA göre çağrılır.
-        //                     Sahnede kaç tane TrayManager / konveyör
-        //                     hattı olursa olsun (satır, sütun, vb.) bu
-        //                     kuyruk GLOBAL olduğu için öncelik tüm
-        //                     sahnede tutarlıdır — hangi hatta olduğu
-        //                     fark etmez.
-        //
-        // Bu sayede: iki tepsi aynı müşteriyi hedeflese bile önce giren
-        // tepsi HER ZAMAN önce dener; kaybeden otomatik pas geçer.
-        // Çakışma yoksa hiçbir tepsi "bekletilmez" — herkes normal
-        // şekilde aynı frame'de ateş eder.
-        // ============================================================
-
         private readonly List<Vector2Int> pendingCheckCells = new();
 
         private class StackPieceInfo
         {
             public GameObject go;
             public int layerIndex;
-
-            // Parçanın tepsiye göre LOCAL X/Z konumu.
             public Vector2 offsetXZ;
         }
 
         private const int PiecesPerLayer = 4;
-
         private readonly List<StackPieceInfo> stackPieceInfos = new();
-
         private int currentLayerCount;
 
         private TrayManager trayManager;
@@ -105,10 +54,45 @@ namespace RestaurantLoop
         private Transform capacityLabelTransform;
         private Camera labelFacingCamera;
 
+        public void ParkAtBase(TrayManager manager, Vector3 pos)
+        {
+            trayManager = manager;
+            transform.position = pos;
+            transform.rotation = Quaternion.identity;
+            ClearStackVisuals();
+            if (capacityLabel != null) capacityLabel.text = "";
+            enabled = false;
+        }
 
-        // ============================================================
-        // INIT
-        // ============================================================
+        public void GlideBackToBase(Vector3 targetPos)
+        {
+            ClearStackVisuals();
+            if (capacityLabel != null) capacityLabel.text = "";
+            StartCoroutine(GlideRoutine(targetPos));
+        }
+
+        private IEnumerator GlideRoutine(Vector3 targetPos)
+        {
+            Vector3 start = transform.position;
+            Quaternion startRot = transform.rotation;
+            float speed = trayManager != null ? trayManager.ReturnSpeed : 6f;
+            float dist = Vector3.Distance(start, targetPos);
+            float duration = Mathf.Max(0.01f, dist / speed);
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
+                transform.position = Vector3.Lerp(start, targetPos, t);
+                transform.rotation = Quaternion.Slerp(startRot, Quaternion.identity, t);
+                yield return null;
+            }
+
+            transform.position = targetPos;
+            transform.rotation = Quaternion.identity;
+            enabled = false;
+        }
 
         public void Init(TrayManager manager, FoodType type, int startCapacity)
         {
@@ -126,9 +110,6 @@ namespace RestaurantLoop
             customersReservedByThisTray.Clear();
             pendingCheckCells.Clear();
 
-            // Global, food-type bazlı öncelik kuyruğuna kaydol. İlk giren
-            // tepsi kendi food type'ının kuyruğunda başta kalır ve
-            // ateşleme önceliğine sahip olur (bkz. TrayDeliveryQueue).
             TrayDeliveryQueue.Register(this, foodType);
 
             var gridManager = trayManager.GridManagerRef;
@@ -136,283 +117,106 @@ namespace RestaurantLoop
 
             if (waypoints == null || waypoints.Count == 0)
             {
-                Debug.LogWarning(
-                    $"Tray [{gameObject.name}] waypoint bulunamadı."
-                );
+                Debug.LogWarning($"Tray [{gameObject.name}] waypoint bulunamadı.");
                 return;
             }
 
             transform.position = trayManager.GetWaypointPosition(0);
 
             var facings = gridManager.WaypointFacingDirections;
-
-            if (facings != null &&
-                facings.Count > 0 &&
-                facings[0].sqrMagnitude > 0.0001f)
+            if (facings != null && facings.Count > 0 && facings[0].sqrMagnitude > 0.0001f)
             {
-                transform.rotation =
-                    Quaternion.LookRotation(
-                        facings[0],
-                        Vector3.up
-                    );
+                transform.rotation = Quaternion.LookRotation(facings[0], Vector3.up);
             }
 
-            cumulativeMovementDistance =
-                new float[waypoints.Count];
-
+            cumulativeMovementDistance = new float[waypoints.Count];
             cumulativeMovementDistance[0] = 0f;
 
             for (int i = 1; i < waypoints.Count; i++)
             {
-                cumulativeMovementDistance[i] =
-                    cumulativeMovementDistance[i - 1] +
-                    Vector3.Distance(
-                        waypoints[i - 1],
-                        waypoints[i]
-                    );
+                cumulativeMovementDistance[i] = cumulativeMovementDistance[i - 1] + Vector3.Distance(waypoints[i - 1], waypoints[i]);
             }
 
-            totalMovementLength =
-                waypoints.Count > 0
-                    ? cumulativeMovementDistance[^1]
-                    : 0f;
-
-            deliveryCheckpoints =
-                gridManager.DeliveryCheckpoints;
-
+            totalMovementLength = waypoints.Count > 0 ? cumulativeMovementDistance[^1] : 0f;
+            deliveryCheckpoints = gridManager.DeliveryCheckpoints;
             nextCheckpointIndex = 1;
 
             BuildStackVisuals();
-
             CreateCapacityLabel();
             UpdateCapacityLabel();
 
             if (deliveryCheckpoints.Count > 0)
             {
-                // Direkt ateş edilmiyor — ilk checkpoint kontrol
-                // kuyruğuna eklenir; bu frame'in Update()'i kontrol
-                // edecek, TrayDeliveryQueue (öncelik sırasına göre)
-                // ateşleyecek.
-                QueueDeliveryCheck(
-                    deliveryCheckpoints[0].cell
-                );
+                QueueDeliveryCheck(deliveryCheckpoints[0].cell);
             }
 
-            moveRoutine =
-                StartCoroutine(
-                    MoveOnConveyor()
-                );
+            if (moveRoutine != null) StopCoroutine(moveRoutine);
+            moveRoutine = StartCoroutine(MoveOnConveyor());
         }
-
 
         private void OnDisable()
         {
             ReleaseAllCustomerReservations();
-
             pendingCheckCells.Clear();
-
             TrayDeliveryQueue.Unregister(this, foodType);
-
-            // REMOVED trayManager?.ReleaseTraySlot();
         }
-
-
-        // ============================================================
-        // ETİKET YÖNLENDİRME — bu tepsiye özel, sıraya girmesine gerek
-        // yok, kendi LateUpdate()'inde kalabilir.
-        // ============================================================
 
         private void LateUpdate()
         {
-            if (capacityLabel == null)
-                return;
+            if (capacityLabel == null) return;
+            if (labelFacingCamera == null) labelFacingCamera = Camera.main;
+            if (labelFacingCamera == null) return;
 
-            if (labelFacingCamera == null)
-                labelFacingCamera = Camera.main;
-
-            if (labelFacingCamera == null)
-                return;
-
-            capacityLabel.transform.rotation =
-                Quaternion.LookRotation(
-                    capacityLabel.transform.position -
-                    labelFacingCamera.transform.position
-                );
+            capacityLabel.transform.rotation = Quaternion.LookRotation(capacityLabel.transform.position - labelFacingCamera.transform.position);
         }
-
-
-        // ============================================================
-        // ARAMA + REZERVASYON + ATEŞLEME — ARTIK BU TEPSİNİN KENDİSİ
-        // ÇAĞIRMIYOR. TrayDeliveryQueue (global, food-type bazlı FIFO
-        // kuyruk), bu metodu konveyöre GİRİŞ SIRASINA göre (önce giren
-        // önce) tek tek çağırır.
-        //
-        // Her hücre için arama VE rezervasyon AYNI ADIMDA, aralarında
-        // hiçbir başka kodun çalışmasına izin vermeden yapılır — bu
-        // yüzden "arama anında müsaitti ama rezervasyon anında değildi"
-        // senaryosu yapısal olarak imkânsızdır (bkz. sınıf başındaki not).
-        // ============================================================
 
         public void ProcessCheckedDeliveryPlans()
         {
-            if (pendingCheckCells.Count == 0)
-                return;
+            if (pendingCheckCells.Count == 0) return;
 
-            // Anlık kopya: FireDeliveryAt() kapasiteyi tüketip Despawn()
-            // çağırabilir, bu da OnDisable() üzerinden pendingCheckCells'i
-            // TEMİZLER. Aynı listeyi enumerate ederken temizlemek
-            // "Collection was modified" hatasına yol açıyordu — bu yüzden
-            // önce kopya alınıp orijinal liste hemen boşaltılıyor.
             var cellsSnapshot = new List<Vector2Int>(pendingCheckCells);
             pendingCheckCells.Clear();
 
-            var customerManager = trayManager != null
-                ? trayManager.CustomerManagerRef
-                : null;
-
-            if (customerManager == null)
-                return;
+            var customerManager = trayManager != null ? trayManager.CustomerManagerRef : null;
+            if (customerManager == null) return;
 
             foreach (Vector2Int cell in cellsSnapshot)
             {
-                if (depleted || capacity <= 0)
-                    break;
+                if (depleted || capacity <= 0) break;
 
                 deliveryTryCounter++;
 
-                // --------------------------------------------------
-                // ATOMİK ADIM: arama ve rezervasyon art arda, aynı
-                // fonksiyon çağrısı içinde yapılır. Bu iki satır
-                // arasına Unity'nin tek thread'li yapısı gereği HİÇBİR
-                // başka Tray'in kodu giremez.
-                // --------------------------------------------------
-                if (!customerManager.TryFindDeliverableCustomer(
-                        foodType,
-                        cell,
-                        1,
-                        out Customer target) ||
-                    target == null)
-                {
+                if (!customerManager.TryFindDeliverableCustomer(foodType, cell, 1, out Customer target) || target == null)
                     continue;
-                }
 
                 if (!target.TryReserveForDelivery(this, foodType))
-                {
-                    // Teorik olarak burada HİÇ düşmemeli — arama zaten
-                    // "müsait" dedi ve hemen ardından rezervasyon
-                    // deneniyor. Yine de savunma amaçlı bırakıyoruz:
-                    // eğer buraya düşerse, arama/rezervasyon mantığında
-                    // hâlâ bir tutarsızlık var demektir ve loglanmalı.
-                    if (verboseLogging)
-                    {
-                        Debug.LogWarning(
-                            $"Tray [{gameObject.name}] " +
-                            $"BEKLENMEDİK SKIP (arama müsait dedi ama " +
-                            $"rezervasyon reddetti) -> {target.name} " +
-                            $"(ID={target.GetInstanceID()}, " +
-                            $"Session={target.OrderSessionId}, " +
-                            $"state={target.CurrentState}) " +
-                            $"cell ({cell.x},{cell.y})"
-                        );
-                    }
-
                     continue;
-                }
 
                 customersReservedByThisTray.Add(target);
-
-                if (verboseLogging)
-                {
-                    Debug.Log(
-                        $"Tray [{gameObject.name}] " +
-                        $"delivery FIRE -> {target.name} " +
-                        $"(ID={target.GetInstanceID()}, " +
-                        $"Session={target.OrderSessionId}) " +
-                        $"cell ({cell.x},{cell.y})"
-                    );
-                }
-
                 FireDeliveryAt(target);
             }
         }
 
-
-        /// <summary>
-        /// Rezervasyonu zaten alınmış bir müşteriye gerçek teslimatı
-        /// gerçekleştirir: kapasiteyi düşürür, görsel parçayı eksiltir,
-        /// klonu fırlatır, gerekiyorsa tepsiyi tüketir.
-        /// </summary>
         private void FireDeliveryAt(Customer target)
         {
-            capacity =
-                Mathf.Max(
-                    0,
-                    capacity - 1
-                );
-
-            // Parça seçimi müşterinin gerçek konumuna göre değil,
-            // tepsinin kendi ön yönüne (transform.forward) göre yapılıyor.
-            // Tepsi her zaman "önü nereyi gösteriyorsa" oradaki gruptan
-            // ateş eder.
-            RemoveStackPieceTowardCustomer(
-                transform.forward
-            );
-
+            capacity = Mathf.Max(0, capacity - 1);
+            RemoveStackPieceTowardCustomer(transform.forward);
             UpdateCapacityLabel();
+            LaunchDeliveryClone(target, transform.position);
 
-            LaunchDeliveryClone(
-                target,
-                transform.position
-            );
-
-            // ------------------------------------------------------
-            // *** BUG FİX ***
-            // Teslimat artık ASENKRON DeliverCloneRoutine'e devredildi
-            // — o rutin, klon gerçekten müşteriye ulaşana (ya da yolda
-            // kaybolsa bile) kadar ReceiveFood()'u kendisi çağıracak;
-            // Customer da kendi Despawn'ında incomingDeliverySource'unu
-            // kendisi temizleyecek. Bu yüzden bu rezervasyonu ARTIK bu
-            // Tray'in yerel "disable olursam serbest bırak" defterinde
-            // (customersReservedByThisTray) TUTMUYORUZ — sorumluluk
-            // devredildi.
-            //
-            // NEDEN KRİTİK: Kapasite tam bu teslimatta bittiyse, hemen
-            // aşağıda depleted=true olup Despawn() SENKRON olarak
-            // çağrılacak (aynı çağrı zinciri, aynı frame). Despawn ->
-            // OnDisable -> ReleaseAllCustomerReservations çalışır; bu
-            // müşteri o anda hâlâ sette duruyor olsaydı, KLON HAVADAYKEN
-            // rezervasyon ERKEN serbest bırakılırdı — müşteri "Serving"
-            // yerine anında "Idle"a döner, başka bir Tray/Food onu klon
-            // daha ulaşmadan tekrar bulup ateş edebilirdi. Şimdi bu
-            // satır, o pencereyi tamamen kapatıyor: müşteri ateşlendiği
-            // anda bu tepsinin "disable olursa serbest bırakacakları"
-            // listesinden çıkıyor, artık SADECE DeliverCloneRoutine'in
-            // (ya da Customer'ın kendi Despawn'ının) sorumluluğunda.
-            // ------------------------------------------------------
             customersReservedByThisTray.Remove(target);
 
-            if (capacity <= 0 &&
-                !depleted)
+            if (capacity <= 0 && !depleted)
             {
                 depleted = true;
-
                 if (moveRoutine != null)
                 {
-                    StopCoroutine(
-                        moveRoutine
-                    );
-
+                    StopCoroutine(moveRoutine);
                     moveRoutine = null;
                 }
-
                 Despawn();
             }
         }
-
-
-        // ============================================================
-        // STACK GÖRSELİ
-        // ============================================================
 
         private void BuildStackVisuals()
         {
@@ -425,19 +229,8 @@ namespace RestaurantLoop
                 return;
             }
 
-            int count =
-                Mathf.Min(
-                    capacity,
-                    Mathf.Max(
-                        0,
-                        config.maxVisualPieces
-                    )
-                );
-
-            currentLayerCount =
-                Mathf.CeilToInt(
-                    count / (float)PiecesPerLayer
-                );
+            int count = Mathf.Min(capacity, Mathf.Max(0, config.maxVisualPieces));
+            currentLayerCount = Mathf.CeilToInt(count / (float)PiecesPerLayer);
 
             for (int i = 0; i < count; i++)
             {
@@ -447,363 +240,104 @@ namespace RestaurantLoop
             PositionLabelAboveStack();
         }
 
-
         private void SpawnStackPiece(int index)
         {
-            int layer =
-                index / PiecesPerLayer;
+            int layer = index / PiecesPerLayer;
+            int posInLayer = index % PiecesPerLayer;
+            float half = config.pieceSpacing * 0.5f;
 
-            int posInLayer =
-                index % PiecesPerLayer;
+            float xOffset = (posInLayer == 0 || posInLayer == 2) ? -half : half;
+            float zOffset = (posInLayer == 0 || posInLayer == 1) ? half : -half;
 
-            float half =
-                config.pieceSpacing * 0.5f;
+            GameObject piece = ObjectPool.Instance != null
+                ? ObjectPool.Instance.Get(config.stackPiecePrefab, transform.position, config.stackPiecePrefab.transform.rotation, transform)
+                : Instantiate(config.stackPiecePrefab, transform.position, config.stackPiecePrefab.transform.rotation, transform);
 
-            /*
-             * Layer içindeki dizilim:
-             *
-             *       +Z
-             *
-             *       0   1
-             *
-             *       2   3
-             *
-             *       -Z
-             *
-             * X:
-             *       -     +
-             *
-             * Z:
-             *       +     +
-             *       -     -
-             */
+            float yOffset = config.foodBaseYOffset + layer * config.pieceHeightSpacing;
+            piece.transform.localPosition = new Vector3(xOffset, yOffset, zOffset);
 
-            float xOffset =
-                (posInLayer == 0 ||
-                 posInLayer == 2)
-                    ? -half
-                    : half;
-
-            float zOffset =
-                (posInLayer == 0 ||
-                 posInLayer == 1)
-                    ? half
-                    : -half;
-
-            GameObject piece =
-                ObjectPool.Instance != null
-                    ? ObjectPool.Instance.Get(
-                        config.stackPiecePrefab,
-                        transform.position,
-                        config.stackPiecePrefab.transform.rotation,
-                        transform
-                    )
-                    : Instantiate(
-                        config.stackPiecePrefab,
-                        transform.position,
-                        config.stackPiecePrefab.transform.rotation,
-                        transform
-                    );
-
-            float yOffset =
-                config.foodBaseYOffset +
-                layer * config.pieceHeightSpacing;
-
-            piece.transform.localPosition =
-                new Vector3(
-                    xOffset,
-                    yOffset,
-                    zOffset
-                );
-
-            stackPieceInfos.Add(
-                new StackPieceInfo
-                {
-                    go = piece,
-                    layerIndex = layer,
-                    offsetXZ = new Vector2(
-                        xOffset,
-                        zOffset
-                    )
-                }
-            );
+            stackPieceInfos.Add(new StackPieceInfo
+            {
+                go = piece,
+                layerIndex = layer,
+                offsetXZ = new Vector2(xOffset, zOffset)
+            });
         }
 
-
-        // ============================================================
-        // YENİ PARÇA SEÇME SİSTEMİ
-        // ============================================================
-
-        /// <summary>
-        /// Müşteriye gönderilecek yemek parçasını seçer.
-        ///
-        /// NOT: Seçim müşterinin gerçek pozisyonuna göre DEĞİL,
-        /// tepsinin kendi ÖN yönüne (transform.forward) göre yapılır.
-        /// Yani tepsi her zaman "önü nereyi gösteriyorsa" o taraftaki
-        /// parça grubundan eksiltmeye başlar; müşteri fiilen sağda,
-        /// solda ya da arkada olsa bile bu seçim değişmez.
-        ///
-        /// Tepsinin önü +Z ise:
-        ///
-        ///      0   1    ← ÖNCE (ön grup tamamen bitmeden
-        ///      2   3    ← SONRA    arka gruba geçilmez)
-        ///
-        /// </summary>
-        private void RemoveStackPieceTowardCustomer(
-            Vector3 dirToCustomerWorld
-        )
+        private void RemoveStackPieceTowardCustomer(Vector3 dirToCustomerWorld)
         {
-            if (stackPieceInfos.Count == 0)
-                return;
+            if (stackPieceInfos.Count == 0) return;
 
+            int targetLayer = config.removeFromTopFirst
+                ? stackPieceInfos.Max(p => p.layerIndex)
+                : stackPieceInfos.Min(p => p.layerIndex);
 
-            // --------------------------------------------------------
-            // 1. Önce hangi layer'dan yiyecek çıkaracağımızı belirle.
-            // --------------------------------------------------------
+            List<StackPieceInfo> layerPieces = stackPieceInfos.Where(p => p.layerIndex == targetLayer).ToList();
+            if (layerPieces.Count == 0) return;
 
-            int targetLayer;
-
-            if (config.removeFromTopFirst)
-            {
-                targetLayer =
-                    stackPieceInfos.Max(
-                        p => p.layerIndex
-                    );
-            }
-            else
-            {
-                targetLayer =
-                    stackPieceInfos.Min(
-                        p => p.layerIndex
-                    );
-            }
-
-
-            // Sadece aktif layer'daki parçalarla ilgileniyoruz.
-
-            List<StackPieceInfo> layerPieces =
-                stackPieceInfos
-                    .Where(
-                        p => p.layerIndex == targetLayer
-                    )
-                    .ToList();
-
-            if (layerPieces.Count == 0)
-                return;
-
-
-            // --------------------------------------------------------
-            // 2. Yönü WORLD -> LOCAL çevir.
-            //    (dirToCustomerWorld artık her zaman transform.forward
-            //    olarak gönderiliyor, bu yüzden localDir sabit biçimde
-            //    tepsinin "ön"ünü (local +Z) verir.)
-            // --------------------------------------------------------
-
-            Vector3 localDir =
-                transform.InverseTransformDirection(
-                    dirToCustomerWorld
-                );
-
+            Vector3 localDir = transform.InverseTransformDirection(dirToCustomerWorld);
             localDir.y = 0f;
-
-            if (localDir.sqrMagnitude < 0.0001f)
-            {
-                localDir = Vector3.forward;
-            }
-
+            if (localDir.sqrMagnitude < 0.0001f) localDir = Vector3.forward;
             localDir.Normalize();
 
-
-            Vector2 customerDirection =
-                new Vector2(
-                    localDir.x,
-                    localDir.z
-                );
-
-
-            // --------------------------------------------------------
-            // 3. Her parçanın "ön yöne" yakınlık skorunu hesapla.
-            // --------------------------------------------------------
-            //
-            // Dot product sayesinde:
-            //
-            // Ön yöndeki parçalar -> yüksek skor
-            // Arka yöndeki parçalar -> düşük skor
-            //
-            // Örneğin ön +Z ise:
-            //
-            // 0 = +Z
-            // 1 = +Z
-            // 2 = -Z
-            // 3 = -Z
-            //
-            // Sonuç:
-            //
-            // 0 / 1 önce
-            // 2 / 3 sonra
-            // --------------------------------------------------------
+            Vector2 customerDirection = new Vector2(localDir.x, localDir.z);
 
             StackPieceInfo chosen = null;
-
-            float bestScore =
-                float.NegativeInfinity;
-
+            float bestScore = float.NegativeInfinity;
 
             foreach (StackPieceInfo piece in layerPieces)
             {
-                Vector2 piecePosition =
-                    piece.offsetXZ;
-
-                float score =
-                    Vector2.Dot(
-                        piecePosition,
-                        customerDirection
-                    );
-
-
-                // Aynı mesafedeki parçalar için
-                // deterministik bir seçim yap.
-                //
-                // Böylece her frame rastgele değişmez.
-
-                if (chosen == null ||
-                    score > bestScore)
+                float score = Vector2.Dot(piece.offsetXZ, customerDirection);
+                if (chosen == null || score > bestScore)
                 {
                     chosen = piece;
                     bestScore = score;
                 }
-                else if (
-                    Mathf.Approximately(
-                        score,
-                        bestScore
-                    ))
+                else if (Mathf.Approximately(score, bestScore))
                 {
-                    // Eşit uzaklıktaki iki parçada
-                    // önce küçük X, sonra küçük Z.
-
-                    if (piece.offsetXZ.x <
-                        chosen.offsetXZ.x)
-                    {
+                    if (piece.offsetXZ.x < chosen.offsetXZ.x)
                         chosen = piece;
-                    }
-                    else if (
-                        Mathf.Approximately(
-                            piece.offsetXZ.x,
-                            chosen.offsetXZ.x
-                        ) &&
-                        piece.offsetXZ.y <
-                        chosen.offsetXZ.y)
-                    {
+                    else if (Mathf.Approximately(piece.offsetXZ.x, chosen.offsetXZ.x) && piece.offsetXZ.y < chosen.offsetXZ.y)
                         chosen = piece;
-                    }
                 }
             }
 
-
-            if (chosen == null)
-                return;
-
-
-            // --------------------------------------------------------
-            // 4. Parçayı listeden çıkar.
-            // --------------------------------------------------------
+            if (chosen == null) return;
 
             stackPieceInfos.Remove(chosen);
 
-
-            // --------------------------------------------------------
-            // 5. Görsel parçayı pool'a geri gönder.
-            // --------------------------------------------------------
-
             if (chosen.go != null)
             {
-                if (ObjectPool.Instance != null)
-                {
-                    ObjectPool.Instance.Return(
-                        chosen.go
-                    );
-                }
-                else
-                {
-                    Destroy(chosen.go);
-                }
+                if (ObjectPool.Instance != null) ObjectPool.Instance.Return(chosen.go);
+                else Destroy(chosen.go);
             }
 
-
-            // --------------------------------------------------------
-            // 6. Stack yüksekliğini güncelle.
-            // --------------------------------------------------------
-
-            currentLayerCount =
-                stackPieceInfos.Count > 0
-                    ? stackPieceInfos.Max(
-                        p => p.layerIndex
-                    ) + 1
-                    : 0;
-
+            currentLayerCount = stackPieceInfos.Count > 0 ? stackPieceInfos.Max(p => p.layerIndex) + 1 : 0;
             PositionLabelAboveStack();
-
-
-            if (verboseLogging)
-            {
-                Debug.Log(
-                    $"Tray [{gameObject.name}] " +
-                    $"stack piece removed. " +
-                    $"Layer={targetLayer}, " +
-                    $"LocalOffset={chosen.offsetXZ}, " +
-                    $"FrontDir={customerDirection}"
-                );
-            }
         }
-
 
         private void ClearStackVisuals()
         {
             foreach (var info in stackPieceInfos)
             {
-                if (info.go == null)
-                    continue;
-
-                if (ObjectPool.Instance != null)
-                {
-                    ObjectPool.Instance.Return(
-                        info.go
-                    );
-                }
-                else
-                {
-                    Destroy(info.go);
-                }
+                if (info.go == null) continue;
+                if (ObjectPool.Instance != null) ObjectPool.Instance.Return(info.go);
+                else Destroy(info.go);
             }
-
             stackPieceInfos.Clear();
             currentLayerCount = 0;
         }
 
-
-        // ============================================================
-        // HAREKET
-        // ============================================================
-
         private IEnumerator MoveOnConveyor()
         {
-            var gridManager =
-                trayManager.GridManagerRef;
-
-            var waypoints =
-                gridManager.WaypointWorldPositions;
-
-            var facings =
-                gridManager.WaypointFacingDirections;
+            var gridManager = trayManager.GridManagerRef;
+            var waypoints = gridManager.WaypointWorldPositions;
+            var facings = gridManager.WaypointFacingDirections;
 
             while (true)
             {
-                int nextIndex =
-                    currentIndex + 1;
-
-                bool reachedExitEnd =
-                    nextIndex >= waypoints.Count;
-
+                int nextIndex = currentIndex + 1;
+                bool reachedExitEnd = nextIndex >= waypoints.Count;
 
                 if (reachedExitEnd)
                 {
@@ -815,7 +349,6 @@ namespace RestaurantLoop
                         yield break;
                     }
 
-
                     if (capacity > 0)
                     {
                         if (TryMergeIntoSlot())
@@ -825,22 +358,14 @@ namespace RestaurantLoop
                             yield break;
                         }
 
-
                         if (trayManager.LoopIfSlotsFull)
                         {
                             nextIndex = 0;
                         }
                         else
                         {
-                            if (verboseLogging)
-                            {
-                                Debug.Log(
-                                    $"Tray [{gameObject.name}] " +
-                                    $"Exit'te boş slot yok, parkediyor."
-                                );
-                            }
-
                             moveRoutine = null;
+                            Despawn();
                             yield break;
                         }
                     }
@@ -852,29 +377,12 @@ namespace RestaurantLoop
                     }
                 }
 
+                Vector3 targetPosition = trayManager.GetWaypointPosition(nextIndex);
+                Vector3 targetFacing = nextIndex < facings.Count ? facings[nextIndex] : Vector3.zero;
 
-                Vector3 targetPosition =
-                    trayManager.GetWaypointPosition(
-                        nextIndex
-                    );
-
-                Vector3 targetFacing =
-                    nextIndex < facings.Count
-                        ? facings[nextIndex]
-                        : Vector3.zero;
-
-
-                yield return StartCoroutine(
-                    MoveTo(
-                        currentIndex,
-                        targetPosition,
-                        targetFacing
-                    )
-                );
-
+                yield return StartCoroutine(MoveTo(currentIndex, targetPosition, targetFacing));
 
                 currentIndex = nextIndex;
-
 
                 if (depleted)
                 {
@@ -884,229 +392,87 @@ namespace RestaurantLoop
             }
         }
 
-
-        private IEnumerator MoveTo(
-            int fromIndex,
-            Vector3 target,
-            Vector3 targetFacing
-        )
+        private IEnumerator MoveTo(int fromIndex, Vector3 target, Vector3 targetFacing)
         {
-            Vector3 start =
-                transform.position;
+            Vector3 start = transform.position;
+            float distance = Vector3.Distance(start, target);
+            float speed = Mathf.Max(0.01f, config.conveyorSpeed);
+            float duration = Mathf.Max(0.01f, distance / speed);
 
-            float distance =
-                Vector3.Distance(
-                    start,
-                    target
-                );
+            float prefixDistance = cumulativeMovementDistance != null && fromIndex < cumulativeMovementDistance.Length
+                ? cumulativeMovementDistance[fromIndex]
+                : 0f;
 
-            float speed =
-                Mathf.Max(
-                    0.01f,
-                    config.conveyorSpeed
-                );
-
-            float duration =
-                Mathf.Max(
-                    0.01f,
-                    distance / speed
-                );
-
-
-            float prefixDistance =
-                cumulativeMovementDistance != null &&
-                fromIndex <
-                cumulativeMovementDistance.Length
-                    ? cumulativeMovementDistance[fromIndex]
-                    : 0f;
-
-
-            Quaternion targetRotation =
-                targetFacing.sqrMagnitude >
-                0.0001f
-                    ? Quaternion.LookRotation(
-                        targetFacing,
-                        Vector3.up
-                    )
-                    : transform.rotation;
-
+            Quaternion targetRotation = targetFacing.sqrMagnitude > 0.0001f
+                ? Quaternion.LookRotation(targetFacing, Vector3.up)
+                : transform.rotation;
 
             float elapsed = 0f;
-
 
             while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / duration);
 
-                float t =
-                    Mathf.Clamp01(
-                        elapsed / duration
-                    );
+                transform.position = Vector3.Lerp(start, target, t);
+                transform.rotation = rotationSmoothing > 0f
+                    ? Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSmoothing)
+                    : targetRotation;
 
-
-                transform.position =
-                    Vector3.Lerp(
-                        start,
-                        target,
-                        t
-                    );
-
-
-                transform.rotation =
-                    rotationSmoothing > 0f
-                        ? Quaternion.Slerp(
-                            transform.rotation,
-                            targetRotation,
-                            Time.deltaTime *
-                            rotationSmoothing
-                        )
-                        : targetRotation;
-
-
-                if (totalMovementLength >
-                    0.0001f)
+                if (totalMovementLength > 0.0001f)
                 {
-                    float globalT =
-                        (
-                            prefixDistance +
-                            distance * t
-                        ) /
-                        totalMovementLength;
-
-
-                    AdvanceDeliveryCheckpoints(
-                        globalT
-                    );
-
-
-                    if (depleted)
-                        yield break;
+                    float globalT = (prefixDistance + distance * t) / totalMovementLength;
+                    AdvanceDeliveryCheckpoints(globalT);
+                    if (depleted) yield break;
                 }
-
 
                 yield return null;
             }
-
 
             transform.position = target;
             transform.rotation = targetRotation;
         }
 
-
-        private void AdvanceDeliveryCheckpoints(
-            float globalT
-        )
+        private void AdvanceDeliveryCheckpoints(float globalT)
         {
-            if (deliveryCheckpoints == null)
-                return;
+            if (deliveryCheckpoints == null) return;
 
-
-            while (
-                nextCheckpointIndex <
-                deliveryCheckpoints.Count &&
-                deliveryCheckpoints[
-                    nextCheckpointIndex
-                ].t <= globalT
-            )
+            while (nextCheckpointIndex < deliveryCheckpoints.Count &&
+                   deliveryCheckpoints[nextCheckpointIndex].t <= globalT)
             {
-                var checkpoint =
-                    deliveryCheckpoints[
-                        nextCheckpointIndex
-                    ];
-
+                var checkpoint = deliveryCheckpoints[nextCheckpointIndex];
                 nextCheckpointIndex++;
-
-                // Direkt ateş edilmiyor — checkpoint sadece kontrol
-                // kuyruğuna eklenir. Kontrol Update()'te, ateşleme
-                // TrayDeliveryQueue'nun (global, food-type bazlı öncelik
-                // sırasına göre) tetiklediği ProcessCheckedDeliveryPlans
-                // içinde yapılır.
-                QueueDeliveryCheck(
-                    checkpoint.cell
-                );
-
-
-                if (depleted)
-                    return;
+                QueueDeliveryCheck(checkpoint.cell);
+                if (depleted) return;
             }
         }
 
-
-        // ============================================================
-        // TESLİMAT — KUYRUĞA EKLEME (gerçek arama/ateşleme burada
-        // yapılmaz, bkz. Update() / ProcessCheckedDeliveryPlans())
-        // ============================================================
-
-        private void QueueDeliveryCheck(
-            Vector2Int cell
-        )
+        private void QueueDeliveryCheck(Vector2Int cell)
         {
-            if (capacity <= 0 || depleted)
-                return;
-
+            if (capacity <= 0 || depleted) return;
             pendingCheckCells.Add(cell);
         }
 
-
-        private void LaunchDeliveryClone(
-            Customer target,
-            Vector3 launchPosition
-        )
+        private void LaunchDeliveryClone(Customer target, Vector3 launchPosition)
         {
-            if (config.stackPiecePrefab == null)
+            if (config.stackPiecePrefab == null || ObjectPool.Instance == null)
             {
                 if (target != null)
                 {
                     target.ReceiveFood();
                     customersReservedByThisTray.Remove(target);
                 }
-
                 return;
             }
-
-
-            if (ObjectPool.Instance == null)
-            {
-                if (target != null)
-                {
-                    target.ReceiveFood();
-                    customersReservedByThisTray.Remove(target);
-                }
-
-                return;
-            }
-
 
             ObjectPool.Instance.StartCoroutine(
-                DeliverCloneRoutine(
-                    this,
-                    config.stackPiecePrefab,
-                    launchPosition,
-                    transform.rotation,
-                    target,
-                    config.deliverySpeed
-                )
+                DeliverCloneRoutine(this, config.stackPiecePrefab, launchPosition, transform.rotation, target, config.deliverySpeed)
             );
         }
 
-
-        private static IEnumerator DeliverCloneRoutine(
-            Tray sourceTray,
-            GameObject prefab,
-            Vector3 launchPosition,
-            Quaternion launchRotation,
-            Customer target,
-            float speed
-        )
+        private static IEnumerator DeliverCloneRoutine(Tray sourceTray, GameObject prefab, Vector3 launchPosition, Quaternion launchRotation, Customer target, float speed)
         {
-            GameObject clone =
-                ObjectPool.Instance.Get(
-                    prefab,
-                    launchPosition,
-                    launchRotation
-                );
-
-
+            GameObject clone = ObjectPool.Instance.Get(prefab, launchPosition, launchRotation);
             if (clone == null)
             {
                 if (target != null)
@@ -1114,102 +480,37 @@ namespace RestaurantLoop
                     target.ReceiveFood();
                     sourceTray?.customersReservedByThisTray.Remove(target);
                 }
-
                 yield break;
             }
 
-
-            Vector3 targetPos =
-                target != null
-                    ? target.transform.position
-                    : launchPosition;
-
-
-            float distance =
-                Vector3.Distance(
-                    launchPosition,
-                    targetPos
-                );
-
-
-            float duration =
-                Mathf.Max(
-                    0.01f,
-                    distance /
-                    Mathf.Max(
-                        0.01f,
-                        speed
-                    )
-                );
-
-
+            Vector3 targetPos = target != null ? target.transform.position : launchPosition;
+            float distance = Vector3.Distance(launchPosition, targetPos);
+            float duration = Mathf.Max(0.01f, distance / Mathf.Max(0.01f, speed));
             float elapsed = 0f;
-
 
             while (elapsed < duration)
             {
                 if (clone == null)
                 {
-                    // Klon yolculuk sırasında kayboldu (ör. pool geri
-                    // alındı). Rezervasyon SERBEST BIRAKILMIYOR — teslimat
-                    // görselsiz ama KESİN olarak tamamlanıyor. Bkz. Tray
-                    // sınıfının başındaki not: rezervasyonun kaderi artık
-                    // bu Tray'in disable/despawn akışından bağımsız,
-                    // sadece bu rutinin ve Customer'ın kendi Despawn'ının
-                    // elinde.
-                    if (sourceTray != null && sourceTray.verboseLogging)
-                    {
-                        Debug.LogWarning(
-                            $"Tray [{(sourceTray != null ? sourceTray.gameObject.name : "?")}] " +
-                            $"klon yolculuk sırasında kayboldu -> " +
-                            $"{(target != null ? target.name : "null")} " +
-                            $"(Session={(target != null ? target.OrderSessionId : -1)}) " +
-                            $"teslimat GÖRSELSİZ olarak tamamlanıyor " +
-                            $"(rezervasyon SERBEST BIRAKILMIYOR)."
-                        );
-                    }
-
                     if (target != null)
                     {
                         target.ReceiveFood();
                         sourceTray?.customersReservedByThisTray.Remove(target);
                     }
-
                     yield break;
                 }
 
-
                 elapsed += Time.deltaTime;
-
-
-                float t =
-                    Mathf.Clamp01(
-                        elapsed / duration
-                    );
-
-
-                clone.transform.position =
-                    Vector3.Lerp(
-                        launchPosition,
-                        targetPos,
-                        t
-                    );
-
-
+                float t = Mathf.Clamp01(elapsed / duration);
+                clone.transform.position = Vector3.Lerp(launchPosition, targetPos, t);
                 yield return null;
             }
 
-
             if (clone != null)
             {
-                clone.transform.position =
-                    targetPos;
-
-                ObjectPool.Instance.Return(
-                    clone
-                );
+                clone.transform.position = targetPos;
+                ObjectPool.Instance.Return(clone);
             }
-
 
             if (target != null)
             {
@@ -1218,83 +519,31 @@ namespace RestaurantLoop
             }
         }
 
-
-        // ============================================================
-        // CUSTOMER RESERVATION (yerel defter — asıl kayıt Customer'da)
-        // ============================================================
-
         private void ReleaseAllCustomerReservations()
         {
-            if (customersReservedByThisTray.Count == 0)
-                return;
-
-
-            foreach (
-                var customer
-                in customersReservedByThisTray)
+            if (customersReservedByThisTray.Count == 0) return;
+            foreach (var customer in customersReservedByThisTray)
             {
-                if (customer != null)
-                    customer.ReleaseDeliveryReservation(this);
+                if (customer != null) customer.ReleaseDeliveryReservation(this);
             }
-
-
             customersReservedByThisTray.Clear();
         }
 
-
-        // ============================================================
-        // MERGE
-        // ============================================================
-
         private bool TryMergeIntoSlot()
         {
-            GameObject prefab =
-                trayManager.GetFoodPrefab(
-                    foodType
-                );
+            GameObject prefab = trayManager.GetFoodPrefab(foodType);
+            if (prefab == null) return false;
 
-
-            if (prefab == null)
-            {
-                Debug.LogWarning(
-                    $"Tray: '{foodType}' " +
-                    $"için merge-back Food prefabı yok."
-                );
-
-                return false;
-            }
-
-
-            GameObject foodGo =
-                Instantiate(
-                    prefab,
-                    transform.position,
-                    prefab.transform.rotation
-                );
-
-
-            Food food =
-                foodGo.GetComponent<Food>();
-
-
+            GameObject foodGo = Instantiate(prefab, transform.position, prefab.transform.rotation);
+            Food food = foodGo.GetComponent<Food>();
             if (food == null)
             {
                 Destroy(foodGo);
                 return false;
             }
 
-
-            food.PresetCapacity(
-                capacity
-            );
-
-
-            bool placed =
-                trayManager.SlotManagerRef != null &&
-                trayManager.SlotManagerRef.TryPlaceFood(
-                    food
-                );
-
+            food.PresetCapacity(capacity);
+            bool placed = trayManager.SlotManagerRef != null && trayManager.SlotManagerRef.TryPlaceFood(food);
 
             if (!placed)
             {
@@ -1302,52 +551,29 @@ namespace RestaurantLoop
                 return false;
             }
 
-
             capacity = 0;
-
             return true;
         }
 
-
-        // ============================================================
-        // DESPAWN
-        // ============================================================
-        public void ParkAtBase(TrayManager manager, Vector3 pos)
-{
-    trayManager = manager;
-    transform.position = pos;
-    transform.rotation = Quaternion.Euler(90f, 0f, 0f);
-    ClearStackVisuals();
-    if (capacityLabel != null) capacityLabel.text = "";
-    enabled = false;
-}
         private void Despawn()
-{
-    ReleaseAllCustomerReservations();
-    pendingCheckCells.Clear();
-    TrayDeliveryQueue.Unregister(this, foodType);
+        {
+            ReleaseAllCustomerReservations();
+            pendingCheckCells.Clear();
+            TrayDeliveryQueue.Unregister(this, foodType);
 
-    if (trayManager != null)
-    {
-        trayManager.ReturnTrayToBase(this);
-    }
-    else
-    {
-        gameObject.SetActive(false);
-    }
-}
-
-
-        // ============================================================
-        // CAPACITY LABEL
-        // ============================================================
+            if (trayManager != null)
+            {
+                trayManager.ReturnTrayToBase(this);
+            }
+            else
+            {
+                gameObject.SetActive(false);
+            }
+        }
 
         private void CreateCapacityLabel()
         {
-            if (!showCapacityLabel)
-                return;
-
-
+            if (!showCapacityLabel) return;
             if (capacityLabel != null)
             {
                 UpdateCapacityLabel();
@@ -1355,78 +581,32 @@ namespace RestaurantLoop
                 return;
             }
 
+            GameObject labelGO = new GameObject("CapacityLabel");
+            labelGO.transform.SetParent(transform, false);
+            capacityLabelTransform = labelGO.transform;
 
-            GameObject labelGO =
-                new GameObject(
-                    "CapacityLabel"
-                );
-
-
-            labelGO.transform.SetParent(
-                transform,
-                false
-            );
-
-
-            capacityLabelTransform =
-                labelGO.transform;
-
-
-            capacityLabel =
-                labelGO.AddComponent<TextMesh>();
-
-
-            capacityLabel.anchor =
-                TextAnchor.MiddleCenter;
-
-            capacityLabel.alignment =
-                TextAlignment.Center;
-
-            capacityLabel.fontSize =
-                labelFontSize;
-
-            capacityLabel.characterSize =
-                labelCharacterSize;
-
-            capacityLabel.color =
-                labelColor;
-
+            capacityLabel = labelGO.AddComponent<TextMesh>();
+            capacityLabel.anchor = TextAnchor.MiddleCenter;
+            capacityLabel.alignment = TextAlignment.Center;
+            capacityLabel.fontSize = labelFontSize;
+            capacityLabel.characterSize = labelCharacterSize;
+            capacityLabel.color = labelColor;
 
             PositionLabelAboveStack();
         }
 
-
         private void PositionLabelAboveStack()
         {
-            if (capacityLabelTransform == null)
-                return;
-
-
-            float stackTopHeight =
-                config.foodBaseYOffset +
-                Mathf.Max(
-                    0,
-                    currentLayerCount - 1
-                ) *
-                config.pieceHeightSpacing;
-
-
-            capacityLabelTransform.localPosition =
-                new Vector3(
-                    0,
-                    stackTopHeight +
-                    labelMarginAboveStack,
-                    0
-                );
+            if (capacityLabelTransform == null) return;
+            float stackTopHeight = config.foodBaseYOffset + Mathf.Max(0, currentLayerCount - 1) * config.pieceHeightSpacing;
+            capacityLabelTransform.localPosition = new Vector3(0, stackTopHeight + labelMarginAboveStack, 0);
         }
-
 
         private void UpdateCapacityLabel()
         {
             if (capacityLabel != null)
             {
-                capacityLabel.text =
-                    capacity.ToString();
+                capacityLabel.text = capacity > 0 ? capacity.ToString() : "";
             }
         }
     }
