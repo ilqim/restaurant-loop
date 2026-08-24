@@ -4,7 +4,7 @@ using UnityEngine;
 
 namespace RestaurantLoop
 {
-    public enum CellType { Empty, Conveyor, CustomerSlot }
+    public enum CellType { Empty, Conveyor, CustomerSlot, BaseTray }
 
     public enum FoodType { Hamburger, Fries, Drink, Sushi, Steak, Donut }
 

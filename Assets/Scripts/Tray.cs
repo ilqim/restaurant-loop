@@ -112,6 +112,7 @@ namespace RestaurantLoop
 
         public void Init(TrayManager manager, FoodType type, int startCapacity)
         {
+            enabled = true;
             trayManager = manager;
             foodType = type;
             capacity = startCapacity;
@@ -212,7 +213,7 @@ namespace RestaurantLoop
 
             TrayDeliveryQueue.Unregister(this, foodType);
 
-            trayManager?.ReleaseTraySlot();
+            // REMOVED trayManager?.ReleaseTraySlot();
         }
 
 
@@ -1311,31 +1312,30 @@ namespace RestaurantLoop
         // ============================================================
         // DESPAWN
         // ============================================================
-
+        public void ParkAtBase(TrayManager manager, Vector3 pos)
+{
+    trayManager = manager;
+    transform.position = pos;
+    transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+    ClearStackVisuals();
+    if (capacityLabel != null) capacityLabel.text = "";
+    enabled = false;
+}
         private void Despawn()
-        {
-            if (verboseLogging)
-            {
-                Debug.Log(
-                    $"Tray [{gameObject.name}] despawn."
-                );
-            }
+{
+    ReleaseAllCustomerReservations();
+    pendingCheckCells.Clear();
+    TrayDeliveryQueue.Unregister(this, foodType);
 
-
-            ClearStackVisuals();
-
-
-            if (ObjectPool.Instance != null)
-            {
-                ObjectPool.Instance.Return(
-                    gameObject
-                );
-            }
-            else
-            {
-                gameObject.SetActive(false);
-            }
-        }
+    if (trayManager != null)
+    {
+        trayManager.ReturnTrayToBase(this);
+    }
+    else
+    {
+        gameObject.SetActive(false);
+    }
+}
 
 
         // ============================================================

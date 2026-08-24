@@ -122,7 +122,7 @@ namespace RestaurantLoop
                 if (verboseLogging) Debug.Log($"Food [{gameObject.name}]: Konveyör dolu, tray başlatılamadı.");
                 return;
             }
-            Debug.Log($"Found customer {target.gameObject} at {currentIndex}");
+            //Debug.Log($"Found customer {target.gameObject} at {currentIndex}");
 
             ChangeState(FoodState.OnConveyor);
             DespawnSelf();
