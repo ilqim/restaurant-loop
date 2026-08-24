@@ -74,6 +74,9 @@ namespace RestaurantLoop
         [Tooltip("Tray'in tüm conveyor waypointlerinde Y ekseninde ne kadar yukarı/aşağı duracağını belirler.")]
         [SerializeField] private float waypointYOffset = 0f;
 
+        [Header("Base Tray Offset")]
+        [SerializeField] private Vector3 baseTrayOffset = new Vector3(0.5f,0f,0f);
+
         [Header("Food Type Başına Görsel/Hız Ayarları")]
         [SerializeField] private List<TrayVisualConfig> visualConfigs = new();
 
@@ -161,6 +164,8 @@ public Vector3 GetBaseStackPosition(int index)
 {
     Vector3 pos = trayBaseWorldCenter;
     pos.y += waypointYOffset + (index * baseStackYOffset);
+    pos += baseTrayOffset;
+    
     return pos;
 }
 
