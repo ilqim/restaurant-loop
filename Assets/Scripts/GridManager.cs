@@ -25,8 +25,14 @@ namespace RestaurantLoop
         [Tooltip("Boş bırakılırsa Start'ta otomatik aranır (sadece bir kez).")]
         [SerializeField] private CustomerManager customerManager;
 
-        [Header("Conveyor Görseli")]
-        [SerializeField] private GameObject conveyorCellPrefab;
+        [Header("Conveyor Segment Prefabları (Tam Otomatik Yerleşim)")]
+        [SerializeField] private GameObject straightConveyorPrefab;
+        [SerializeField] private GameObject innerCornerConveyorPrefab;
+        [SerializeField] private GameObject outerCornerConveyorPrefab;
+        [SerializeField] private GameObject startConveyorPrefab;
+        [SerializeField] private GameObject exitConveyorPrefab;
+        [SerializeField] private GameObject baseOpeningPrefab;
+        [SerializeField] private GameObject baseCoverPrefab;
 
         [Header("Customer Prefabs — her yemek tipi için ayrı prefab sürükle")]
         [SerializeField]
@@ -127,8 +133,10 @@ namespace RestaurantLoop
 
                     if (type == CellType.Conveyor)
                     {
-                        if (conveyorCellPrefab == null) continue;
-                        SpawnFromPool(conveyorCellPrefab, pos, conveyorCellPrefab.transform.rotation, $"Conveyor_{r}_{c}");
+                        if (type == CellType.Conveyor)
+                        {
+                            SpawnConveyorTile(r, c);
+                        }
                     }
                     else if (type == CellType.CustomerSlot)
                     {
@@ -150,6 +158,88 @@ namespace RestaurantLoop
                         else
                             Debug.LogWarning($"'{prefab.name}' prefabında Customer component'i yok.");
                     }
+                }
+            }
+            SpawnTrayBaseTiles(data);
+        }
+
+        private void SpawnConveyorTile(int row, int col)
+        {
+            var info = ConveyorAutoTiler.Classify(levelData, Grid, row, col);
+            GameObject prefab = GetTilePrefab(info.Type);
+            if (prefab == null) return;
+
+            Vector3 pos = Grid.GetCellCenterWorld(row, col);
+            Quaternion rot = info.Forward.sqrMagnitude > 0.0001f
+                ? Quaternion.LookRotation(info.Forward, Vector3.up)
+                : prefab.transform.rotation;
+
+            SpawnFromPool(prefab, pos, rot, $"Conveyor_{info.Type}_{row}_{col}");
+        }
+
+        private GameObject GetTilePrefab(ConveyorTileType type) => type switch
+        {
+            ConveyorTileType.Straight => straightConveyorPrefab,
+            ConveyorTileType.InnerCorner => innerCornerConveyorPrefab,
+            ConveyorTileType.OuterCorner => outerCornerConveyorPrefab,
+            ConveyorTileType.Start => startConveyorPrefab,
+            ConveyorTileType.Exit => exitConveyorPrefab,
+            ConveyorTileType.BaseOpening => baseOpeningPrefab,
+            ConveyorTileType.BaseCover => baseCoverPrefab,
+            _ => null
+        };
+
+        private void SpawnTrayBaseTiles(LevelData data)
+        {
+            if (data.trayBaseRow < 0 || data.trayBaseCol < 0) return;
+            if (data.baseRow < 0 || data.baseCol < 0) return;
+
+            int rowDiff = data.baseRow - data.trayBaseRow;
+            int colDiff = data.baseCol - data.trayBaseCol;
+            bool splitByRow = Mathf.Abs(rowDiff) >= Mathf.Abs(colDiff);
+
+            // Start'a yakın taraf hangi index (0 mı 1 mi)?
+            int nearIndex = splitByRow ? (rowDiff > 0 ? 1 : 0) : (colDiff > 0 ? 1 : 0);
+
+            // TEK bir eksen yön vektörü — hücre bazlı nokta hesaplaması YOK.
+            // Bu sayede tüm Opening tile'ları birebir aynı açıda, tüm Cover
+            // tile'ları da bunun tam 180° tersinde durur.
+            Vector3 axisDir = splitByRow
+                ? Grid.GetCellCenterWorld(data.trayBaseRow + 1, data.trayBaseCol) -
+                  Grid.GetCellCenterWorld(data.trayBaseRow, data.trayBaseCol)
+                : Grid.GetCellCenterWorld(data.trayBaseRow, data.trayBaseCol + 1) -
+                  Grid.GetCellCenterWorld(data.trayBaseRow, data.trayBaseCol);
+            axisDir.y = 0f;
+            axisDir.Normalize();
+
+            Vector3 openingFacing = nearIndex == 1 ? axisDir : -axisDir;
+            Vector3 coverFacing = -openingFacing;
+
+            Quaternion openingRot = Quaternion.LookRotation(openingFacing, Vector3.up);
+            Quaternion coverRot = Quaternion.LookRotation(coverFacing, Vector3.up);
+
+            for (int dr = 0; dr < LevelData.ConveyorBlockSize; dr++)
+            {
+                for (int dc = 0; dc < LevelData.ConveyorBlockSize; dc++)
+                {
+                    int rr = data.trayBaseRow + dr;
+                    int cc = data.trayBaseCol + dc;
+                    if (rr >= data.rows || cc >= data.columns) continue;
+
+                    bool isNearSide = splitByRow ? dr == nearIndex : dc == nearIndex;
+
+                    ConveyorTileType type = isNearSide ? ConveyorTileType.BaseOpening : ConveyorTileType.BaseCover;
+                    GameObject prefab = GetTilePrefab(type);
+                    if (prefab == null)
+                    {
+                        Debug.LogWarning($"GridManager: {type} prefabı Inspector'da atanmamış — ({rr},{cc}) atlandı.");
+                        continue;
+                    }
+
+                    Vector3 cellWorld = Grid.GetCellCenterWorld(rr, cc);
+                    Quaternion rot = isNearSide ? openingRot : coverRot;
+
+                    SpawnFromPool(prefab, cellWorld, rot, $"TrayBase_{type}_{rr}_{cc}");
                 }
             }
         }

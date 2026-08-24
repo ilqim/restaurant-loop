@@ -13,7 +13,7 @@ GameObject:
   - component: {fileID: 4874244389173613273}
   - component: {fileID: 721611623915114551}
   m_Layer: 0
-  m_Name: Conveyor Cell
+  m_Name: BaseOpeningConveyor
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -28,7 +28,7 @@ Transform:
   m_GameObject: {fileID: 6213724128334841527}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 2.3503056, y: -0.5674572, z: -18.8}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 0.78, y: 0.78, z: 0.78}
   m_ConstrainProportionsScale: 1
   m_Children: []
@@ -65,7 +65,7 @@ MeshRenderer:
   m_RenderingLayerMask: 1
   m_RendererPriority: 0
   m_Materials:
-  - {fileID: 2100000, guid: 8c32f2ef8613cd94f96e3e98cb856c17, type: 2}
+  - {fileID: 2100000, guid: eecd6b0545a57b448bee80a0384cdd5b, type: 2}
   m_StaticBatchInfo:
     firstSubMesh: 0
     subMeshCount: 0
