@@ -6,7 +6,7 @@ namespace RestaurantLoop
 {
     public enum CellType { Empty, Conveyor, CustomerSlot }
 
-    public enum FoodType { Hamburger, Fries, Drink, Sushi, Steak, Dessert }
+    public enum FoodType { Hamburger, Fries, Drink, Sushi, Steak, Donut }
 
     [CreateAssetMenu(fileName = "Level", menuName = "RestaurantLoop/LevelData")]
     public class LevelData : ScriptableObject
@@ -25,13 +25,20 @@ namespace RestaurantLoop
         [SerializeField, HideInInspector] private int lastAppliedRows;
         [SerializeField, HideInInspector] private int lastAppliedColumns;
 
-        [Header("Conveyor — Base (2x2 blok origin — sol-üst köşe)")]
+        [Header("Conveyor — Start (2x2 blok origin — ESKİDEN 'Base' diye adlandırılıyordu; " +
+                "yemekler conveyor'a buradan girer. Alan adı kod içinde hâlâ baseRow/baseCol, " +
+                "sadece Editor'de 'Start' olarak gösteriliyor — başka scriptleri kırmamak için.)")]
         public int baseRow = -1;
         public int baseCol = -1;
 
         [Header("Conveyor — Exit (2x2 blok origin)")]
         public int exitRow = -1;
         public int exitCol = -1;
+
+        [Header("Tray Base — boş traylerin park ettiği/stackleneceği yer (2x2 blok origin). " +
+                "Gameplay'i henüz implement edilmedi — sadece level tasarımında yer işaretleniyor.")]
+        public int trayBaseRow = -1;
+        public int trayBaseCol = -1;
 
         [Header("İçerik")]
         public List<CustomerEntry> customers = new();
@@ -65,6 +72,13 @@ namespace RestaurantLoop
             if (exitRow < 0 || exitCol < 0) return false;
             return row >= exitRow && row < exitRow + ConveyorBlockSize &&
                    col >= exitCol && col < exitCol + ConveyorBlockSize;
+        }
+
+        public bool IsCellInTrayBaseBlock(int row, int col)
+        {
+            if (trayBaseRow < 0 || trayBaseCol < 0) return false;
+            return row >= trayBaseRow && row < trayBaseRow + ConveyorBlockSize &&
+                   col >= trayBaseCol && col < trayBaseCol + ConveyorBlockSize;
         }
 
         public bool TryGetCustomerFood(int row, int col, out FoodType food)
@@ -162,6 +176,7 @@ namespace RestaurantLoop
 
             if (baseRow >= rows || baseCol >= columns) { baseRow = -1; baseCol = -1; }
             if (exitRow >= rows || exitCol >= columns) { exitRow = -1; exitCol = -1; }
+            if (trayBaseRow >= rows || trayBaseCol >= columns) { trayBaseRow = -1; trayBaseCol = -1; }
             customers.RemoveAll(e => e.row >= rows || e.col >= columns);
         }
     }
