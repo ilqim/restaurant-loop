@@ -2706,6 +2706,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 553ab22bcf0023b469e0e7162875b831, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+  initialBaseTrays: 6
+  baseStackYOffset: 0.08
+  returnSpeed: 6
   gridManager: {fileID: 368813331}
   customerManager: {fileID: 1989108643}
   slotManager: {fileID: 61013483}

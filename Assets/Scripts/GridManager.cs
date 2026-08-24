@@ -128,7 +128,7 @@ namespace RestaurantLoop
 
                     Vector3 pos = Grid.GetCellCenterWorld(r, c);
 
-                    if (type == CellType.Conveyor)
+                    if (type == CellType.Conveyor || type == CellType.BaseTray)
                     {
                         if (conveyorCellPrefab == null) continue;
                         SpawnFromPool(conveyorCellPrefab, pos, conveyorCellPrefab.transform.rotation, $"Conveyor_{r}_{c}");
@@ -164,6 +164,19 @@ namespace RestaurantLoop
                 : Instantiate(prefab, pos, rot, transform);
             instance.name = name;
             return instance;
+        }
+
+        public Vector3 GetTrayBaseCenterWorld()
+        {
+            if (levelData == null || levelData.trayBaseRow < 0 || levelData.trayBaseCol < 0 || Grid == null)
+                return transform.position;
+
+            Vector3 p00 = Grid.GetCellCenterWorld(levelData.trayBaseRow, levelData.trayBaseCol);
+            int r1 = Mathf.Min(levelData.rows - 1, levelData.trayBaseRow + LevelData.ConveyorBlockSize - 1);
+            int c1 = Mathf.Min(levelData.columns - 1, levelData.trayBaseCol + LevelData.ConveyorBlockSize - 1);
+            Vector3 p11 = Grid.GetCellCenterWorld(r1, c1);
+
+            return (p00 + p11) * 0.5f;
         }
 
         private static Vector3 GetGridCornerWorld(GameGrid grid, int rowLine, int colLine)
