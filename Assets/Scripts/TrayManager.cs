@@ -85,7 +85,7 @@ namespace RestaurantLoop
         [SerializeField] private float waypointYOffset = 0f;
 
         [Header("Base Tray Offset")]
-        [SerializeField] private Vector3 baseTrayOffset = new Vector3(0.5f,0f,0f);
+        [SerializeField] private Vector3 baseTrayOffset = new Vector3(0.5f, 0f, 0f);
 
         [Header("Food Type Başına Görsel/Hız Ayarları")]
         [SerializeField] private List<TrayVisualConfig> visualConfigs = new();
@@ -292,59 +292,23 @@ namespace RestaurantLoop
             if (trayBaseQueue.Contains(tray))
                 return;
 
+            // Havada uçuşma efektini engellemek için:
+            // Tepsiyi önce GİZLE, konumunu sessizce (görünmeden) hedef base
+            // slotuna taşı, sonra tekrar görünür yap. Entry-gate üzerinden
+            // görünür bir geçiş animasyonu ARTIK YOK.
+            tray.gameObject.SetActive(false);
+
             int targetIndex = trayBaseQueue.Count;
             trayBaseQueue.Add(tray);
 
-            Vector3 entryPos = GetEntryGateWorldPosition();
             Vector3 finalSlotPos = GetBaseStackPosition(targetIndex);
 
-            tray.transform.position = entryPos;
+            tray.transform.position = finalSlotPos;
             tray.transform.rotation = BaseStackRotation;
+
+            tray.ParkAtBase(this, finalSlotPos);
+
             tray.gameObject.SetActive(true);
-
-            StartCoroutine(
-                MoveTrayToBaseSlotRoutine(
-                    tray,
-                    entryPos,
-                    finalSlotPos
-                )
-            );
-        }
-
-        private IEnumerator MoveTrayToBaseSlotRoutine(
-            Tray tray,
-            Vector3 from,
-            Vector3 to)
-        {
-            float elapsed = 0f;
-            float duration = queueShiftDuration;
-
-            while (elapsed < duration)
-            {
-                elapsed += Time.deltaTime;
-                float t = Mathf.SmoothStep(
-                    0f,
-                    1f,
-                    Mathf.Clamp01(elapsed / duration)
-                );
-
-                if (tray == null)
-                    yield break;
-
-                tray.transform.position =
-                    Vector3.Lerp(from, to, t);
-
-                tray.transform.rotation =
-                    BaseStackRotation;
-
-                yield return null;
-            }
-
-            if (tray != null)
-            {
-                tray.transform.position = to;
-                tray.ParkAtBase(this, to);
-            }
         }
 
         private void ShiftTraysForward()
