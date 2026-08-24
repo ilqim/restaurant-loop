@@ -294,13 +294,53 @@ namespace RestaurantLoop
             Vector3 entryPos = GetEntryGateWorldPosition();
             Vector3 finalSlotPos = GetBaseStackPosition(targetIndex);
 
-            tray.gameObject.SetActive(false);
             tray.transform.position = entryPos;
             tray.transform.rotation = BaseStackRotation;
-            tray.transform.position = finalSlotPos;
             tray.gameObject.SetActive(true);
 
-            tray.ParkAtBase(this, finalSlotPos);
+            StartCoroutine(
+                MoveTrayToBaseSlotRoutine(
+                    tray,
+                    entryPos,
+                    finalSlotPos
+                )
+            );
+        }
+
+        private IEnumerator MoveTrayToBaseSlotRoutine(
+            Tray tray,
+            Vector3 from,
+            Vector3 to)
+        {
+            float elapsed = 0f;
+            float duration = queueShiftDuration;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.SmoothStep(
+                    0f,
+                    1f,
+                    Mathf.Clamp01(elapsed / duration)
+                );
+
+                if (tray == null)
+                    yield break;
+
+                tray.transform.position =
+                    Vector3.Lerp(from, to, t);
+
+                tray.transform.rotation =
+                    BaseStackRotation;
+
+                yield return null;
+            }
+
+            if (tray != null)
+            {
+                tray.transform.position = to;
+                tray.ParkAtBase(this, to);
+            }
         }
 
         private void ShiftTraysForward()
