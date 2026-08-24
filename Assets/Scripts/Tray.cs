@@ -15,10 +15,7 @@ namespace RestaurantLoop
         [SerializeField] private Color labelColor = Color.white;
 
         [Header("Yönelim")]
-        [SerializeField] private float rotationSmoothing = 10f;
-
-        [Header("Debug")]
-        [SerializeField] private bool verboseLogging = true;
+        [SerializeField] private float rotationSmoothing = 15f;
 
         private readonly HashSet<Customer> customersReservedByThisTray = new();
         private readonly List<Vector2Int> pendingCheckCells = new();
@@ -56,46 +53,37 @@ namespace RestaurantLoop
 
         public void ParkAtBase(TrayManager manager, Vector3 pos)
         {
-            trayManager = manager;
-            transform.position = pos;
-            transform.rotation = Quaternion.identity;
-            ClearStackVisuals();
-            if (capacityLabel != null) capacityLabel.text = "";
-            enabled = false;
-        }
-
-        public void GlideBackToBase(Vector3 targetPos)
-        {
-            ClearStackVisuals();
-            if (capacityLabel != null) capacityLabel.text = "";
-            StartCoroutine(GlideRoutine(targetPos));
-        }
-
-        private IEnumerator GlideRoutine(Vector3 targetPos)
-        {
-            Vector3 start = transform.position;
-            Quaternion startRot = transform.rotation;
-            float speed = trayManager != null ? trayManager.ReturnSpeed : 6f;
-            float dist = Vector3.Distance(start, targetPos);
-            float duration = Mathf.Max(0.01f, dist / speed);
-            float elapsed = 0f;
-
-            while (elapsed < duration)
+            if (moveRoutine != null)
             {
-                elapsed += Time.deltaTime;
-                float t = Mathf.Clamp01(elapsed / duration);
-                transform.position = Vector3.Lerp(start, targetPos, t);
-                transform.rotation = Quaternion.Slerp(startRot, Quaternion.identity, t);
-                yield return null;
+                StopCoroutine(moveRoutine);
+                moveRoutine = null;
             }
 
-            transform.position = targetPos;
-            transform.rotation = Quaternion.identity;
+            trayManager = manager;
+            transform.position = pos;
+            transform.rotation = manager != null
+                ? manager.BaseStackRotation
+                : Quaternion.identity;
+
+            ClearStackVisuals();
+
+            if (capacityLabel != null)
+                capacityLabel.text = "";
+
             enabled = false;
         }
 
-        public void Init(TrayManager manager, FoodType type, int startCapacity)
+        public void Init(
+            TrayManager manager,
+            FoodType type,
+            int startCapacity)
         {
+            if (moveRoutine != null)
+            {
+                StopCoroutine(moveRoutine);
+                moveRoutine = null;
+            }
+
             enabled = true;
             trayManager = manager;
             foodType = type;
@@ -116,17 +104,22 @@ namespace RestaurantLoop
             var waypoints = gridManager.WaypointWorldPositions;
 
             if (waypoints == null || waypoints.Count == 0)
-            {
-                Debug.LogWarning($"Tray [{gameObject.name}] waypoint bulunamadı.");
                 return;
-            }
 
-            transform.position = trayManager.GetWaypointPosition(0);
+            Vector3 startPos = trayManager.GetWaypointPosition(0);
+            transform.position = startPos;
 
             var facings = gridManager.WaypointFacingDirections;
-            if (facings != null && facings.Count > 0 && facings[0].sqrMagnitude > 0.0001f)
+
+            if (facings != null &&
+                facings.Count > 0 &&
+                facings[0].sqrMagnitude > 0.0001f)
             {
-                transform.rotation = Quaternion.LookRotation(facings[0], Vector3.up);
+                transform.rotation =
+                    Quaternion.LookRotation(
+                        facings[0],
+                        Vector3.up
+                    );
             }
 
             cumulativeMovementDistance = new float[waypoints.Count];
@@ -134,10 +127,19 @@ namespace RestaurantLoop
 
             for (int i = 1; i < waypoints.Count; i++)
             {
-                cumulativeMovementDistance[i] = cumulativeMovementDistance[i - 1] + Vector3.Distance(waypoints[i - 1], waypoints[i]);
+                cumulativeMovementDistance[i] =
+                    cumulativeMovementDistance[i - 1] +
+                    Vector3.Distance(
+                        waypoints[i - 1],
+                        waypoints[i]
+                    );
             }
 
-            totalMovementLength = waypoints.Count > 0 ? cumulativeMovementDistance[^1] : 0f;
+            totalMovementLength =
+                waypoints.Count > 0
+                    ? cumulativeMovementDistance[^1]
+                    : 0f;
+
             deliveryCheckpoints = gridManager.DeliveryCheckpoints;
             nextCheckpointIndex = 1;
 
@@ -145,52 +147,97 @@ namespace RestaurantLoop
             CreateCapacityLabel();
             UpdateCapacityLabel();
 
-            if (deliveryCheckpoints.Count > 0)
+            if (deliveryCheckpoints != null &&
+                deliveryCheckpoints.Count > 0)
             {
-                QueueDeliveryCheck(deliveryCheckpoints[0].cell);
+                QueueDeliveryCheck(
+                    deliveryCheckpoints[0].cell
+                );
             }
 
-            if (moveRoutine != null) StopCoroutine(moveRoutine);
-            moveRoutine = StartCoroutine(MoveOnConveyor());
+            moveRoutine = StartCoroutine(
+                MoveOnConveyor()
+            );
         }
 
         private void OnDisable()
         {
             ReleaseAllCustomerReservations();
             pendingCheckCells.Clear();
-            TrayDeliveryQueue.Unregister(this, foodType);
+
+            TrayDeliveryQueue.Unregister(
+                this,
+                foodType
+            );
+
+            if (moveRoutine != null)
+            {
+                StopCoroutine(moveRoutine);
+                moveRoutine = null;
+            }
         }
 
         private void LateUpdate()
         {
-            if (capacityLabel == null) return;
-            if (labelFacingCamera == null) labelFacingCamera = Camera.main;
-            if (labelFacingCamera == null) return;
+            if (capacityLabel == null)
+                return;
 
-            capacityLabel.transform.rotation = Quaternion.LookRotation(capacityLabel.transform.position - labelFacingCamera.transform.position);
+            if (labelFacingCamera == null)
+                labelFacingCamera = Camera.main;
+
+            if (labelFacingCamera != null)
+            {
+                capacityLabel.transform.rotation =
+                    Quaternion.LookRotation(
+                        capacityLabel.transform.position -
+                        labelFacingCamera.transform.position
+                    );
+            }
         }
 
         public void ProcessCheckedDeliveryPlans()
         {
-            if (pendingCheckCells.Count == 0) return;
+            if (pendingCheckCells.Count == 0)
+                return;
 
-            var cellsSnapshot = new List<Vector2Int>(pendingCheckCells);
+            var cellsSnapshot =
+                new List<Vector2Int>(
+                    pendingCheckCells
+                );
+
             pendingCheckCells.Clear();
 
-            var customerManager = trayManager != null ? trayManager.CustomerManagerRef : null;
-            if (customerManager == null) return;
+            var customerManager =
+                trayManager != null
+                    ? trayManager.CustomerManagerRef
+                    : null;
+
+            if (customerManager == null)
+                return;
 
             foreach (Vector2Int cell in cellsSnapshot)
             {
-                if (depleted || capacity <= 0) break;
+                if (depleted || capacity <= 0)
+                    break;
 
                 deliveryTryCounter++;
 
-                if (!customerManager.TryFindDeliverableCustomer(foodType, cell, 1, out Customer target) || target == null)
+                if (!customerManager.TryFindDeliverableCustomer(
+                        foodType,
+                        cell,
+                        1,
+                        out Customer target)
+                    || target == null)
+                {
                     continue;
+                }
 
-                if (!target.TryReserveForDelivery(this, foodType))
+                if (!target.TryReserveForDelivery(
+                        this,
+                        foodType))
+                {
                     continue;
+                }
 
                 customersReservedByThisTray.Add(target);
                 FireDeliveryAt(target);
@@ -199,21 +246,34 @@ namespace RestaurantLoop
 
         private void FireDeliveryAt(Customer target)
         {
-            capacity = Mathf.Max(0, capacity - 1);
-            RemoveStackPieceTowardCustomer(transform.forward);
+            capacity = Mathf.Max(
+                0,
+                capacity - 1
+            );
+
+            RemoveStackPieceTowardCustomer(
+                transform.forward
+            );
+
             UpdateCapacityLabel();
-            LaunchDeliveryClone(target, transform.position);
+
+            LaunchDeliveryClone(
+                target,
+                transform.position
+            );
 
             customersReservedByThisTray.Remove(target);
 
             if (capacity <= 0 && !depleted)
             {
                 depleted = true;
+
                 if (moveRoutine != null)
                 {
                     StopCoroutine(moveRoutine);
                     moveRoutine = null;
                 }
+
                 Despawn();
             }
         }
@@ -229,8 +289,18 @@ namespace RestaurantLoop
                 return;
             }
 
-            int count = Mathf.Min(capacity, Mathf.Max(0, config.maxVisualPieces));
-            currentLayerCount = Mathf.CeilToInt(count / (float)PiecesPerLayer);
+            int count = Mathf.Min(
+                capacity,
+                Mathf.Max(
+                    0,
+                    config.maxVisualPieces
+                )
+            );
+
+            currentLayerCount =
+                Mathf.CeilToInt(
+                    count / (float)PiecesPerLayer
+                );
 
             for (int i = 0; i < count; i++)
             {
@@ -244,75 +314,136 @@ namespace RestaurantLoop
         {
             int layer = index / PiecesPerLayer;
             int posInLayer = index % PiecesPerLayer;
-            float half = config.pieceSpacing * 0.5f;
 
-            float xOffset = (posInLayer == 0 || posInLayer == 2) ? -half : half;
-            float zOffset = (posInLayer == 0 || posInLayer == 1) ? half : -half;
+            float half =
+                config.pieceSpacing * 0.5f;
 
-            GameObject piece = ObjectPool.Instance != null
-                ? ObjectPool.Instance.Get(config.stackPiecePrefab, transform.position, config.stackPiecePrefab.transform.rotation, transform)
-                : Instantiate(config.stackPiecePrefab, transform.position, config.stackPiecePrefab.transform.rotation, transform);
+            float xOffset =
+                (posInLayer == 0 || posInLayer == 2)
+                    ? -half
+                    : half;
 
-            float yOffset = config.foodBaseYOffset + layer * config.pieceHeightSpacing;
-            piece.transform.localPosition = new Vector3(xOffset, yOffset, zOffset);
+            float zOffset =
+                (posInLayer == 0 || posInLayer == 1)
+                    ? half
+                    : -half;
 
-            stackPieceInfos.Add(new StackPieceInfo
-            {
-                go = piece,
-                layerIndex = layer,
-                offsetXZ = new Vector2(xOffset, zOffset)
-            });
+            GameObject piece =
+                ObjectPool.Instance != null
+                    ? ObjectPool.Instance.Get(
+                        config.stackPiecePrefab,
+                        transform.position,
+                        config.stackPiecePrefab.transform.rotation,
+                        transform)
+                    : Instantiate(
+                        config.stackPiecePrefab,
+                        transform.position,
+                        config.stackPiecePrefab.transform.rotation,
+                        transform);
+
+            float yOffset =
+                config.foodBaseYOffset +
+                layer * config.pieceHeightSpacing;
+
+            piece.transform.localPosition =
+                new Vector3(
+                    xOffset,
+                    yOffset,
+                    zOffset
+                );
+
+            stackPieceInfos.Add(
+                new StackPieceInfo
+                {
+                    go = piece,
+                    layerIndex = layer,
+                    offsetXZ = new Vector2(
+                        xOffset,
+                        zOffset
+                    )
+                }
+            );
         }
 
-        private void RemoveStackPieceTowardCustomer(Vector3 dirToCustomerWorld)
+        private void RemoveStackPieceTowardCustomer(
+            Vector3 dirToCustomerWorld)
         {
-            if (stackPieceInfos.Count == 0) return;
+            if (stackPieceInfos.Count == 0)
+                return;
 
-            int targetLayer = config.removeFromTopFirst
-                ? stackPieceInfos.Max(p => p.layerIndex)
-                : stackPieceInfos.Min(p => p.layerIndex);
+            int targetLayer =
+                config.removeFromTopFirst
+                    ? stackPieceInfos.Max(
+                        p => p.layerIndex)
+                    : stackPieceInfos.Min(
+                        p => p.layerIndex);
 
-            List<StackPieceInfo> layerPieces = stackPieceInfos.Where(p => p.layerIndex == targetLayer).ToList();
-            if (layerPieces.Count == 0) return;
+            List<StackPieceInfo> layerPieces =
+                stackPieceInfos
+                    .Where(
+                        p => p.layerIndex == targetLayer)
+                    .ToList();
 
-            Vector3 localDir = transform.InverseTransformDirection(dirToCustomerWorld);
+            if (layerPieces.Count == 0)
+                return;
+
+            Vector3 localDir =
+                transform.InverseTransformDirection(
+                    dirToCustomerWorld
+                );
+
             localDir.y = 0f;
-            if (localDir.sqrMagnitude < 0.0001f) localDir = Vector3.forward;
+
+            if (localDir.sqrMagnitude < 0.0001f)
+                localDir = Vector3.forward;
+
             localDir.Normalize();
 
-            Vector2 customerDirection = new Vector2(localDir.x, localDir.z);
+            Vector2 customerDirection =
+                new Vector2(
+                    localDir.x,
+                    localDir.z
+                );
 
             StackPieceInfo chosen = null;
-            float bestScore = float.NegativeInfinity;
+            float bestScore =
+                float.NegativeInfinity;
 
             foreach (StackPieceInfo piece in layerPieces)
             {
-                float score = Vector2.Dot(piece.offsetXZ, customerDirection);
-                if (chosen == null || score > bestScore)
+                float score =
+                    Vector2.Dot(
+                        piece.offsetXZ,
+                        customerDirection
+                    );
+
+                if (chosen == null ||
+                    score > bestScore)
                 {
                     chosen = piece;
                     bestScore = score;
                 }
-                else if (Mathf.Approximately(score, bestScore))
-                {
-                    if (piece.offsetXZ.x < chosen.offsetXZ.x)
-                        chosen = piece;
-                    else if (Mathf.Approximately(piece.offsetXZ.x, chosen.offsetXZ.x) && piece.offsetXZ.y < chosen.offsetXZ.y)
-                        chosen = piece;
-                }
             }
 
-            if (chosen == null) return;
+            if (chosen == null)
+                return;
 
             stackPieceInfos.Remove(chosen);
 
             if (chosen.go != null)
             {
-                if (ObjectPool.Instance != null) ObjectPool.Instance.Return(chosen.go);
-                else Destroy(chosen.go);
+                if (ObjectPool.Instance != null)
+                    ObjectPool.Instance.Return(chosen.go);
+                else
+                    Destroy(chosen.go);
             }
 
-            currentLayerCount = stackPieceInfos.Count > 0 ? stackPieceInfos.Max(p => p.layerIndex) + 1 : 0;
+            currentLayerCount =
+                stackPieceInfos.Count > 0
+                    ? stackPieceInfos.Max(
+                        p => p.layerIndex) + 1
+                    : 0;
+
             PositionLabelAboveStack();
         }
 
@@ -320,26 +451,36 @@ namespace RestaurantLoop
         {
             foreach (var info in stackPieceInfos)
             {
-                if (info.go == null) continue;
-                if (ObjectPool.Instance != null) ObjectPool.Instance.Return(info.go);
-                else Destroy(info.go);
+                if (info.go == null)
+                    continue;
+
+                if (ObjectPool.Instance != null)
+                    ObjectPool.Instance.Return(info.go);
+                else
+                    Destroy(info.go);
             }
+
             stackPieceInfos.Clear();
             currentLayerCount = 0;
         }
 
         private IEnumerator MoveOnConveyor()
         {
-            var gridManager = trayManager.GridManagerRef;
-            var waypoints = gridManager.WaypointWorldPositions;
-            var facings = gridManager.WaypointFacingDirections;
+            var gridManager =
+                trayManager.GridManagerRef;
+
+            var waypoints =
+                gridManager.WaypointWorldPositions;
+
+            var facings =
+                gridManager.WaypointFacingDirections;
 
             while (true)
             {
-                int nextIndex = currentIndex + 1;
-                bool reachedExitEnd = nextIndex >= waypoints.Count;
+                int nextIndex =
+                    currentIndex + 1;
 
-                if (reachedExitEnd)
+                if (nextIndex >= waypoints.Count)
                 {
                     AdvanceDeliveryCheckpoints(1f);
 
@@ -377,10 +518,29 @@ namespace RestaurantLoop
                     }
                 }
 
-                Vector3 targetPosition = trayManager.GetWaypointPosition(nextIndex);
-                Vector3 targetFacing = nextIndex < facings.Count ? facings[nextIndex] : Vector3.zero;
+                Vector3 startPos =
+                    trayManager.GetWaypointPosition(
+                        currentIndex
+                    );
 
-                yield return StartCoroutine(MoveTo(currentIndex, targetPosition, targetFacing));
+                Vector3 targetPosition =
+                    trayManager.GetWaypointPosition(
+                        nextIndex
+                    );
+
+                Vector3 targetFacing =
+                    nextIndex < facings.Count
+                        ? facings[nextIndex]
+                        : Vector3.zero;
+
+                yield return StartCoroutine(
+                    MoveSegment(
+                        currentIndex,
+                        startPos,
+                        targetPosition,
+                        targetFacing
+                    )
+                );
 
                 currentIndex = nextIndex;
 
@@ -392,38 +552,89 @@ namespace RestaurantLoop
             }
         }
 
-        private IEnumerator MoveTo(int fromIndex, Vector3 target, Vector3 targetFacing)
+        private IEnumerator MoveSegment(
+            int fromIndex,
+            Vector3 start,
+            Vector3 target,
+            Vector3 targetFacing)
         {
-            Vector3 start = transform.position;
-            float distance = Vector3.Distance(start, target);
-            float speed = Mathf.Max(0.01f, config.conveyorSpeed);
-            float duration = Mathf.Max(0.01f, distance / speed);
+            float distance =
+                Vector3.Distance(
+                    start,
+                    target
+                );
 
-            float prefixDistance = cumulativeMovementDistance != null && fromIndex < cumulativeMovementDistance.Length
-                ? cumulativeMovementDistance[fromIndex]
-                : 0f;
+            if (distance < 0.001f)
+            {
+                transform.position = target;
+                yield break;
+            }
 
-            Quaternion targetRotation = targetFacing.sqrMagnitude > 0.0001f
-                ? Quaternion.LookRotation(targetFacing, Vector3.up)
-                : transform.rotation;
+            float speed =
+                Mathf.Max(
+                    0.01f,
+                    config.conveyorSpeed
+                );
+
+            float duration =
+                Mathf.Max(
+                    0.01f,
+                    distance / speed
+                );
+
+            float prefixDistance =
+                cumulativeMovementDistance != null &&
+                fromIndex < cumulativeMovementDistance.Length
+                    ? cumulativeMovementDistance[fromIndex]
+                    : 0f;
+
+            Quaternion targetRotation =
+                targetFacing.sqrMagnitude > 0.0001f
+                    ? Quaternion.LookRotation(
+                        targetFacing,
+                        Vector3.up)
+                    : transform.rotation;
 
             float elapsed = 0f;
 
             while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
-                float t = Mathf.Clamp01(elapsed / duration);
 
-                transform.position = Vector3.Lerp(start, target, t);
-                transform.rotation = rotationSmoothing > 0f
-                    ? Quaternion.Slerp(transform.rotation, targetRotation, Time.deltaTime * rotationSmoothing)
-                    : targetRotation;
+                float t =
+                    Mathf.Clamp01(
+                        elapsed / duration
+                    );
+
+                transform.position =
+                    Vector3.Lerp(
+                        start,
+                        target,
+                        t
+                    );
+
+                transform.rotation =
+                    rotationSmoothing > 0f
+                        ? Quaternion.Slerp(
+                            transform.rotation,
+                            targetRotation,
+                            Time.deltaTime *
+                            rotationSmoothing)
+                        : targetRotation;
 
                 if (totalMovementLength > 0.0001f)
                 {
-                    float globalT = (prefixDistance + distance * t) / totalMovementLength;
-                    AdvanceDeliveryCheckpoints(globalT);
-                    if (depleted) yield break;
+                    float globalT =
+                        (prefixDistance +
+                         distance * t) /
+                        totalMovementLength;
+
+                    AdvanceDeliveryCheckpoints(
+                        globalT
+                    );
+
+                    if (depleted)
+                        yield break;
                 }
 
                 yield return null;
@@ -433,59 +644,139 @@ namespace RestaurantLoop
             transform.rotation = targetRotation;
         }
 
-        private void AdvanceDeliveryCheckpoints(float globalT)
+        private void AdvanceDeliveryCheckpoints(
+            float globalT)
         {
-            if (deliveryCheckpoints == null) return;
+            if (deliveryCheckpoints == null)
+                return;
 
-            while (nextCheckpointIndex < deliveryCheckpoints.Count &&
-                   deliveryCheckpoints[nextCheckpointIndex].t <= globalT)
+            while (
+                nextCheckpointIndex <
+                    deliveryCheckpoints.Count &&
+                deliveryCheckpoints[
+                    nextCheckpointIndex].t <= globalT)
             {
-                var checkpoint = deliveryCheckpoints[nextCheckpointIndex];
+                var checkpoint =
+                    deliveryCheckpoints[
+                        nextCheckpointIndex];
+
                 nextCheckpointIndex++;
-                QueueDeliveryCheck(checkpoint.cell);
-                if (depleted) return;
+
+                QueueDeliveryCheck(
+                    checkpoint.cell
+                );
+
+                if (depleted)
+                    return;
             }
         }
 
-        private void QueueDeliveryCheck(Vector2Int cell)
+        private void QueueDeliveryCheck(
+            Vector2Int cell)
         {
-            if (capacity <= 0 || depleted) return;
+            if (capacity <= 0 || depleted)
+                return;
+
             pendingCheckCells.Add(cell);
         }
 
-        private void LaunchDeliveryClone(Customer target, Vector3 launchPosition)
+        private void LaunchDeliveryClone(
+            Customer target,
+            Vector3 launchPosition)
         {
-            if (config.stackPiecePrefab == null || ObjectPool.Instance == null)
+            if (config.stackPiecePrefab == null ||
+                ObjectPool.Instance == null)
             {
                 if (target != null)
                 {
                     target.ReceiveFood();
                     customersReservedByThisTray.Remove(target);
                 }
+
                 return;
             }
 
             ObjectPool.Instance.StartCoroutine(
-                DeliverCloneRoutine(this, config.stackPiecePrefab, launchPosition, transform.rotation, target, config.deliverySpeed)
+                DeliverCloneRoutine(
+                    this,
+                    config.stackPiecePrefab,
+                    launchPosition,
+                    transform.rotation,
+                    target,
+                    config.deliverySpeed,
+                    config.deliverySpinSpeed,
+                    config.deliverySpinAxis
+                )
             );
         }
 
-        private static IEnumerator DeliverCloneRoutine(Tray sourceTray, GameObject prefab, Vector3 launchPosition, Quaternion launchRotation, Customer target, float speed)
+        private static IEnumerator DeliverCloneRoutine(
+            Tray sourceTray,
+            GameObject prefab,
+            Vector3 launchPosition,
+            Quaternion launchRotation,
+            Customer target,
+            float speed,
+            float spinSpeed,
+            Vector3 spinAxis)
         {
-            GameObject clone = ObjectPool.Instance.Get(prefab, launchPosition, launchRotation);
+            GameObject clone =
+                ObjectPool.Instance.Get(
+                    prefab,
+                    launchPosition,
+                    launchRotation
+                );
+
             if (clone == null)
             {
                 if (target != null)
                 {
                     target.ReceiveFood();
-                    sourceTray?.customersReservedByThisTray.Remove(target);
+                    sourceTray?.customersReservedByThisTray.Remove(
+                        target
+                    );
                 }
+
                 yield break;
             }
 
-            Vector3 targetPos = target != null ? target.transform.position : launchPosition;
-            float distance = Vector3.Distance(launchPosition, targetPos);
-            float duration = Mathf.Max(0.01f, distance / Mathf.Max(0.01f, speed));
+            // Prefabdaki Trail Renderer normalde kapalı.
+            // Fırlatma sırasında aç.
+            TrailRenderer trail =
+                clone.GetComponentInChildren<TrailRenderer>(true);
+
+            if (trail != null)
+            {
+                trail.Clear();
+                trail.enabled = true;
+                trail.emitting = true;
+            }
+
+            Vector3 spinAxisNormalized =
+                spinAxis.sqrMagnitude > 0.0001f
+                    ? spinAxis.normalized
+                    : Vector3.up;
+
+            Vector3 targetPos =
+                target != null
+                    ? target.transform.position
+                    : launchPosition;
+
+            float distance =
+                Vector3.Distance(
+                    launchPosition,
+                    targetPos
+                );
+
+            float duration =
+                Mathf.Max(
+                    0.01f,
+                    distance /
+                    Mathf.Max(
+                        0.01f,
+                        speed)
+                );
+
             float elapsed = 0f;
 
             while (elapsed < duration)
@@ -495,47 +786,99 @@ namespace RestaurantLoop
                     if (target != null)
                     {
                         target.ReceiveFood();
-                        sourceTray?.customersReservedByThisTray.Remove(target);
+                        sourceTray?.customersReservedByThisTray.Remove(
+                            target
+                        );
                     }
+
                     yield break;
                 }
 
                 elapsed += Time.deltaTime;
-                float t = Mathf.Clamp01(elapsed / duration);
-                clone.transform.position = Vector3.Lerp(launchPosition, targetPos, t);
+
+                float t =
+                    Mathf.Clamp01(
+                        elapsed / duration
+                    );
+
+                clone.transform.position =
+                    Vector3.Lerp(
+                        launchPosition,
+                        targetPos,
+                        t
+                    );
+
+                if (spinSpeed != 0f)
+                {
+                    clone.transform.Rotate(
+                        spinAxisNormalized,
+                        spinSpeed * Time.deltaTime,
+                        Space.Self
+                    );
+                }
+
                 yield return null;
             }
 
             if (clone != null)
             {
                 clone.transform.position = targetPos;
+
+                if (trail != null)
+                {
+                    trail.emitting = false;
+                    trail.enabled = false;
+                    trail.Clear();
+                }
+
                 ObjectPool.Instance.Return(clone);
             }
 
             if (target != null)
             {
                 target.ReceiveFood();
-                sourceTray?.customersReservedByThisTray.Remove(target);
+                sourceTray?.customersReservedByThisTray.Remove(
+                    target
+                );
             }
         }
 
         private void ReleaseAllCustomerReservations()
         {
-            if (customersReservedByThisTray.Count == 0) return;
+            if (customersReservedByThisTray.Count == 0)
+                return;
+
             foreach (var customer in customersReservedByThisTray)
             {
-                if (customer != null) customer.ReleaseDeliveryReservation(this);
+                if (customer != null)
+                    customer.ReleaseDeliveryReservation(
+                        this
+                    );
             }
+
             customersReservedByThisTray.Clear();
         }
 
         private bool TryMergeIntoSlot()
         {
-            GameObject prefab = trayManager.GetFoodPrefab(foodType);
-            if (prefab == null) return false;
+            GameObject prefab =
+                trayManager.GetFoodPrefab(
+                    foodType
+                );
 
-            GameObject foodGo = Instantiate(prefab, transform.position, prefab.transform.rotation);
-            Food food = foodGo.GetComponent<Food>();
+            if (prefab == null)
+                return false;
+
+            GameObject foodGo =
+                Instantiate(
+                    prefab,
+                    transform.position,
+                    prefab.transform.rotation
+                );
+
+            Food food =
+                foodGo.GetComponent<Food>();
+
             if (food == null)
             {
                 Destroy(foodGo);
@@ -543,7 +886,12 @@ namespace RestaurantLoop
             }
 
             food.PresetCapacity(capacity);
-            bool placed = trayManager.SlotManagerRef != null && trayManager.SlotManagerRef.TryPlaceFood(food);
+
+            bool placed =
+                trayManager.SlotManagerRef != null &&
+                trayManager.SlotManagerRef.TryPlaceFood(
+                    food
+                );
 
             if (!placed)
             {
@@ -559,21 +907,23 @@ namespace RestaurantLoop
         {
             ReleaseAllCustomerReservations();
             pendingCheckCells.Clear();
-            TrayDeliveryQueue.Unregister(this, foodType);
+
+            TrayDeliveryQueue.Unregister(
+                this,
+                foodType
+            );
 
             if (trayManager != null)
-            {
                 trayManager.ReturnTrayToBase(this);
-            }
             else
-            {
                 gameObject.SetActive(false);
-            }
         }
 
         private void CreateCapacityLabel()
         {
-            if (!showCapacityLabel) return;
+            if (!showCapacityLabel)
+                return;
+
             if (capacityLabel != null)
             {
                 UpdateCapacityLabel();
@@ -581,33 +931,69 @@ namespace RestaurantLoop
                 return;
             }
 
-            GameObject labelGO = new GameObject("CapacityLabel");
-            labelGO.transform.SetParent(transform, false);
-            capacityLabelTransform = labelGO.transform;
+            GameObject labelGO =
+                new GameObject(
+                    "CapacityLabel"
+                );
 
-            capacityLabel = labelGO.AddComponent<TextMesh>();
-            capacityLabel.anchor = TextAnchor.MiddleCenter;
-            capacityLabel.alignment = TextAlignment.Center;
-            capacityLabel.fontSize = labelFontSize;
-            capacityLabel.characterSize = labelCharacterSize;
-            capacityLabel.color = labelColor;
+            labelGO.transform.SetParent(
+                transform,
+                false
+            );
+
+            capacityLabelTransform =
+                labelGO.transform;
+
+            capacityLabel =
+                labelGO.AddComponent<TextMesh>();
+
+            capacityLabel.anchor =
+                TextAnchor.MiddleCenter;
+
+            capacityLabel.alignment =
+                TextAlignment.Center;
+
+            capacityLabel.fontSize =
+                labelFontSize;
+
+            capacityLabel.characterSize =
+                labelCharacterSize;
+
+            capacityLabel.color =
+                labelColor;
 
             PositionLabelAboveStack();
         }
 
         private void PositionLabelAboveStack()
         {
-            if (capacityLabelTransform == null) return;
-            float stackTopHeight = config.foodBaseYOffset + Mathf.Max(0, currentLayerCount - 1) * config.pieceHeightSpacing;
-            capacityLabelTransform.localPosition = new Vector3(0, stackTopHeight + labelMarginAboveStack, 0);
+            if (capacityLabelTransform == null)
+                return;
+
+            float stackTopHeight =
+                config.foodBaseYOffset +
+                Mathf.Max(
+                    0,
+                    currentLayerCount - 1
+                ) *
+                config.pieceHeightSpacing;
+
+            capacityLabelTransform.localPosition =
+                new Vector3(
+                    0,
+                    stackTopHeight +
+                    labelMarginAboveStack,
+                    0
+                );
         }
 
         private void UpdateCapacityLabel()
         {
             if (capacityLabel != null)
-            {
-                capacityLabel.text = capacity > 0 ? capacity.ToString() : "";
-            }
+                capacityLabel.text =
+                    capacity > 0
+                        ? capacity.ToString()
+                        : "";
         }
     }
 }
