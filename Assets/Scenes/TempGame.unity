@@ -1661,7 +1661,6 @@ MonoBehaviour:
   queueShiftDuration: 0.4
   trayEntryOffset: {x: 200, y: 92.02, z: 77.35}
   waypointYOffset: 0.35
-  baseTrayOffset: {x: 0.5, y: 0, z: 0}
   visualConfigs:
   - food: 0
     stackPiecePrefab: {fileID: 3849605167686110678, guid: 6a6f017856b00ef41afab09386558ec4, type: 3}

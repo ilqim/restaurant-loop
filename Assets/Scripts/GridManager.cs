@@ -65,25 +65,9 @@ namespace RestaurantLoop
         public LevelData LevelDataRef => levelData;
         public Grid UnityGridRef => unityGrid;
 
-        /// <summary>
-        /// HAREKET/animasyon için — artık SADECE gerçek köşelerde nokta
-        /// içeriyor (düz bir yol tek segment). Az sayıda, ucuz.
-        /// </summary>
         public List<Vector3> WaypointWorldPositions { get; private set; } = new();
         public List<Vector2Int> WaypointBlockOrigins { get; private set; } = new();
         public List<Vector3> WaypointFacingDirections { get; private set; } = new();
-
-        /// <summary>
-        /// TESLİMAT kontrolü için — eski, HÜCRE BAŞINA bir nokta olan tam
-        /// çözünürlüklü liste. "t" (0..1), Base'den Exit'e olan konum
-        /// oranı (index bazlı, kabaca eşit aralıklı) — Tray bunu, hareket
-        /// waypoint'lerinden TAMAMEN bağımsız olarak, "genel yolculuk
-        /// ilerlemesi"ne göre sırayla tetikler. Bu ayrım, düz yolda
-        /// waypoint sayısını azaltırken teslimat hassasiyetini (her
-        /// hücre kontrol edilir) hiç kaybetmememizi sağlıyor — VE iki
-        /// teslimatın asla aynı frame'de sıkışmamasını garanti ediyor,
-        /// çünkü artık her checkpoint gerçek zamana (t) yayılmış durumda.
-        /// </summary>
         public List<(float t, Vector2Int cell)> DeliveryCheckpoints { get; private set; } = new();
 
         public int ExitWaypointIndex { get; private set; } = -1;
@@ -106,6 +90,19 @@ namespace RestaurantLoop
             if (levelData != null) BuildFromData(levelData);
         }
 
+        public Vector3 GetTrayBaseCenterWorld()
+        {
+            if (levelData == null || levelData.trayBaseRow < 0 || levelData.trayBaseCol < 0 || Grid == null)
+                return transform.position;
+
+            Vector3 p00 = Grid.GetCellCenterWorld(levelData.trayBaseRow, levelData.trayBaseCol);
+            int r1 = Mathf.Min(levelData.rows - 1, levelData.trayBaseRow + LevelData.ConveyorBlockSize - 1);
+            int c1 = Mathf.Min(levelData.columns - 1, levelData.trayBaseCol + LevelData.ConveyorBlockSize - 1);
+            Vector3 p11 = Grid.GetCellCenterWorld(r1, c1);
+
+            return (p00 + p11) * 0.5f;
+        }
+
         public void BuildFromData(LevelData data)
         {
             levelData = data;
@@ -124,11 +121,11 @@ namespace RestaurantLoop
                 for (int c = 0; c < data.columns; c++)
                 {
                     CellType type = data.GetCell(r, c);
-                    if (type == CellType.Empty) continue;
+                    if (type == CellType.Empty || type == CellType.BaseTray) continue;
 
                     Vector3 pos = Grid.GetCellCenterWorld(r, c);
 
-                    if (type == CellType.Conveyor || type == CellType.BaseTray)
+                    if (type == CellType.Conveyor)
                     {
                         if (conveyorCellPrefab == null) continue;
                         SpawnFromPool(conveyorCellPrefab, pos, conveyorCellPrefab.transform.rotation, $"Conveyor_{r}_{c}");
@@ -164,19 +161,6 @@ namespace RestaurantLoop
                 : Instantiate(prefab, pos, rot, transform);
             instance.name = name;
             return instance;
-        }
-
-        public Vector3 GetTrayBaseCenterWorld()
-        {
-            if (levelData == null || levelData.trayBaseRow < 0 || levelData.trayBaseCol < 0 || Grid == null)
-                return transform.position;
-
-            Vector3 p00 = Grid.GetCellCenterWorld(levelData.trayBaseRow, levelData.trayBaseCol);
-            int r1 = Mathf.Min(levelData.rows - 1, levelData.trayBaseRow + LevelData.ConveyorBlockSize - 1);
-            int c1 = Mathf.Min(levelData.columns - 1, levelData.trayBaseCol + LevelData.ConveyorBlockSize - 1);
-            Vector3 p11 = Grid.GetCellCenterWorld(r1, c1);
-
-            return (p00 + p11) * 0.5f;
         }
 
         private static Vector3 GetGridCornerWorld(GameGrid grid, int rowLine, int colLine)
@@ -265,13 +249,6 @@ namespace RestaurantLoop
             return result;
         }
 
-        /// <summary>
-        /// Fine-grained corner listesinden, SADECE gerçek yön değişimlerinde
-        /// (dirIn != dirOut) bir nokta tutan azaltılmış bir liste üretir.
-        /// Düz bir uzantı boyunca ardışık noktaların hepsi aynı yönde
-        /// ilerlediği için elenir — HAREKET path'i artık gerçekten
-        /// "Base -> köşe1 -> köşe2 -> ... -> Exit" kadar az noktaya sahip.
-        /// </summary>
         private static List<(Vector2Int cell, Vector2Int corner)> DecimateStraightRuns(List<(Vector2Int cell, Vector2Int corner)> corners)
         {
             if (corners.Count <= 2) return new List<(Vector2Int, Vector2Int)>(corners);
@@ -281,7 +258,7 @@ namespace RestaurantLoop
             {
                 Vector2Int dirIn = corners[i].corner - corners[i - 1].corner;
                 Vector2Int dirOut = corners[i + 1].corner - corners[i].corner;
-                if (dirIn == dirOut) continue; // düz devam ediyor, bu ara nokta gereksiz
+                if (dirIn == dirOut) continue;
                 result.Add(corners[i]);
             }
             result.Add(corners[^1]);
@@ -311,22 +288,8 @@ namespace RestaurantLoop
             }
 
             var path = fullPath.GetRange(0, exitIdx + 1);
-
-            // NOT: Burada eskiden path'in dünya Z ekseninde her zaman
-            // pozitif yönde başlamasını zorlayan bir "path.Reverse()"
-            // bloğu vardı. O blok KALDIRILDI çünkü ConveyorPathBuilder
-            // artık Tray Base'e göre DOĞRU yönü zaten seçiyor (bkz.
-            // ConveyorPathBuilder.BuildPath — Tray Base tanımlıysa ilk
-            // adımı ondan uzağa giden yönü otomatik buluyor) — bu Z
-            // tabanlı zorlama, o doğru kararı görmezden gelip path'i
-            // tekrar Tray Base yönüne çevirebiliyordu. Yön kontrolü artık
-            // TEK bir yerde (ConveyorPathBuilder) ve TEK bir kaynağa
-            // (Tray Base konumu, yoksa manuel reversePathDirection) göre
-            // yapılıyor.
-
             var fineCorners = BuildCornerSequence(data, path);
 
-            // ---- TESLİMAT checkpoint'leri: fine (hücre başına 1) çözünürlük ----
             int fineCount = fineCorners.Count;
             for (int i = 0; i < fineCount; i++)
             {
@@ -334,7 +297,6 @@ namespace RestaurantLoop
                 DeliveryCheckpoints.Add((t, fineCorners[i].cell));
             }
 
-            // ---- HAREKET waypoint'leri: sadece gerçek köşeler ----
             var movementCorners = DecimateStraightRuns(fineCorners);
 
             var rawPositions = new List<Vector3>();
@@ -478,9 +440,6 @@ namespace RestaurantLoop
                         prevDrawn = drawPos;
                     }
 
-                    // Fine-grained teslimat checkpoint'lerini de küçük mavi
-                    // noktalarla göster — "gerçekten her hücre kontrol
-                    // ediliyor mu" diye doğrulayabilesin.
                     foreach (var (cell, corner) in fineCorners)
                     {
                         Vector3 p = GetGridCornerWorld(gizmoGrid, corner.x, corner.y) + Vector3.up * (yOffset * 0.5f);
