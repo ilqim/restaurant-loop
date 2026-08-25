@@ -1,3 +1,4 @@
+using UnityEditor.Animations;
 using UnityEngine;
 
 namespace RestaurantLoop
@@ -67,6 +68,7 @@ namespace RestaurantLoop
         public int Col { get; private set; }
         public FoodType DesiredFood { get; private set; }
         public CustomerState CurrentState => currentState;
+        private Animator animator;
 
         public bool IsWaiting =>
             currentState == CustomerState.Idle ||
@@ -87,6 +89,8 @@ namespace RestaurantLoop
             // Renderer'ları otomatik bul.
             if (renderersToFade == null || renderersToFade.Length == 0)
                 renderersToFade = GetComponentsInChildren<Renderer>(true);
+
+            animator = GetComponentInChildren<Animator>();
 
             // Prefab içindeki "Bubble" child'ını otomatik bul.
             FindOrderBubble();
@@ -343,11 +347,47 @@ namespace RestaurantLoop
             // Banttaki food müşteriyle eşleştiğinde.
             AudioEvents.PlayOrderDelivered();
 
+            orderBubble.gameObject.SetActive(false);
+
             SetState(CustomerState.Eating);
 
             SetState(CustomerState.HappyJump);
 
             SetState(CustomerState.Leaving);
+
+            if(animator != null)
+            {
+                animator.SetTrigger("Vanish");
+                StartCoroutine(WaitForVanishAndDespawnRoutine());
+            }
+            else
+            {
+                Despawn();
+            }
+        }
+
+        public void OnVanishAnimationComplete()
+        {
+            Despawn();
+        }
+
+        private System.Collections.IEnumerator WaitForVanishAndDespawnRoutine()
+        {
+            // Wait until next frame so the Animator enters the transition
+            yield return null;
+
+            // Get the length of the currently playing/next clip
+            AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
+    
+            // If it's transitioning to the vanish state, get the next state duration
+            if (animator.IsInTransition(0))
+            {
+                stateInfo = animator.GetNextAnimatorStateInfo(0);
+            }
+
+            float clipLength = stateInfo.length > 0f ? stateInfo.length : 0.5f;
+
+            yield return new WaitForSeconds(clipLength);
 
             Despawn();
         }

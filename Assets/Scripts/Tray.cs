@@ -743,7 +743,7 @@ namespace RestaurantLoop
             // Prefabdaki Trail Renderer normalde kapalı.
             // Fırlatma sırasında aç.
             TrailRenderer trail =
-                clone.GetComponentInChildren<TrailRenderer>(true);
+                clone.GetComponent<TrailRenderer>();
 
             if (trail != null)
             {
