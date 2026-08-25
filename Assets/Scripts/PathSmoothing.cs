@@ -11,6 +11,17 @@ namespace RestaurantLoop
         Col
     }
 
+    [System.Flags]
+    public enum AllowedShootDirections
+    {
+        None = 0,
+        PosX = 1 << 0, // +X
+        NegX = 1 << 1, // -X
+        PosZ = 1 << 2, // +Z
+        NegZ = 1 << 3, // -Z
+        NormalFacing = 1 << 4 // Köşede değilken normal tepsi yönü
+    }
+
     /// <summary>
     /// Köşeli bir waypoint listesini, her iç köşeyi quadratic Bezier
     /// yayla yumuşatarak "yuvarlak köşeli" bir listeye çevirir — VE aynı
@@ -39,11 +50,15 @@ namespace RestaurantLoop
             bool invertFacingSide,
             out List<Vector3> outPositions,
             out List<Vector2Int> outCells,
-            out List<Vector3> outFacingDirections)
+            out List<Vector3> outFacingDirections,
+            out List<AllowedShootDirections> outShootDirs,
+            out List<bool> outIsConcave)
         {
             outPositions = new List<Vector3>();
             outCells = new List<Vector2Int>();
             outFacingDirections = new List<Vector3>();
+            outShootDirs = new List<AllowedShootDirections>();
+            outIsConcave = new List<bool>();
 
             int count = positions.Count;
 
@@ -62,14 +77,12 @@ namespace RestaurantLoop
                 // (rotasyon, cornerRadius=0 olsa bile çalışmalı).
                 outPositions.AddRange(positions);
                 outCells.AddRange(cells);
-                outFacingDirections.Add(Perp(Dir(positions[0], positions[1]), invertFacingSide));
-                for (int i = 1; i < count - 1; i++)
+                for (int i = 0; i < count ; i++)
                 {
-                    Vector3 dirIn = Dir(positions[i - 1], positions[i]);
-                    Vector3 dirOut = Dir(positions[i], positions[i + 1]);
-                    outFacingDirections.Add(Perp(((dirIn + dirOut).sqrMagnitude > 0.0001f ? (dirIn + dirOut) : dirOut), invertFacingSide));
+                   outFacingDirections.Add(Vector3.forward);
+                   outShootDirs.Add(AllowedShootDirections.NormalFacing);
+                   outIsConcave.Add(false);
                 }
-                outFacingDirections.Add(Perp(Dir(positions[count - 2], positions[count - 1]), invertFacingSide));
                 return;
             }
 
@@ -78,6 +91,8 @@ namespace RestaurantLoop
             outPositions.Add(positions[0]);
             outCells.Add(cells[0]);
             outFacingDirections.Add(Perp(Dir(positions[0], positions[1]), invertFacingSide));
+            outShootDirs.Add(AllowedShootDirections.NormalFacing);
+            outIsConcave.Add(false);
 
             for (int i = 1; i < count - 1; i++)
             {
@@ -96,11 +111,24 @@ namespace RestaurantLoop
                 Vector3 facingIn = Perp(dirIn, invertFacingSide);
                 Vector3 facingOut = Perp(dirOut, invertFacingSide);
 
+                float crossZ = (dirIn.x * dirOut.z) - (dirIn.z * dirOut.x);
+
+                bool isConcave = invertFacingSide ? (crossZ > 0.01f) : (crossZ < -0.01f);
+
+                AllowedShootDirections cornerShootDirs = AllowedShootDirections.NormalFacing;
+
+                if (isConcave)
+                {
+                    cornerShootDirs = VectorToShootDir(dirIn) | VectorToShootDir(-dirOut);
+                }
+
                 if (legIn < 0.0001f || legOut < 0.0001f)
                 {
                     outPositions.Add(curr);
                     outCells.Add(cells[i]);
                     outFacingDirections.Add(facingOut.sqrMagnitude > 0.0001f ? facingOut : facingIn);
+                    outShootDirs.Add(cornerShootDirs);
+                    outIsConcave.Add(isConcave);
                     continue;
                 }
 
@@ -128,6 +156,9 @@ namespace RestaurantLoop
                     // yumuşakça döner.
                     Vector3 facing = Vector3.Slerp(facingIn, facingOut, t);
                     outFacingDirections.Add(facing);
+
+                    outShootDirs.Add(cornerShootDirs);
+                    outIsConcave.Add(isConcave);
                 }
             }
 
@@ -136,6 +167,20 @@ namespace RestaurantLoop
             outPositions.Add(positions[count - 1]);
             outCells.Add(cells[count - 1]);
             outFacingDirections.Add(Perp(Dir(positions[count - 2], positions[count - 1]), invertFacingSide));
+            outShootDirs.Add(AllowedShootDirections.NormalFacing);
+            outIsConcave.Add(false);
+        }
+
+        private static AllowedShootDirections VectorToShootDir(Vector3 v)
+        {
+            if(Mathf.Abs(v.x) > Mathf.Abs(v.z))
+            {
+                return v.x > 0 ? AllowedShootDirections.PosX : AllowedShootDirections.NegX;
+            }
+            else
+            {
+                return v.z > 0 ? AllowedShootDirections.PosZ : AllowedShootDirections.NegZ;
+            }
         }
 
         private static Vector3 Dir(Vector3 from, Vector3 to)
