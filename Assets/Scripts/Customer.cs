@@ -366,11 +366,6 @@ namespace RestaurantLoop
             }
         }
 
-        public void OnVanishAnimationComplete()
-        {
-            Despawn();
-        }
-
         private System.Collections.IEnumerator WaitForVanishAndDespawnRoutine()
         {
             // Wait until next frame so the Animator enters the transition
