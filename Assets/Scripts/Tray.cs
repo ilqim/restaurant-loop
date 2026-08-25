@@ -7,6 +7,17 @@ namespace RestaurantLoop
 {
     public class Tray : MonoBehaviour
     {
+        // Tray'in o anki mantıksal durumu.
+        // InTrayBase  -> Base'de bekliyor            => TrayIdleAnim
+        // InConveyor  -> Konveyörde ilerliyor         => TrayIdleAnim
+        // Vanishing   -> Teslimat/merge sonrası kayboluyor => TrayVanishAnim
+        public enum TrayState
+        {
+            InTrayBase,
+            InConveyor,
+            Vanishing
+        }
+
         [Header("Kapasite Debug Etiketi")]
         [SerializeField] private bool showCapacityLabel = true;
         [SerializeField] private float labelMarginAboveStack = 0.4f;
@@ -16,6 +27,27 @@ namespace RestaurantLoop
 
         [Header("Yönelim")]
         [SerializeField] private float rotationSmoothing = 15f;
+
+        [Header("Tray State Animasyonları")]
+        [Tooltip("Trayin scale'ini 1 yapmak için üstüne konan parent'ın altındaki child. " +
+                 "Boşsa child'lardan otomatik bulunmaya çalışılır.")]
+        [SerializeField] private Animator trayAnimator;
+
+        [Tooltip("SADECE DEBUG: şu anki mantıksal state burada canlı görünür. Elle değiştirmenin bir etkisi yok.")]
+        [SerializeField] private TrayState debugCurrentState;
+
+        // Animator state isimleri (GetCurrentAnimatorStateInfo ile kontrol için)
+        private static readonly int IdleAnimHash = Animator.StringToHash("TrayIdleAnim");
+        private static readonly int VanishAnimHash = Animator.StringToHash("TrayVanishAnim");
+
+        // Animator Controller'da bu isimlerde İKİ Trigger parametresi olmalı.
+        private static readonly int IdleTriggerHash = Animator.StringToHash("PlayIdle");
+        private static readonly int VanishTriggerHash = Animator.StringToHash("PlayVanish");
+
+        private TrayState currentState;
+        private Coroutine vanishRoutine;
+
+        public TrayState CurrentState => currentState;
 
         private readonly HashSet<Customer> customersReservedByThisTray = new();
         private readonly List<Vector2Int> pendingCheckCells = new();
@@ -51,12 +83,24 @@ namespace RestaurantLoop
         private Transform capacityLabelTransform;
         private Camera labelFacingCamera;
 
+        private void Awake()
+        {
+            if (trayAnimator == null)
+                trayAnimator = GetComponentInChildren<Animator>(true);
+        }
+
         public void ParkAtBase(TrayManager manager, Vector3 pos)
         {
             if (moveRoutine != null)
             {
                 StopCoroutine(moveRoutine);
                 moveRoutine = null;
+            }
+
+            if (vanishRoutine != null)
+            {
+                StopCoroutine(vanishRoutine);
+                vanishRoutine = null;
             }
 
             trayManager = manager;
@@ -69,6 +113,8 @@ namespace RestaurantLoop
 
             if (capacityLabel != null)
                 capacityLabel.text = "";
+
+            SetState(TrayState.InTrayBase);
 
             enabled = false;
         }
@@ -84,6 +130,12 @@ namespace RestaurantLoop
                 moveRoutine = null;
             }
 
+            if (vanishRoutine != null)
+            {
+                StopCoroutine(vanishRoutine);
+                vanishRoutine = null;
+            }
+
             enabled = true;
             trayManager = manager;
             foodType = type;
@@ -97,6 +149,8 @@ namespace RestaurantLoop
 
             customersReservedByThisTray.Clear();
             pendingCheckCells.Clear();
+
+            SetState(TrayState.InConveyor);
 
             TrayDeliveryQueue.Register(this, foodType);
 
@@ -175,6 +229,12 @@ namespace RestaurantLoop
                 StopCoroutine(moveRoutine);
                 moveRoutine = null;
             }
+
+            if (vanishRoutine != null)
+            {
+                StopCoroutine(vanishRoutine);
+                vanishRoutine = null;
+            }
         }
 
         private void LateUpdate()
@@ -192,6 +252,76 @@ namespace RestaurantLoop
                         capacityLabel.transform.position -
                         labelFacingCamera.transform.position
                     );
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Tray State / Animasyon
+        // ---------------------------------------------------------------
+
+        private void SetState(TrayState newState)
+        {
+            currentState = newState;
+            debugCurrentState = newState;
+
+            if (trayAnimator == null)
+                return;
+
+            switch (currentState)
+            {
+                case TrayState.InTrayBase:
+                case TrayState.InConveyor:
+                    trayAnimator.ResetTrigger(VanishTriggerHash);
+                    trayAnimator.SetTrigger(IdleTriggerHash);
+                    break;
+
+                case TrayState.Vanishing:
+                    trayAnimator.ResetTrigger(IdleTriggerHash);
+                    trayAnimator.SetTrigger(VanishTriggerHash);
+                    break;
+            }
+        }
+
+        private IEnumerator VanishThenReturnToBase()
+        {
+            SetState(TrayState.Vanishing);
+
+            if (trayAnimator != null)
+            {
+                // Trigger ile transition'ın gerçekten başlayıp
+                // TrayVanishAnim state'ine girmesi bir-iki frame sürebilir.
+                // Any State transition doğru kurulmamışsa asla girmeyebilir,
+                // o yüzden 1 saniyelik bir güvenlik zaman aşımı var.
+                float enterTimeout = 1f;
+
+                while (trayAnimator != null &&
+                       trayAnimator.GetCurrentAnimatorStateInfo(0).shortNameHash != VanishAnimHash &&
+                       enterTimeout > 0f)
+                {
+                    enterTimeout -= Time.deltaTime;
+                    yield return null;
+                }
+
+                while (trayAnimator != null &&
+                       trayAnimator.GetCurrentAnimatorStateInfo(0).shortNameHash == VanishAnimHash &&
+                       trayAnimator.GetCurrentAnimatorStateInfo(0).normalizedTime < 1f)
+                {
+                    yield return null;
+                }
+            }
+
+            vanishRoutine = null;
+
+            if (trayManager != null)
+            {
+                // ReturnTrayToBase zaten: SetActive(false) -> ParkAtBase
+                // (state = InTrayBase => TrayIdleAnim) -> kuyruğa ekle ->
+                // SetActive(true) sırasını uyguluyor.
+                trayManager.ReturnTrayToBase(this);
+            }
+            else
+            {
+                gameObject.SetActive(false);
             }
         }
 
@@ -913,10 +1043,10 @@ namespace RestaurantLoop
                 foodType
             );
 
-            if (trayManager != null)
-                trayManager.ReturnTrayToBase(this);
-            else
-                gameObject.SetActive(false);
+            if (vanishRoutine != null)
+                StopCoroutine(vanishRoutine);
+
+            vanishRoutine = StartCoroutine(VanishThenReturnToBase());
         }
 
         private void CreateCapacityLabel()
