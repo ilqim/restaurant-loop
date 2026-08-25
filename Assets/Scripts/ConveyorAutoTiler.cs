@@ -22,7 +22,19 @@ namespace RestaurantLoop
     /// <summary>
     /// Level verisindeki her Conveyor hücresinin görsel tipini ve yönünü
     /// TAMAMEN OTOMATİK olarak, sadece kardinal/diyagonal komşulara
-    /// bakarak çıkarır. Elle işaretleme veya path sırası bilgisi GEREKMEZ.
+    /// bakarak çıkarır.
+    ///
+    /// START / EXIT KURALI:
+    /// Start ve Exit artık 2x2 bloğun TAMAMI değil. Blok, yol ekseni
+    /// boyunca ikiye ayrılır: "bağlantı tarafı" (path'in geri kalanına
+    /// komşu olan yarı) her zaman normal Straight hücresi gibi davranır
+    /// (standart sayım mantığına düşer) — "açık taraf" (path'in geri
+    /// kalanına komşu OLMAYAN yarı) Start/Exit olur.
+    ///
+    /// Açık taraftaki 2 hücrenin yönü, genişlik ekseninde (path eksenine
+    /// DİK eksende) her hücrenin kendi eksik komşusuna göre hesaplanır —
+    /// bu da normal Straight çiftinin "karşılıklı 180°" davranışıyla
+    /// birebir aynı mekanizma, o yüzden otomatik olarak karşılıklı çıkar.
     ///
     /// Köşe rotasyon kuralı (hem Inner hem Outer için aynı tablo):
     ///   Kuzey+Doğu  -> 0°   (varsayılan: yukarıdan sağa dönüş)
@@ -39,11 +51,16 @@ namespace RestaurantLoop
 
         public static ConveyorTileInfo Classify(LevelData data, GameGrid grid, int row, int col)
         {
-            if (data.IsCellInBaseBlock(row, col))
-                return new ConveyorTileInfo { Type = ConveyorTileType.Start, Forward = BlockOutwardFacing(data, grid, row, col, data.baseRow, data.baseCol) };
+            if (TryClassifyEndpointBlock(data, grid, row, col, data.baseRow, data.baseCol, ConveyorTileType.Start, out var startInfo))
+                return startInfo;
 
-            if (data.IsCellInExitBlock(row, col))
-                return new ConveyorTileInfo { Type = ConveyorTileType.Exit, Forward = BlockOutwardFacing(data, grid, row, col, data.exitRow, data.exitCol) };
+            if (TryClassifyEndpointBlock(data, grid, row, col, data.exitRow, data.exitCol, ConveyorTileType.Exit, out var exitInfo))
+                return exitInfo;
+
+            // Start/Exit bloğunun "bağlantı tarafı" hücreleri BURAYA
+            // düşer ve normal hücreler gibi sınıflandırılır (Straight
+            // olarak çıkarlar çünkü yapısal olarak zaten 3 komşuya
+            // sahipler — Corner tablosuna hiç girmezler).
 
             bool n = IsConveyor(data, row + North.x, col + North.y);
             bool e = IsConveyor(data, row + East.x, col + East.y);
@@ -90,6 +107,94 @@ namespace RestaurantLoop
             }
         }
 
+        /// <summary>
+        /// (row,col) verilen Start/Exit bloğunun içindeyse ve bloğun
+        /// "açık tarafına" düşüyorsa true döner ve info'yu doldurur.
+        /// Bloğun "bağlantı tarafına" düşüyorsa false döner — çağıran
+        /// bu durumda normal sayım mantığına devam eder.
+        /// </summary>
+        private static bool TryClassifyEndpointBlock(
+            LevelData data, GameGrid grid, int row, int col,
+            int originRow, int originCol, ConveyorTileType endpointType,
+            out ConveyorTileInfo info)
+        {
+            info = default;
+            if (originRow < 0 || originCol < 0) return false;
+
+            bool inBlock = row >= originRow && row < originRow + LevelData.ConveyorBlockSize &&
+                           col >= originCol && col < originCol + LevelData.ConveyorBlockSize;
+            if (!inBlock) return false;
+
+            bool hasNorth = RowHasConveyor(data, originRow - 1, originCol, originCol + 1);
+            bool hasSouth = RowHasConveyor(data, originRow + LevelData.ConveyorBlockSize, originCol, originCol + 1);
+            bool hasWest = ColHasConveyor(data, originCol - 1, originRow, originRow + 1);
+            bool hasEast = ColHasConveyor(data, originCol + LevelData.ConveyorBlockSize, originRow, originRow + 1);
+
+            bool splitByColumn;   // true: açık/bağlantı SÜTUNA göre ayrışıyor (yol yatay)
+            int connectingIndex;  // 0 = origin satırı/sütunu, 1 = +1'lik satır/sütun
+
+            if (hasEast) { splitByColumn = true; connectingIndex = 1; }
+            else if (hasWest) { splitByColumn = true; connectingIndex = 0; }
+            else if (hasNorth) { splitByColumn = false; connectingIndex = 0; }
+            else if (hasSouth) { splitByColumn = false; connectingIndex = 1; }
+            else
+            {
+                // Bağlantı bulunamadı (izole blok) — güvenli varsayım:
+                // tüm blok açık taraf sayılsın.
+                splitByColumn = true;
+                connectingIndex = -1;
+            }
+
+            int localIndex = splitByColumn ? (col - originCol) : (row - originRow);
+            bool isOpening = localIndex != connectingIndex;
+
+            if (!isOpening)
+                return false; // bağlantı tarafı — normal Straight mantığına düş
+
+            // splitByColumn true  -> genişlik ekseni DİKEY  (N/S'e bak)
+            // splitByColumn false -> genişlik ekseni YATAY  (E/W'a bak)
+            Vector3 facing = WidthAxisFacing(data, grid, row, col, widthIsVertical: splitByColumn);
+
+            info = new ConveyorTileInfo { Type = endpointType, Forward = facing };
+            return true;
+        }
+
+        /// <summary>
+        /// Genişlik ekseni boyunca (yol eksenine dik) hangi komşunun eksik
+        /// olduğuna bakarak facing üretir. İki paralel şerit hücresi için
+        /// biri N eksik/diğeri S eksik (ya da E/W) çıktığı için otomatik
+        /// olarak 180° karşılıklı sonuç verir.
+        /// </summary>
+        private static Vector3 WidthAxisFacing(LevelData data, GameGrid grid, int row, int col, bool widthIsVertical)
+        {
+            if (widthIsVertical)
+            {
+                if (!IsConveyor(data, row - 1, col)) return WorldDir(grid, row, col, North);
+                if (!IsConveyor(data, row + 1, col)) return WorldDir(grid, row, col, South);
+            }
+            else
+            {
+                if (!IsConveyor(data, row, col + 1)) return WorldDir(grid, row, col, East);
+                if (!IsConveyor(data, row, col - 1)) return WorldDir(grid, row, col, West);
+            }
+
+            return Vector3.forward; // beklenmeyen durum — iki taraf da dolu
+        }
+
+        private static bool RowHasConveyor(LevelData data, int row, int colStart, int colEndInclusive)
+        {
+            for (int c = colStart; c <= colEndInclusive; c++)
+                if (IsConveyor(data, row, c)) return true;
+            return false;
+        }
+
+        private static bool ColHasConveyor(LevelData data, int col, int rowStart, int rowEndInclusive)
+        {
+            for (int r = rowStart; r <= rowEndInclusive; r++)
+                if (IsConveyor(data, r, col)) return true;
+            return false;
+        }
+
         private static ConveyorTileInfo ClassifyInnerCorner(LevelData data, GameGrid grid, int row, int col)
         {
             bool missingNW = !IsConveyor(data, row - 1, col - 1);
@@ -99,21 +204,15 @@ namespace RestaurantLoop
 
             Vector3 forward;
 
-            // Eksik diyagonal, kendisine komşu iki kardinal yöne çevrilip
-            // AYNI tabloya (CornerForward) sokuluyor.
-            if (missingNE) forward = CornerForward(grid, row, col, true, true, false, false);  // Kuzey+Doğu
-            else if (missingNW) forward = CornerForward(grid, row, col, true, false, false, true); // Kuzey+Batı
-            else if (missingSW) forward = CornerForward(grid, row, col, false, false, true, true); // Güney+Batı
-            else if (missingSE) forward = CornerForward(grid, row, col, false, true, true, false); // Doğu+Güney
-            else forward = Vector3.forward; // tüm diyagonaller dolu — çok nadir, belirsiz
+            if (missingNE) forward = CornerForward(grid, row, col, true, true, false, false);
+            else if (missingNW) forward = CornerForward(grid, row, col, true, false, false, true);
+            else if (missingSW) forward = CornerForward(grid, row, col, false, false, true, true);
+            else if (missingSE) forward = CornerForward(grid, row, col, false, true, true, false);
+            else forward = Vector3.forward;
 
             return new ConveyorTileInfo { Type = ConveyorTileType.InnerCorner, Forward = forward };
         }
 
-        /// <summary>
-        /// Ortak köşe-rotasyon tablosu — hem Outer hem Inner corner
-        /// bunu kullanır: N+E->0°, W+N->90°, S+W->180°, E+S->270°.
-        /// </summary>
         private static Vector3 CornerForward(GameGrid grid, int row, int col, bool n, bool e, bool s, bool w)
         {
             if (n && e) return WorldDir(grid, row, col, North);
@@ -136,22 +235,6 @@ namespace RestaurantLoop
             Vector3 dir = b - a;
             dir.y = 0f;
             return dir.sqrMagnitude > 0.0001f ? dir.normalized : Vector3.forward;
-        }
-
-        private static Vector3 BlockOutwardFacing(LevelData data, GameGrid grid, int row, int col, int originRow, int originCol)
-        {
-            Vector2Int[] dirs = { North, South, East, West };
-            foreach (var d in dirs)
-            {
-                int nr = row + d.x, nc = col + d.y;
-                bool inBlock = nr >= originRow && nr < originRow + LevelData.ConveyorBlockSize &&
-                               nc >= originCol && nc < originCol + LevelData.ConveyorBlockSize;
-                if (inBlock) continue;
-
-                if (IsConveyor(data, nr, nc))
-                    return WorldDir(grid, row, col, d);
-            }
-            return Vector3.forward;
         }
     }
 }
