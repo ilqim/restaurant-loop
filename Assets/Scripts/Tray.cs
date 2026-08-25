@@ -28,6 +28,26 @@ namespace RestaurantLoop
         [Header("Yönelim")]
         [SerializeField] private float rotationSmoothing = 15f;
 
+        // Trayin o anki konveyör segmentinde hangi grid ekseninde
+        // hareket ettiği. Her yeni segment başında önceden hesaplanmış listeden çekilir.
+        private WaypointMoveAxis currentMoveAxis = WaypointMoveAxis.None;
+
+        [Header("DEBUG — Eksen / Hizalama (canlı izlenir)")]
+        [Tooltip("Şu an hangi grid ekseninde ilerliyor. Play modda canlı değişir, elle değiştirmenin etkisi yoktur.")]
+        [SerializeField] private WaypointMoveAxis debugMoveAxis;
+
+        [Tooltip("Eksen bu segmentte GÜNCELLENMEDİ mi? True ise currentMoveAxis bir önceki segmentten miras kaldı demektir (ör. yuvarlatılmış köşeler).")]
+        [SerializeField] private bool debugAxisUnchangedThisSegment;
+
+        [Tooltip("En son IsAlignedWithCustomer çağrısında kullanılan tray hücresi (checkpoint cell).")]
+        [SerializeField] private Vector2Int debugLastTrayCell;
+
+        [Tooltip("En son kontrol edilen müşterinin Row/Col değeri.")]
+        [SerializeField] private Vector2Int debugLastTargetRowCol;
+
+        [Tooltip("Son hizalama kontrolünün sonucu ve nedeni, insan tarafından okunabilir.")]
+        [SerializeField] private string debugLastAlignmentResult = "-";
+
         [Header("Tray State Animasyonları")]
         [Tooltip("Trayin scale'ini 1 yapmak için üstüne konan parent'ın altındaki child. " +
                  "Boşsa child'lardan otomatik bulunmaya çalışılır.")]
@@ -116,6 +136,11 @@ namespace RestaurantLoop
 
             SetState(TrayState.InTrayBase);
 
+            // Eski turun eksen hafızasını tamamen temizliyoruz.
+            currentMoveAxis = WaypointMoveAxis.None;
+            debugMoveAxis = currentMoveAxis;
+            debugAxisUnchangedThisSegment = false;
+
             enabled = false;
         }
 
@@ -193,6 +218,12 @@ namespace RestaurantLoop
                 waypoints.Count > 0
                     ? cumulativeMovementDistance[^1]
                     : 0f;
+
+            currentMoveAxis = WaypointMoveAxis.None;
+            debugMoveAxis = currentMoveAxis;
+
+            // İlk segmentin eksenini yola çıkmadan uygula
+            ApplyMoveAxis(1);
 
             deliveryCheckpoints = gridManager.DeliveryCheckpoints;
             nextCheckpointIndex = 1;
@@ -288,10 +319,6 @@ namespace RestaurantLoop
 
             if (trayAnimator != null)
             {
-                // Trigger ile transition'ın gerçekten başlayıp
-                // TrayVanishAnim state'ine girmesi bir-iki frame sürebilir.
-                // Any State transition doğru kurulmamışsa asla girmeyebilir,
-                // o yüzden 1 saniyelik bir güvenlik zaman aşımı var.
                 float enterTimeout = 1f;
 
                 while (trayAnimator != null &&
@@ -314,9 +341,6 @@ namespace RestaurantLoop
 
             if (trayManager != null)
             {
-                // ReturnTrayToBase zaten: SetActive(false) -> ParkAtBase
-                // (state = InTrayBase => TrayIdleAnim) -> kuyruğa ekle ->
-                // SetActive(true) sırasını uyguluyor.
                 trayManager.ReturnTrayToBase(this);
             }
             else
@@ -362,6 +386,9 @@ namespace RestaurantLoop
                     continue;
                 }
 
+                if (!IsAlignedWithCustomer(cell, target))
+                    continue;
+
                 if (!target.TryReserveForDelivery(
                         this,
                         foodType))
@@ -374,6 +401,72 @@ namespace RestaurantLoop
             }
         }
 
+        private bool IsAlignedWithCustomer(Vector2Int trayCell, Customer target)
+        {
+            debugLastTrayCell = trayCell;
+
+            if (target == null)
+            {
+                debugLastTargetRowCol = new Vector2Int(-1, -1);
+                debugLastAlignmentResult = "target NULL -> false";
+                return false;
+            }
+
+            debugLastTargetRowCol = new Vector2Int(target.Row, target.Col);
+
+            switch (currentMoveAxis)
+            {
+                case WaypointMoveAxis.Row:
+                {
+                    // Row sabit, Col değişiyor (Yatay hareket). Dik atış dikey gider.
+                    // Bu yüzden müşteri aynı COL'da olmalı.
+                    bool match = target.Col == trayCell.y;
+                    debugLastAlignmentResult =
+                        $"AXIS=Row (Yatay) | target.Col={target.Col} vs trayCell.y={trayCell.y} -> {(match ? "MATCH" : "RED (aynı sütun değil)")}";
+                    return match;
+                }
+
+                case WaypointMoveAxis.Col:
+                {
+                    // Col sabit, Row değişiyor (Dikey hareket). Dik atış yatay gider.
+                    // Bu yüzden müşteri aynı ROW'da olmalı.
+                    bool match = target.Row == trayCell.x;
+                    debugLastAlignmentResult =
+                        $"AXIS=Col (Dikey) | target.Row={target.Row} vs trayCell.x={trayCell.x} -> {(match ? "MATCH" : "RED (aynı satır değil)")}";
+                    return match;
+                }
+
+                default:
+                    debugLastAlignmentResult = "AXIS=None -> engelleme yok, geçti";
+                    return true;
+            }
+        }
+
+        // Önceden hesaplanmış yolu GridManager üzerinden doğrudan alıp kullanıyoruz.
+        // Böylece köşelerde yaşanabilen hücre taşması kaynaklı yanılmalar engelleniyor.
+        private void ApplyMoveAxis(int nextWaypointIndex)
+        {
+            var gridManager = trayManager.GridManagerRef;
+            
+            // WaypointMoveAxes listesinin var olduğundan ve indeksin sınırlar içinde olduğundan emin olun.
+            // (GridManager içinde bu liste doldurulmuş olmalıdır)
+            if (gridManager.WaypointMoveAxes != null && nextWaypointIndex < gridManager.WaypointMoveAxes.Count)
+            {
+                WaypointMoveAxis precalculatedAxis = gridManager.WaypointMoveAxes[nextWaypointIndex];
+                
+                if (precalculatedAxis != WaypointMoveAxis.None)
+                {
+                    currentMoveAxis = precalculatedAxis;
+                    debugMoveAxis = currentMoveAxis;
+                    debugAxisUnchangedThisSegment = false;
+                }
+                else
+                {
+                    debugAxisUnchangedThisSegment = true;
+                }
+            }
+        }
+
         private void FireDeliveryAt(Customer target)
         {
             capacity = Mathf.Max(
@@ -381,8 +474,13 @@ namespace RestaurantLoop
                 capacity - 1
             );
 
+            Vector3 dirToCustomer =
+                target != null
+                    ? target.transform.position - transform.position
+                    : transform.forward;
+
             RemoveStackPieceTowardCustomer(
-                transform.forward
+                dirToCustomer
             );
 
             UpdateCapacityLabel();
@@ -658,6 +756,9 @@ namespace RestaurantLoop
                         nextIndex
                     );
 
+                // YENİ KOD: Hareket başlamadan önce önceden hesaplanmış ekseni listeye göre çekiyoruz.
+                ApplyMoveAxis(nextIndex);
+
                 Vector3 targetFacing =
                     nextIndex < facings.Count
                         ? facings[nextIndex]
@@ -870,8 +971,6 @@ namespace RestaurantLoop
                 yield break;
             }
 
-            // Prefabdaki Trail Renderer normalde kapalı.
-            // Fırlatma sırasında aç.
             TrailRenderer trail =
                 clone.GetComponent<TrailRenderer>();
 

@@ -3,6 +3,14 @@ using UnityEngine;
 
 namespace RestaurantLoop
 {
+    // Build-time aşamasında hesaplanıp Tray'e sunulacak eksen bilgisi
+    public enum WaypointMoveAxis
+    {
+        None,
+        Row,
+        Col
+    }
+
     /// <summary>
     /// Köşeli bir waypoint listesini, her iç köşeyi quadratic Bezier
     /// yayla yumuşatarak "yuvarlak köşeli" bir listeye çevirir — VE aynı

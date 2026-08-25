@@ -76,6 +76,7 @@ namespace RestaurantLoop
         public List<Vector3> WaypointFacingDirections { get; private set; } = new();
         public List<(float t, Vector2Int cell)> DeliveryCheckpoints { get; private set; } = new();
 
+        public List<WaypointMoveAxis> WaypointMoveAxes { get; private set; } = new();
         public int ExitWaypointIndex { get; private set; } = -1;
         public Vector3 GridCenterWorld { get; private set; }
 
@@ -404,6 +405,41 @@ namespace RestaurantLoop
             WaypointWorldPositions.AddRange(smoothedPositions);
             WaypointBlockOrigins.AddRange(smoothedCells);
             WaypointFacingDirections.AddRange(smoothedFacings);
+
+            // ==========================================
+            // YENİ EKLENEN KISIM: Eksenleri hesaplayıp listeye kaydediyoruz
+            // ==========================================
+            WaypointMoveAxes.Clear();
+            if (WaypointBlockOrigins.Count > 0)
+            {
+                // İlk noktanın kıyaslanacak bir önceki noktası yok, None ile başlar
+                WaypointMoveAxes.Add(WaypointMoveAxis.None);
+
+                for (int i = 1; i < WaypointBlockOrigins.Count; i++)
+                {
+                    Vector2Int prevCell = WaypointBlockOrigins[i - 1];
+                    Vector2Int currCell = WaypointBlockOrigins[i];
+                    Vector2Int delta = currCell - prevCell;
+
+                    if (delta == Vector2Int.zero)
+                    {
+                        // Aynı hücre içindeyiz (köşe yuvarlatmasının ara noktaları).
+                        // None döner, böylece Tray düzlükteki son eksenini korur.
+                        WaypointMoveAxes.Add(WaypointMoveAxis.None);
+                    }
+                    else
+                    {
+                        // Hücre değişti, ana ilerleme eksenini belirle
+                        // Y (Col) değişimi daha büyükse Row ekseninde (Yatay) ilerliyoruz demektir.
+                        WaypointMoveAxis axis = Mathf.Abs(delta.y) > Mathf.Abs(delta.x)
+                            ? WaypointMoveAxis.Row
+                            : WaypointMoveAxis.Col;
+
+                        WaypointMoveAxes.Add(axis);
+                    }
+                }
+            }
+            // ==========================================
 
             ExitWaypointIndex = WaypointWorldPositions.Count - 1;
         }
