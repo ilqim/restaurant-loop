@@ -521,12 +521,12 @@ MonoBehaviour:
   unityGrid: {fileID: 368813332}
   customerManager: {fileID: 1989108643}
   straightConveyorPrefab: {fileID: 5911742606658760252, guid: 51e7cb85e5d8c47449e928137971f0d1, type: 3}
-  innerCornerConveyorPrefab: {fileID: 6213724128334841527, guid: b0da6818157d5ee458543547841fce09, type: 3}
-  outerCornerConveyorPrefab: {fileID: 6213724128334841527, guid: e043873dc894c684f89c6e51639a3a3e, type: 3}
-  startConveyorPrefab: {fileID: 6213724128334841527, guid: 0777f4c96bead6a478167cd2ad2093d9, type: 3}
-  exitConveyorPrefab: {fileID: 6213724128334841527, guid: fc28dd810e8801c4098835e3ce79eb8c, type: 3}
-  baseOpeningPrefab: {fileID: 6213724128334841527, guid: 37ae9ba95a936cc47b9800790253bcee, type: 3}
-  baseCoverPrefab: {fileID: 6213724128334841527, guid: 5026c217091ee2347b80af1ad2e29762, type: 3}
+  innerCornerConveyorPrefab: {fileID: 6213724128334841527, guid: 489a43c9d736fb64aa040ad773614402, type: 3}
+  outerCornerConveyorPrefab: {fileID: 6213724128334841527, guid: 489a43c9d736fb64aa040ad773614402, type: 3}
+  startConveyorPrefab: {fileID: 6213724128334841527, guid: 489a43c9d736fb64aa040ad773614402, type: 3}
+  exitConveyorPrefab: {fileID: 6213724128334841527, guid: 489a43c9d736fb64aa040ad773614402, type: 3}
+  baseOpeningPrefab: {fileID: 0}
+  baseCoverPrefab: {fileID: 0}
   customerPrefabs:
   - food: 0
     prefab: {fileID: 6457417861507717065, guid: 4efb31296d497e14ea536a952cec65ad, type: 3}

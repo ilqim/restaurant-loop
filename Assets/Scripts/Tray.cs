@@ -7,6 +7,17 @@ namespace RestaurantLoop
 {
     public class Tray : MonoBehaviour
     {
+        // Tray'in o anki mantıksal durumu.
+        // InTrayBase  -> Base'de bekliyor            => TrayIdleAnim
+        // InConveyor  -> Konveyörde ilerliyor         => TrayIdleAnim
+        // Vanishing   -> Teslimat/merge sonrası kayboluyor => TrayVanishAnim
+        public enum TrayState
+        {
+            InTrayBase,
+            InConveyor,
+            Vanishing
+        }
+
         [Header("Kapasite Debug Etiketi")]
         [SerializeField] private bool showCapacityLabel = true;
         [SerializeField] private float labelMarginAboveStack = 0.4f;
@@ -16,6 +27,47 @@ namespace RestaurantLoop
 
         [Header("Yönelim")]
         [SerializeField] private float rotationSmoothing = 15f;
+
+        // Trayin o anki konveyör segmentinde hangi grid ekseninde
+        // hareket ettiği. Her yeni segment başında önceden hesaplanmış listeden çekilir.
+        private WaypointMoveAxis currentMoveAxis = WaypointMoveAxis.None;
+
+        [Header("DEBUG — Eksen / Hizalama (canlı izlenir)")]
+        [Tooltip("Şu an hangi grid ekseninde ilerliyor. Play modda canlı değişir, elle değiştirmenin etkisi yoktur.")]
+        [SerializeField] private WaypointMoveAxis debugMoveAxis;
+
+        [Tooltip("Eksen bu segmentte GÜNCELLENMEDİ mi? True ise currentMoveAxis bir önceki segmentten miras kaldı demektir (ör. yuvarlatılmış köşeler).")]
+        [SerializeField] private bool debugAxisUnchangedThisSegment;
+
+        [Tooltip("En son IsAlignedWithCustomer çağrısında kullanılan tray hücresi (checkpoint cell).")]
+        [SerializeField] private Vector2Int debugLastTrayCell;
+
+        [Tooltip("En son kontrol edilen müşterinin Row/Col değeri.")]
+        [SerializeField] private Vector2Int debugLastTargetRowCol;
+
+        [Tooltip("Son hizalama kontrolünün sonucu ve nedeni, insan tarafından okunabilir.")]
+        [SerializeField] private string debugLastAlignmentResult = "-";
+
+        [Header("Tray State Animasyonları")]
+        [Tooltip("Trayin scale'ini 1 yapmak için üstüne konan parent'ın altındaki child. " +
+                 "Boşsa child'lardan otomatik bulunmaya çalışılır.")]
+        [SerializeField] private Animator trayAnimator;
+
+        [Tooltip("SADECE DEBUG: şu anki mantıksal state burada canlı görünür. Elle değiştirmenin bir etkisi yok.")]
+        [SerializeField] private TrayState debugCurrentState;
+
+        // Animator state isimleri (GetCurrentAnimatorStateInfo ile kontrol için)
+        private static readonly int IdleAnimHash = Animator.StringToHash("TrayIdleAnim");
+        private static readonly int VanishAnimHash = Animator.StringToHash("TrayVanishAnim");
+
+        // Animator Controller'da bu isimlerde İKİ Trigger parametresi olmalı.
+        private static readonly int IdleTriggerHash = Animator.StringToHash("PlayIdle");
+        private static readonly int VanishTriggerHash = Animator.StringToHash("PlayVanish");
+
+        private TrayState currentState;
+        private Coroutine vanishRoutine;
+
+        public TrayState CurrentState => currentState;
 
         private readonly HashSet<Customer> customersReservedByThisTray = new();
         private readonly List<Vector2Int> pendingCheckCells = new();
@@ -51,12 +103,24 @@ namespace RestaurantLoop
         private Transform capacityLabelTransform;
         private Camera labelFacingCamera;
 
+        private void Awake()
+        {
+            if (trayAnimator == null)
+                trayAnimator = GetComponentInChildren<Animator>(true);
+        }
+
         public void ParkAtBase(TrayManager manager, Vector3 pos)
         {
             if (moveRoutine != null)
             {
                 StopCoroutine(moveRoutine);
                 moveRoutine = null;
+            }
+
+            if (vanishRoutine != null)
+            {
+                StopCoroutine(vanishRoutine);
+                vanishRoutine = null;
             }
 
             trayManager = manager;
@@ -69,6 +133,13 @@ namespace RestaurantLoop
 
             if (capacityLabel != null)
                 capacityLabel.text = "";
+
+            SetState(TrayState.InTrayBase);
+
+            // Eski turun eksen hafızasını tamamen temizliyoruz.
+            currentMoveAxis = WaypointMoveAxis.None;
+            debugMoveAxis = currentMoveAxis;
+            debugAxisUnchangedThisSegment = false;
 
             enabled = false;
         }
@@ -84,6 +155,12 @@ namespace RestaurantLoop
                 moveRoutine = null;
             }
 
+            if (vanishRoutine != null)
+            {
+                StopCoroutine(vanishRoutine);
+                vanishRoutine = null;
+            }
+
             enabled = true;
             trayManager = manager;
             foodType = type;
@@ -97,6 +174,8 @@ namespace RestaurantLoop
 
             customersReservedByThisTray.Clear();
             pendingCheckCells.Clear();
+
+            SetState(TrayState.InConveyor);
 
             TrayDeliveryQueue.Register(this, foodType);
 
@@ -140,6 +219,12 @@ namespace RestaurantLoop
                     ? cumulativeMovementDistance[^1]
                     : 0f;
 
+            currentMoveAxis = WaypointMoveAxis.None;
+            debugMoveAxis = currentMoveAxis;
+
+            // İlk segmentin eksenini yola çıkmadan uygula
+            ApplyMoveAxis(1);
+
             deliveryCheckpoints = gridManager.DeliveryCheckpoints;
             nextCheckpointIndex = 1;
 
@@ -175,6 +260,12 @@ namespace RestaurantLoop
                 StopCoroutine(moveRoutine);
                 moveRoutine = null;
             }
+
+            if (vanishRoutine != null)
+            {
+                StopCoroutine(vanishRoutine);
+                vanishRoutine = null;
+            }
         }
 
         private void LateUpdate()
@@ -192,6 +283,69 @@ namespace RestaurantLoop
                         capacityLabel.transform.position -
                         labelFacingCamera.transform.position
                     );
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Tray State / Animasyon
+        // ---------------------------------------------------------------
+
+        private void SetState(TrayState newState)
+        {
+            currentState = newState;
+            debugCurrentState = newState;
+
+            if (trayAnimator == null)
+                return;
+
+            switch (currentState)
+            {
+                case TrayState.InTrayBase:
+                case TrayState.InConveyor:
+                    trayAnimator.ResetTrigger(VanishTriggerHash);
+                    trayAnimator.SetTrigger(IdleTriggerHash);
+                    break;
+
+                case TrayState.Vanishing:
+                    trayAnimator.ResetTrigger(IdleTriggerHash);
+                    trayAnimator.SetTrigger(VanishTriggerHash);
+                    break;
+            }
+        }
+
+        private IEnumerator VanishThenReturnToBase()
+        {
+            SetState(TrayState.Vanishing);
+
+            if (trayAnimator != null)
+            {
+                float enterTimeout = 1f;
+
+                while (trayAnimator != null &&
+                       trayAnimator.GetCurrentAnimatorStateInfo(0).shortNameHash != VanishAnimHash &&
+                       enterTimeout > 0f)
+                {
+                    enterTimeout -= Time.deltaTime;
+                    yield return null;
+                }
+
+                while (trayAnimator != null &&
+                       trayAnimator.GetCurrentAnimatorStateInfo(0).shortNameHash == VanishAnimHash &&
+                       trayAnimator.GetCurrentAnimatorStateInfo(0).normalizedTime < 1f)
+                {
+                    yield return null;
+                }
+            }
+
+            vanishRoutine = null;
+
+            if (trayManager != null)
+            {
+                trayManager.ReturnTrayToBase(this);
+            }
+            else
+            {
+                gameObject.SetActive(false);
             }
         }
 
@@ -232,6 +386,9 @@ namespace RestaurantLoop
                     continue;
                 }
 
+                if (!IsAlignedWithCustomer(cell, target))
+                    continue;
+
                 if (!target.TryReserveForDelivery(
                         this,
                         foodType))
@@ -244,6 +401,72 @@ namespace RestaurantLoop
             }
         }
 
+        private bool IsAlignedWithCustomer(Vector2Int trayCell, Customer target)
+        {
+            debugLastTrayCell = trayCell;
+
+            if (target == null)
+            {
+                debugLastTargetRowCol = new Vector2Int(-1, -1);
+                debugLastAlignmentResult = "target NULL -> false";
+                return false;
+            }
+
+            debugLastTargetRowCol = new Vector2Int(target.Row, target.Col);
+
+            switch (currentMoveAxis)
+            {
+                case WaypointMoveAxis.Row:
+                {
+                    // Row sabit, Col değişiyor (Yatay hareket). Dik atış dikey gider.
+                    // Bu yüzden müşteri aynı COL'da olmalı.
+                    bool match = target.Col == trayCell.y;
+                    debugLastAlignmentResult =
+                        $"AXIS=Row (Yatay) | target.Col={target.Col} vs trayCell.y={trayCell.y} -> {(match ? "MATCH" : "RED (aynı sütun değil)")}";
+                    return match;
+                }
+
+                case WaypointMoveAxis.Col:
+                {
+                    // Col sabit, Row değişiyor (Dikey hareket). Dik atış yatay gider.
+                    // Bu yüzden müşteri aynı ROW'da olmalı.
+                    bool match = target.Row == trayCell.x;
+                    debugLastAlignmentResult =
+                        $"AXIS=Col (Dikey) | target.Row={target.Row} vs trayCell.x={trayCell.x} -> {(match ? "MATCH" : "RED (aynı satır değil)")}";
+                    return match;
+                }
+
+                default:
+                    debugLastAlignmentResult = "AXIS=None -> engelleme yok, geçti";
+                    return true;
+            }
+        }
+
+        // Önceden hesaplanmış yolu GridManager üzerinden doğrudan alıp kullanıyoruz.
+        // Böylece köşelerde yaşanabilen hücre taşması kaynaklı yanılmalar engelleniyor.
+        private void ApplyMoveAxis(int nextWaypointIndex)
+        {
+            var gridManager = trayManager.GridManagerRef;
+            
+            // WaypointMoveAxes listesinin var olduğundan ve indeksin sınırlar içinde olduğundan emin olun.
+            // (GridManager içinde bu liste doldurulmuş olmalıdır)
+            if (gridManager.WaypointMoveAxes != null && nextWaypointIndex < gridManager.WaypointMoveAxes.Count)
+            {
+                WaypointMoveAxis precalculatedAxis = gridManager.WaypointMoveAxes[nextWaypointIndex];
+                
+                if (precalculatedAxis != WaypointMoveAxis.None)
+                {
+                    currentMoveAxis = precalculatedAxis;
+                    debugMoveAxis = currentMoveAxis;
+                    debugAxisUnchangedThisSegment = false;
+                }
+                else
+                {
+                    debugAxisUnchangedThisSegment = true;
+                }
+            }
+        }
+
         private void FireDeliveryAt(Customer target)
         {
             capacity = Mathf.Max(
@@ -251,8 +474,13 @@ namespace RestaurantLoop
                 capacity - 1
             );
 
+            Vector3 dirToCustomer =
+                target != null
+                    ? target.transform.position - transform.position
+                    : transform.forward;
+
             RemoveStackPieceTowardCustomer(
-                transform.forward
+                dirToCustomer
             );
 
             UpdateCapacityLabel();
@@ -528,6 +756,9 @@ namespace RestaurantLoop
                         nextIndex
                     );
 
+                // YENİ KOD: Hareket başlamadan önce önceden hesaplanmış ekseni listeye göre çekiyoruz.
+                ApplyMoveAxis(nextIndex);
+
                 Vector3 targetFacing =
                     nextIndex < facings.Count
                         ? facings[nextIndex]
@@ -740,8 +971,6 @@ namespace RestaurantLoop
                 yield break;
             }
 
-            // Prefabdaki Trail Renderer normalde kapalı.
-            // Fırlatma sırasında aç.
             TrailRenderer trail =
                 clone.GetComponent<TrailRenderer>();
 
@@ -913,10 +1142,10 @@ namespace RestaurantLoop
                 foodType
             );
 
-            if (trayManager != null)
-                trayManager.ReturnTrayToBase(this);
-            else
-                gameObject.SetActive(false);
+            if (vanishRoutine != null)
+                StopCoroutine(vanishRoutine);
+
+            vanishRoutine = StartCoroutine(VanishThenReturnToBase());
         }
 
         private void CreateCapacityLabel()
