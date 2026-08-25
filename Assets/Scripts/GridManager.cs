@@ -71,6 +71,9 @@ namespace RestaurantLoop
         public LevelData LevelDataRef => levelData;
         public Grid UnityGridRef => unityGrid;
 
+        public List<AllowedShootDirections> WaypointAllowedShootDirs { get; private set;} = new();
+        public List<bool> WaypointIsConcaveCorner {get; private set;} = new();
+
         public List<Vector3> WaypointWorldPositions { get; private set; } = new();
         public List<Vector2Int> WaypointBlockOrigins { get; private set; } = new();
         public List<Vector3> WaypointFacingDirections { get; private set; } = new();
@@ -342,17 +345,61 @@ namespace RestaurantLoop
 
         private static List<(Vector2Int cell, Vector2Int corner)> DecimateStraightRuns(List<(Vector2Int cell, Vector2Int corner)> corners)
         {
-            if (corners.Count <= 2) return new List<(Vector2Int, Vector2Int)>(corners);
+            if (corners == null || corners.Count <= 2)
+                return corners != null ? new List<(Vector2Int, Vector2Int)>(corners) : new List<(Vector2Int, Vector2Int)>();
 
-            var result = new List<(Vector2Int cell, Vector2Int corner)> { corners[0] };
-            for (int i = 1; i < corners.Count - 1; i++)
+            // 1. Art arda gelen birebir aynı köşe koordinatlarını temizle
+            var deduplicated = new List<(Vector2Int cell, Vector2Int corner)> { corners[0] };
+            for (int i = 1; i < corners.Count; i++)
             {
-                Vector2Int dirIn = corners[i].corner - corners[i - 1].corner;
-                Vector2Int dirOut = corners[i + 1].corner - corners[i].corner;
-                if (dirIn == dirOut) continue;
-                result.Add(corners[i]);
+                if (corners[i].corner != deduplicated[^1].corner)
+                {
+                    deduplicated.Add(corners[i]);
+                }
             }
-            result.Add(corners[^1]);
+
+            if (deduplicated.Count <= 2) return deduplicated;
+
+            // 2. Collinear (aynı hat üzerindeki) ara noktaları temizle
+            var noCollinear = new List<(Vector2Int cell, Vector2Int corner)> { deduplicated[0] };
+            for (int i = 1; i < deduplicated.Count - 1; i++)
+            {
+                Vector2Int d1 = deduplicated[i].corner - noCollinear[^1].corner;
+                Vector2Int d2 = deduplicated[i + 1].corner - deduplicated[i].corner;
+
+                // İki vektör aynı eksende ve aynı yöne mi bakıyor?
+                bool isCollinear = (d1.x * d2.y - d1.y * d2.x == 0) && (d1.x * d2.x + d1.y * d2.y > 0);
+                if (!isCollinear)
+                {
+                    noCollinear.Add(deduplicated[i]);
+                }
+            }
+            noCollinear.Add(deduplicated[^1]);
+
+            // 3. Çok yakın (1 birimlik merdiven basamağı oluşturan) ara köşe noktalarını birleştir
+            // Bir virajda birden fazla micro-corner oluşmasını engeller
+            var result = new List<(Vector2Int cell, Vector2Int corner)> { noCollinear[0] };
+            for (int i = 1; i < noCollinear.Count - 1; i++)
+            {
+                Vector2Int prev = result[^1].corner;
+                Vector2Int curr = noCollinear[i].corner;
+                Vector2Int next = noCollinear[i + 1].corner;
+
+                // Eğer önceki nokta ile şu anki nokta arasındaki mesafe 1 birim veya daha azsa 
+                // ve bir sonraki nokta yön değiştiriyorsa, ara basamağı atla
+                float distToPrev = Vector2.Distance(prev, curr);
+                float distToNext = Vector2.Distance(curr, next);
+
+                if (distToPrev <= 1.05f && distToNext <= 1.05f)
+                {
+                    // Merdiven basamağı: ara noktayı atlayıp doğrudan köşeyi birleştir
+                    continue;
+                }
+
+                result.Add(noCollinear[i]);
+            }
+            result.Add(noCollinear[^1]);
+
             return result;
         }
 
@@ -400,11 +447,14 @@ namespace RestaurantLoop
 
             PathSmoothing.RoundCorners(
                 rawPositions, rawCells, cornerRadius, cornerSegments, invertFacingSide,
-                out var smoothedPositions, out var smoothedCells, out var smoothedFacings);
+                out var smoothedPositions, out var smoothedCells, out var smoothedFacings,
+                out var smoothedShootDirs, out var smoothedConcaves);
 
             WaypointWorldPositions.AddRange(smoothedPositions);
             WaypointBlockOrigins.AddRange(smoothedCells);
             WaypointFacingDirections.AddRange(smoothedFacings);
+            WaypointAllowedShootDirs.AddRange(smoothedShootDirs);
+            WaypointIsConcaveCorner.AddRange(smoothedConcaves);
 
             // ==========================================
             // YENİ EKLENEN KISIM: Eksenleri hesaplayıp listeye kaydediyoruz
@@ -532,7 +582,8 @@ namespace RestaurantLoop
 
                     PathSmoothing.RoundCorners(
                         rawPositions, rawCells, cornerRadius, cornerSegments, invertFacingSide,
-                        out var smoothedPositions, out _, out var smoothedFacings);
+                out var smoothedPositions, out var smoothedCells, out var smoothedFacings,
+                out var smoothedShootDirs, out var smoothedConcaves);
 
                     var style = new GUIStyle { normal = { textColor = Color.white }, fontSize = 11, fontStyle = FontStyle.Bold };
                     float yOffset = Mathf.Max(g.cellSize.x, g.cellSize.z) * 0.4f;

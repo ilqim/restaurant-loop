@@ -414,12 +414,29 @@ namespace RestaurantLoop
 
             debugLastTargetRowCol = new Vector2Int(target.Row, target.Col);
 
+            var gridManager = trayManager != null ? trayManager.GridManagerRef : null;
+
+            // 1. İÇ BÜKEY (CONCAVE) KÖŞE KONTROLÜ
+            // Eğer şu anki waypoint bir iç köşeyse: { Din, -Dout } yönlerindeki müşterilere atış serbesttir.
+            if (gridManager != null && 
+                gridManager.WaypointIsConcaveCorner != null && 
+                currentIndex < gridManager.WaypointIsConcaveCorner.Count && 
+                gridManager.WaypointIsConcaveCorner[currentIndex])
+            {
+                AllowedShootDirections allowed = gridManager.WaypointAllowedShootDirs[currentIndex];
+                bool isAllowed = IsCustomerInAllowedDirection(trayCell, target, allowed);
+
+                debugLastAlignmentResult = $"İÇ KÖŞE (Concave) | AllowedDirs={allowed} | Target=({target.Row},{target.Col}) vs Tray=({trayCell.x},{trayCell.y}) -> {(isAllowed ? "MATCH (Serbest Atış)" : "RED")}";
+                return isAllowed;
+            }
+
+            // 2. NORMAL DÜZ SEGMENT VEYA DIŞ BÜKEY (CONVEX) KÖŞE
+            // Standart eksen bazlı dik atış kontrolü uygulanır.
             switch (currentMoveAxis)
             {
                 case WaypointMoveAxis.Row:
                 {
-                    // Row sabit, Col değişiyor (Yatay hareket). Dik atış dikey gider.
-                    // Bu yüzden müşteri aynı COL'da olmalı.
+                    // Row sabit, Col değişiyor (Yatay hareket). Dik atış dikey gider -> müşteri aynı COL'da olmalı.
                     bool match = target.Col == trayCell.y;
                     debugLastAlignmentResult =
                         $"AXIS=Row (Yatay) | target.Col={target.Col} vs trayCell.y={trayCell.y} -> {(match ? "MATCH" : "RED (aynı sütun değil)")}";
@@ -428,8 +445,7 @@ namespace RestaurantLoop
 
                 case WaypointMoveAxis.Col:
                 {
-                    // Col sabit, Row değişiyor (Dikey hareket). Dik atış yatay gider.
-                    // Bu yüzden müşteri aynı ROW'da olmalı.
+                    // Col sabit, Row değişiyor (Dikey hareket). Dik atış yatay gider -> müşteri aynı ROW'da olmalı.
                     bool match = target.Row == trayCell.x;
                     debugLastAlignmentResult =
                         $"AXIS=Col (Dikey) | target.Row={target.Row} vs trayCell.x={trayCell.x} -> {(match ? "MATCH" : "RED (aynı satır değil)")}";
@@ -465,6 +481,19 @@ namespace RestaurantLoop
                     debugAxisUnchangedThisSegment = true;
                 }
             }
+        }
+
+        private bool IsCustomerInAllowedDirection(Vector2Int trayCell, Customer target, AllowedShootDirections allowedDirs)
+        {
+            Vector2Int delta = new Vector2Int(target.Row - trayCell.x, target.Col - trayCell.y);
+
+            // Delta kontrolü: Müşteri tepsiye göre hangi yönde kalıyor?
+            if (delta.x > 0 && delta.y == 0 && allowedDirs.HasFlag(AllowedShootDirections.PosX)) return true;
+            if (delta.x < 0 && delta.y == 0 && allowedDirs.HasFlag(AllowedShootDirections.NegX)) return true;
+            if (delta.y > 0 && delta.x == 0 && allowedDirs.HasFlag(AllowedShootDirections.PosZ)) return true;
+            if (delta.y < 0 && delta.x == 0 && allowedDirs.HasFlag(AllowedShootDirections.NegZ)) return true;
+
+            return false;
         }
 
         private void FireDeliveryAt(Customer target)
