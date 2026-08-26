@@ -10,16 +10,15 @@ namespace RestaurantLoop
     /// </summary>
     public enum SfxId
     {
-        FoodClick,            // Queue'deki food'u banda göndermek için tıklama
-        OrderDelivered,       // Banttaki food müşteriyle eşleştiğinde
-        TimedCustomerFail,    // Süreli müşterinin süresi bitip fail olduğunda
-        LevelComplete,        // Level tamamlandığında
+        ButtonClick,           // Genel (olumlu/nötr) buton tıklama
+        NegativeButtonClick,   // İptal/kapat/geri gibi olumsuz-hissi buton tıklama
+        FoodClick,             // Queue'deki food'u banda göndermek için tıklama
+        OrderDelivered,        // Banttaki food müşteriyle eşleştiğinde ("sipariş teslim")
+        New,                   // Yeni food/feature/power-up açıldığında (ortak "ding" sesi)
+        LevelComplete,         // Level tamamlandığında ("level win")
         LevelFail,             // Level fail olduğunda
-        ButtonClick,           // Genel buton tıklama
-        CoinEarn,              // Ana menüde coin kazanıldığında
-        NewFood,               // Yeni food açıldığında
-        NewFeature,            // Yeni feature açıldığında
-        NewPowerUp,            // Yeni power-up açıldığında
+        CoinEarn,              // Ana menüde coin kazanıldığında — henüz clip yok, ileride eklenecek
+        TimedCustomerFail,     // Süreli müşterinin süresi bitip fail olduğunda — henüz clip yok, ileride eklenecek
     }
 
     /// <summary>
@@ -29,6 +28,7 @@ namespace RestaurantLoop
     /// sınıftaki statik metodlardan birini çağırıyor, ör:
     ///
     ///     AudioEvents.PlayFoodClick();
+    ///     AudioEvents.PlayMusic();
     ///
     /// AudioManager, sahnede bulunduğu sürece bu olaylara abone olup
     /// gerçek sesi çalar. AudioManager sahnede yoksa (ör. bir test
@@ -36,12 +36,14 @@ namespace RestaurantLoop
     /// event'i dinleyen olmaz (FindObjectOfType/null-check zincirlerine
     /// gerek kalmıyor).
     ///
-    /// TimedCustomerCountdown ayrı tutuluyor çünkü bu bir "one-shot" ses
-    /// değil — süreli müşteri aktif olduğu SÜRECE çalması gereken bir
-    /// loop, bu yüzden Start/Stop çifti olarak modellendi.
+    /// Müzik ve SFX bilerek İKİ AYRI event grubu: hangi sesin hangi
+    /// kanalda (müzik source'u mu, sfx source'ları mı) çalacağı burada,
+    /// çağıran koda hiç bakmadan netleşiyor. TimedCustomerCountdown da
+    /// SFX kanalında ama loop olduğu için ayrı bir Start/Stop çifti.
     /// </summary>
     public static class AudioEvents
     {
+        // ---- SFX ----
         public static event Action<SfxId> SfxRequested;
         public static event Action TimedCustomerCountdownStartRequested;
         public static event Action TimedCustomerCountdownStopRequested;
@@ -54,21 +56,30 @@ namespace RestaurantLoop
         // aynı şeyi yapar — bunlar sadece çağıran tarafta enum yazıp
         // yanlış değeri seçme riskini azaltıyor.)
 
+        public static void PlayButtonClick() => Play(SfxId.ButtonClick);
+        public static void PlayNegativeButtonClick() => Play(SfxId.NegativeButtonClick);
         public static void PlayFoodClick() => Play(SfxId.FoodClick);
         public static void PlayOrderDelivered() => Play(SfxId.OrderDelivered);
-        public static void PlayTimedCustomerFail() => Play(SfxId.TimedCustomerFail);
+        public static void PlayNew() => Play(SfxId.New);
         public static void PlayLevelComplete() => Play(SfxId.LevelComplete);
         public static void PlayLevelFail() => Play(SfxId.LevelFail);
-        public static void PlayButtonClick() => Play(SfxId.ButtonClick);
         public static void PlayCoinEarn() => Play(SfxId.CoinEarn);
-        public static void PlayNewFood() => Play(SfxId.NewFood);
-        public static void PlayNewFeature() => Play(SfxId.NewFeature);
-        public static void PlayNewPowerUp() => Play(SfxId.NewPowerUp);
+        public static void PlayTimedCustomerFail() => Play(SfxId.TimedCustomerFail);
 
         /// <summary>Süreli müşteri aktif olduğunda çağır — geri sayım/saat sesi loop olarak başlar.</summary>
         public static void StartTimedCustomerCountdown() => TimedCustomerCountdownStartRequested?.Invoke();
 
         /// <summary>Süreli müşteri sonuçlandığında (teslim edildi/fail oldu/despawn) çağır — loop durur.</summary>
         public static void StopTimedCustomerCountdown() => TimedCustomerCountdownStopRequested?.Invoke();
+
+        // ---- Müzik (ayrı kanal — şu an tek parça: sadece ana menüde çalıyor) ----
+        public static event Action MusicPlayRequested;
+        public static event Action MusicStopRequested;
+
+        /// <summary>Ana menü müziğini loop olarak başlatır. Zaten çalıyorsa yeniden başlatmaz.</summary>
+        public static void PlayMusic() => MusicPlayRequested?.Invoke();
+
+        /// <summary>Müzik kanalını durdurur (ör. oyun sahnesine geçince).</summary>
+        public static void StopMusic() => MusicStopRequested?.Invoke();
     }
 }
