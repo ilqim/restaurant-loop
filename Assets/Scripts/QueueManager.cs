@@ -174,7 +174,11 @@ namespace RestaurantLoop
 
             // Tıklanabilir hücre — food'un pozisyonuyla AYNI kaynaktan
             // (slotPos) türetiliyor, iki ayrı yerde offset tanımlanmıyor.
-            var slotGo = Instantiate(queueSlotPrefab, slotPos, Quaternion.identity);
+            // ÖNEMLİ: rotasyon Quaternion.identity DEĞİL, prefabin kendi
+            // rotasyonu (queueSlotPrefab.transform.rotation) kullanılıyor —
+            // 2D objede X ekseninde 90° yatık duracak şekilde ayarladığın
+            // prefab rotasyonu, aksi halde identity ile eziliyordu.
+            var slotGo = Instantiate(queueSlotPrefab, slotPos, queueSlotPrefab.transform.rotation);
             if (!columnSlotVisuals.TryGetValue(col, out var slotVisuals))
             {
                 slotVisuals = new List<GameObject>();
@@ -281,14 +285,32 @@ namespace RestaurantLoop
 
         private void ApplyLockedVisual(GameObject go)
         {
+            // ÖNEMLİ: Material'lar Opaque olmalı (hamburger'in tray'in önünde
+            // doğru render olması buna bağlı — bkz. derinlik/sorting sorunu).
+            // Opaque materyallerde alpha görmezden gelinir, o yüzden "kilitli"
+            // görünümünü ALPHA değil RGB karartma ile veriyoruz: rengi
+            // lockedAlpha oranında koyulaştırıyoruz, alpha'yı 1'de tutuyoruz.
             var renderers = go.GetComponentsInChildren<Renderer>();
             foreach (var r in renderers)
             {
                 if (r.material.HasProperty("_Color"))
                 {
                     var c = r.material.color;
-                    c.a = lockedAlpha;
+                    c.r *= lockedAlpha;
+                    c.g *= lockedAlpha;
+                    c.b *= lockedAlpha;
+                    c.a = 1f;
                     r.material.color = c;
+                }
+                else if (r.material.HasProperty("_BaseColor"))
+                {
+                    // URP Lit/Simple Lit shader'larda renk "_BaseColor" altında.
+                    var c = r.material.GetColor("_BaseColor");
+                    c.r *= lockedAlpha;
+                    c.g *= lockedAlpha;
+                    c.b *= lockedAlpha;
+                    c.a = 1f;
+                    r.material.SetColor("_BaseColor", c);
                 }
             }
         }

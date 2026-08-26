@@ -66,7 +66,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: cb113dbf2705f0b46873ae72bba82374, type: 3}
       propertyPath: m_Name
-      value: rl_steak_2 (1)
+      value: Steak
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -103,3 +103,6 @@ MonoBehaviour:
   labelColor: {r: 1, g: 1, b: 1, a: 1}
   currentState: 1
   verboseLogging: 1
+  queueSprite: {fileID: 21300000, guid: a8df6b42ade65bd439011c8ebdebefef, type: 3}
+  queueColor: {r: 0.61960787, g: 0.33333334, b: 0.1882353, a: 1}
+  slotColorHex: '#9E5530'

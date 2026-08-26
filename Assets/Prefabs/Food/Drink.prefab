@@ -103,3 +103,6 @@ MonoBehaviour:
   labelColor: {r: 1, g: 1, b: 1, a: 1}
   currentState: 1
   verboseLogging: 1
+  queueSprite: {fileID: 21300000, guid: a8df6b42ade65bd439011c8ebdebefef, type: 3}
+  queueColor: {r: 0.14117648, g: 0.36862746, b: 0.7882353, a: 1}
+  slotColorHex: '#245EC9'

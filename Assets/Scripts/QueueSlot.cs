@@ -20,21 +20,54 @@ namespace RestaurantLoop
     /// "ışınladığında" AssignFood ile hangi food'un burada durduğunu
     /// bildiriyor.
     ///
-    /// Not: Bu component sadece "burada hangi food var" bilgisini tutar,
-    /// food'un state'i (Locked/Available) ile ilgilenmez — kilitli bir
-    /// food'a tıklanırsa Food.ActivateFromTap() zaten kendi state'ine
-    /// göre no-op yapar. Böylece QueueSlot'un state kontrolü bilmesine
-    /// gerek kalmıyor.
+    /// GÖRSEL: Ayrı bir prefab instantiate ETMİYORUZ. Bu objenin ÜZERİNDE
+    /// zaten duran SpriteRenderer'ın sprite/color'ını, atanan food'a göre
+    /// değiştiriyoruz. Obje sayısı hiç artmıyor, extra collider/script
+    /// oluşmuyor, GC allocation yok — en ucuz yöntem.
     /// </summary>
     [RequireComponent(typeof(Collider))]
+    [RequireComponent(typeof(SpriteRenderer))]
     public class QueueSlot : MonoBehaviour, IQueueClickable
     {
         private Food assignedFood;
+        private SpriteRenderer spriteRenderer;
+        private Sprite defaultSprite;
+        private Color defaultColor;
 
         public Food AssignedFood => assignedFood;
 
-        public void AssignFood(Food food) => assignedFood = food;
-        public void ClearFood() => assignedFood = null;
+        private void Awake()
+        {
+            spriteRenderer = GetComponent<SpriteRenderer>();
+
+            // Prefab/sahnede baştan atanmış olan sprite+renk "boş hücre"
+            // görünümü kabul ediliyor — food gelmediğinde / ClearFood
+            // sonrası buna geri dönülüyor.
+            defaultSprite = spriteRenderer.sprite;
+            defaultColor = spriteRenderer.color;
+        }
+
+        public void AssignFood(Food food)
+        {
+            assignedFood = food;
+
+            if (food != null)
+            {
+                spriteRenderer.sprite = food.QueueSprite != null ? food.QueueSprite : defaultSprite;
+                spriteRenderer.color = food.QueueColor;
+            }
+            else
+            {
+                ClearFood();
+            }
+        }
+
+        public void ClearFood()
+        {
+            assignedFood = null;
+            spriteRenderer.sprite = defaultSprite;
+            spriteRenderer.color = defaultColor;
+        }
 
         public void HandleClick()
         {

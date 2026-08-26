@@ -71,35 +71,5 @@ PrefabInstance:
     m_RemovedComponents: []
     m_RemovedGameObjects: []
     m_AddedGameObjects: []
-    m_AddedComponents:
-    - targetCorrespondingSourceObject: {fileID: 919132149155446097, guid: 3ae59bd91e6eb294495ad7440da76fe8, type: 3}
-      insertIndex: -1
-      addedObject: {fileID: 668064143900128638}
+    m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: 3ae59bd91e6eb294495ad7440da76fe8, type: 3}
---- !u!1 &5351175414685016865 stripped
-GameObject:
-  m_CorrespondingSourceObject: {fileID: 919132149155446097, guid: 3ae59bd91e6eb294495ad7440da76fe8, type: 3}
-  m_PrefabInstance: {fileID: 5080720507542150768}
-  m_PrefabAsset: {fileID: 0}
---- !u!114 &668064143900128638
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5351175414685016865}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: bfae21a2d1b3e5e44a84bb237c7172a0, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: 
-  trayManager: {fileID: 0}
-  foodType: 5
-  capacity: 10
-  showCapacityLabel: 1
-  labelHeight: 0.6
-  labelFontSize: 48
-  labelCharacterSize: 0.12
-  labelColor: {r: 1, g: 1, b: 1, a: 1}
-  currentState: 1
-  verboseLogging: 1
