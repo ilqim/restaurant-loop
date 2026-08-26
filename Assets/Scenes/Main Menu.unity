@@ -388,6 +388,7 @@ GameObject:
   - component: {fileID: 119864299}
   - component: {fileID: 119864298}
   - component: {fileID: 119864297}
+  - component: {fileID: 119864300}
   m_Layer: 5
   m_Name: info-icon
   m_TagString: Untagged
@@ -457,7 +458,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 119864298}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 119864300}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonClickSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &119864298
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -496,6 +509,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 119864295}
   m_CullTransparentMesh: 1
+--- !u!114 &119864300
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 119864295}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &130706420
 GameObject:
   m_ObjectHideFlags: 0
@@ -632,6 +657,51 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 130706420}
   m_CullTransparentMesh: 1
+--- !u!1 &154901289
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 154901291}
+  - component: {fileID: 154901290}
+  m_Layer: 0
+  m_Name: HapticsManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &154901290
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 154901289}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 102ebc6e6ffa3f643a6040e70be1f6c7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  dontDestroyOnLoad: 1
+--- !u!4 &154901291
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 154901289}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 499.99097, y: 980.7268, z: -10.609652}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &198743554
 GameObject:
   m_ObjectHideFlags: 0
@@ -668,6 +738,86 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 192.58337}
   m_SizeDelta: {x: 0, y: 385.1667}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!1 &219550037
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 219550039}
+  - component: {fileID: 219550038}
+  m_Layer: 0
+  m_Name: AudioManager
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &219550038
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 219550037}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d2f89f7b9d2f0f5428ccd0896d1d117e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  clips:
+  - id: 0
+    clip: {fileID: 8300000, guid: 5451041ab760d3640ad48948b3e2c129, type: 3}
+    volume: 1
+  - id: 1
+    clip: {fileID: 8300000, guid: 095c1fb5faba3f04f9773b38408c641a, type: 3}
+    volume: 1
+  - id: 2
+    clip: {fileID: 8300000, guid: e475380456a243446830931163a4f400, type: 3}
+    volume: 1
+  - id: 3
+    clip: {fileID: 8300000, guid: ac1e1356837c7c6419e417571b18a4c3, type: 3}
+    volume: 1
+  - id: 4
+    clip: {fileID: 8300000, guid: e0d3bb3c4bacdce40bf813c1f7c69668, type: 3}
+    volume: 1
+  - id: 5
+    clip: {fileID: 8300000, guid: ca04f48a636542d4385098b4235c622a, type: 3}
+    volume: 1
+  - id: 6
+    clip: {fileID: 8300000, guid: bbb7e725751675b4fb15f37b815be8e7, type: 3}
+    volume: 1
+  - id: 7
+    clip: {fileID: 0}
+    volume: 1
+  - id: 8
+    clip: {fileID: 8300000, guid: bbb7e725751675b4fb15f37b815be8e7, type: 3}
+    volume: 1
+  timedCustomerCountdownClip: {fileID: 0}
+  timedCustomerCountdownVolume: 1
+  menuMusicClip: {fileID: 8300000, guid: 7311baa0aa367ed4e8704a9a1080708f, type: 3}
+  menuMusicVolume: 1
+  oneShotSourceCount: 4
+  sfxMixerGroup: {fileID: 0}
+  musicMixerGroup: {fileID: 0}
+  dontDestroyOnLoad: 1
+--- !u!4 &219550039
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 219550037}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 31.420492, y: 0.31071436, z: -15.680515}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &237220542
 GameObject:
   m_ObjectHideFlags: 0
@@ -715,6 +865,7 @@ GameObject:
   m_Component:
   - component: {fileID: 264876021}
   - component: {fileID: 264876022}
+  - component: {fileID: 264876023}
   m_Layer: 5
   m_Name: Vibr-on-icon
   m_TagString: Untagged
@@ -788,8 +939,32 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 264876023}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonClickSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_IsOn: 1
+--- !u!114 &264876023
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 264876020}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &307947149
 GameObject:
   m_ObjectHideFlags: 0
@@ -1178,6 +1353,7 @@ GameObject:
   - component: {fileID: 506883451}
   - component: {fileID: 506883450}
   - component: {fileID: 506883449}
+  - component: {fileID: 506883452}
   m_Layer: 5
   m_Name: RestorePurchase
   m_TagString: Untagged
@@ -1248,7 +1424,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 506883450}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 506883452}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonClickSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &506883450
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1287,6 +1475,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 506883447}
   m_CullTransparentMesh: 1
+--- !u!114 &506883452
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 506883447}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &518259096
 GameObject:
   m_ObjectHideFlags: 0
@@ -1299,6 +1499,7 @@ GameObject:
   - component: {fileID: 518259100}
   - component: {fileID: 518259099}
   - component: {fileID: 518259098}
+  - component: {fileID: 518259101}
   m_Layer: 5
   m_Name: Question-icon
   m_TagString: Untagged
@@ -1368,7 +1569,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 518259099}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 518259101}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonClickSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &518259099
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1407,6 +1620,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 518259096}
   m_CullTransparentMesh: 1
+--- !u!114 &518259101
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 518259096}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &525823277
 GameObject:
   m_ObjectHideFlags: 0
@@ -1843,6 +2068,7 @@ GameObject:
   - component: {fileID: 708506547}
   - component: {fileID: 708506546}
   - component: {fileID: 708506545}
+  - component: {fileID: 708506548}
   m_Layer: 5
   m_Name: Language Button
   m_TagString: Untagged
@@ -1915,7 +2141,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 708506546}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 708506548}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &708506546
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1954,6 +2192,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 708506543}
   m_CullTransparentMesh: 1
+--- !u!114 &708506548
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 708506543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &715925696
 GameObject:
   m_ObjectHideFlags: 0
@@ -2165,41 +2415,6 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 763295797}
   m_CullTransparentMesh: 1
---- !u!1 &769558132
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 769558133}
-  m_Layer: 5
-  m_Name: Play
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!224 &769558133
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 769558132}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 1228177775}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0}
-  m_AnchorMax: {x: 0.5, y: 1}
-  m_AnchoredPosition: {x: 0, y: 0}
-  m_SizeDelta: {x: 1410, y: 0}
-  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &773229636
 GameObject:
   m_ObjectHideFlags: 0
@@ -2763,6 +2978,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1013535323}
   - component: {fileID: 1013535324}
+  - component: {fileID: 1013535325}
   m_Layer: 5
   m_Name: Music-on-icon
   m_TagString: Untagged
@@ -2836,8 +3052,32 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 1013535325}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonClickSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_IsOn: 1
+--- !u!114 &1013535325
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1013535322}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1032906240
 GameObject:
   m_ObjectHideFlags: 0
@@ -3059,6 +3299,7 @@ GameObject:
   m_Component:
   - component: {fileID: 1052108085}
   - component: {fileID: 1052108086}
+  - component: {fileID: 1052108087}
   m_Layer: 5
   m_Name: Sound-on-icon
   m_TagString: Untagged
@@ -3132,8 +3373,32 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 1052108087}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonClickSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_IsOn: 1
+--- !u!114 &1052108087
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1052108084}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1093493015
 GameObject:
   m_ObjectHideFlags: 0
@@ -3373,6 +3638,7 @@ GameObject:
   - component: {fileID: 1115805049}
   - component: {fileID: 1115805048}
   - component: {fileID: 1115805047}
+  - component: {fileID: 1115805050}
   m_Layer: 5
   m_Name: PlayButton
   m_TagString: Untagged
@@ -3443,7 +3709,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 1115805048}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 1115805050}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonClickSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1115805048
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3482,6 +3760,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1115805045}
   m_CullTransparentMesh: 1
+--- !u!114 &1115805050
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1115805045}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1116108136
 GameObject:
   m_ObjectHideFlags: 0
@@ -3718,6 +4008,7 @@ GameObject:
   - component: {fileID: 1177516311}
   - component: {fileID: 1177516310}
   - component: {fileID: 1177516309}
+  - component: {fileID: 1177516312}
   m_Layer: 5
   m_Name: Setings
   m_TagString: Untagged
@@ -3800,6 +4091,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 1
         m_CallState: 2
+      - m_Target: {fileID: 1177516312}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonClickSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 1
+        m_CallState: 2
 --- !u!114 &1177516310
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3838,6 +4141,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1177516307}
   m_CullTransparentMesh: 1
+--- !u!114 &1177516312
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1177516307}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1228177771
 GameObject:
   m_ObjectHideFlags: 0
@@ -3934,7 +4249,6 @@ RectTransform:
   m_Children:
   - {fileID: 1794461291}
   - {fileID: 198743555}
-  - {fileID: 769558133}
   - {fileID: 1718183306}
   - {fileID: 503204017}
   - {fileID: 1116108137}
@@ -4831,6 +5145,7 @@ GameObject:
   - component: {fileID: 1551151020}
   - component: {fileID: 1551151019}
   - component: {fileID: 1551151018}
+  - component: {fileID: 1551151021}
   m_Layer: 5
   m_Name: Settings_Close_X
   m_TagString: Untagged
@@ -4913,6 +5228,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+      - m_Target: {fileID: 1551151021}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonClickSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1551151019
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -4951,6 +5278,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1551151016}
   m_CullTransparentMesh: 1
+--- !u!114 &1551151021
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1551151016}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1571495147
 GameObject:
   m_ObjectHideFlags: 0
@@ -5968,6 +6307,53 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 2099616872}
   m_CullTransparentMesh: 1
+--- !u!1 &2113451392
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 2113451394}
+  - component: {fileID: 2113451393}
+  m_Layer: 0
+  m_Name: SettingsToggleUI
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &2113451393
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2113451392}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0c6a6e7fd1bc28e46951c1fe9f253ed7, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  musicToggle: {fileID: 1013535324}
+  sfxToggle: {fileID: 1052108086}
+  vibrationToggle: {fileID: 264876022}
+--- !u!4 &2113451394
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2113451392}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 499.99097, y: 980.7268, z: -10.609652}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &2114622653
 GameObject:
   m_ObjectHideFlags: 0
@@ -6053,6 +6439,7 @@ GameObject:
   m_Component:
   - component: {fileID: 2130075052}
   - component: {fileID: 2130075053}
+  - component: {fileID: 2130075054}
   m_Layer: 5
   m_Name: Ring-on
   m_TagString: Untagged
@@ -6126,8 +6513,32 @@ MonoBehaviour:
   m_Group: {fileID: 0}
   onValueChanged:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 2130075054}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonClickSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
   m_IsOn: 1
+--- !u!114 &2130075054
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2130075051}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &2139378781
 GameObject:
   m_ObjectHideFlags: 0
@@ -6211,3 +6622,6 @@ SceneRoots:
   - {fileID: 52774290}
   - {fileID: 1228177775}
   - {fileID: 1489042033}
+  - {fileID: 154901291}
+  - {fileID: 2113451394}
+  - {fileID: 219550039}
