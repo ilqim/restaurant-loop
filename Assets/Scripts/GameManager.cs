@@ -16,6 +16,12 @@ namespace RestaurantLoop
         [Header("Debug")]
         [SerializeField] private GameState currentState = GameState.Playing;
 
+        [Header("Economy Rewards & Penalties")]
+        [SerializeField] private int coinsPerWin = 40;
+
+        [Header("UI Reference")]
+        [SerializeField] private LevelCompleteUI levelCompleteUI;
+
         private CustomerManager customerManager;
 
         public GameState CurrentState => currentState;
@@ -45,6 +51,11 @@ namespace RestaurantLoop
                 );
             }
 
+            if(levelCompleteUI == null)
+            {
+                levelCompleteUI = FindFirstObjectByType<LevelCompleteUI>();
+            }
+
             currentState = GameState.Playing;
 
             Debug.Log("===== GAME START =====");
@@ -69,6 +80,12 @@ namespace RestaurantLoop
                 return;
 
             currentState = GameState.Fail;
+
+            //SFX & Heart Cezası
+            AudioEvents.PlayLevelFail();
+            PlayerData.ConsumeHeart();
+
+            Debug.Log($"FAIL! Remaining hearts: {PlayerData.Hearts}");
 
             Debug.Log("=================================");
             Debug.Log("FAIL!");
@@ -99,6 +116,17 @@ namespace RestaurantLoop
                 return;
 
             currentState = GameState.Win;
+
+            //SFX & COIN REWARD
+            AudioEvents.PlayLevelComplete();
+            PlayerData.AddCoins(coinsPerWin);
+
+            if(levelCompleteUI != null)
+            {
+                levelCompleteUI.Show(coinsPerWin);
+            }
+
+            Debug.Log($"WIN! Awarded {coinsPerWin} coins. Total: {PlayerData.Coins}");
 
             Debug.Log("=================================");
             Debug.Log("WIN!");
