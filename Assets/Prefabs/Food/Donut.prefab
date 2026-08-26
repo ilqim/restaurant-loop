@@ -66,7 +66,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 3ae59bd91e6eb294495ad7440da76fe8, type: 3}
       propertyPath: m_Name
-      value: rl_donut_2 (1)
+      value: Donut
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -103,3 +103,6 @@ MonoBehaviour:
   labelColor: {r: 1, g: 1, b: 1, a: 1}
   currentState: 1
   verboseLogging: 1
+  queueSprite: {fileID: 21300000, guid: a8df6b42ade65bd439011c8ebdebefef, type: 3}
+  queueColor: {r: 0.47843137, g: 0.24705882, b: 0.7019608, a: 1}
+  slotColorHex: '#7A3FB3'

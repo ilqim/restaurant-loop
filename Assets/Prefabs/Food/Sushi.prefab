@@ -66,7 +66,7 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 6db06585d1f3dce49aaef8ebb0e88a4e, type: 3}
       propertyPath: m_Name
-      value: rl_sushi_3 (1)
+      value: Sushi
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
@@ -103,3 +103,6 @@ MonoBehaviour:
   labelColor: {r: 1, g: 1, b: 1, a: 1}
   currentState: 1
   verboseLogging: 1
+  queueSprite: {fileID: 21300000, guid: a8df6b42ade65bd439011c8ebdebefef, type: 3}
+  queueColor: {r: 0.21960784, g: 0.6862745, b: 0.29411766, a: 1}
+  slotColorHex: '#38AF4B'
