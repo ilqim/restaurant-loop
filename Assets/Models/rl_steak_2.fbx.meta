@@ -3,7 +3,17 @@ guid: cb113dbf2705f0b46873ae72bba82374
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: rim
+    second: {fileID: 2100000, guid: 62649f2c89829be44904808514c8a123, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: steak
+    second: {fileID: 2100000, guid: ef4abbb56f1eb644987877cee43f9752, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

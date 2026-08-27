@@ -10,8 +10,8 @@ namespace RestaurantLoop
         public static SceneFlowManager Instance { get; private set; }
 
         [Header("Scene Build Names / Indices")]
-        [SerializeField] private string mainMenuSceneName = "MainMenu";
-        [SerializeField] private string gameplaySceneName = "GameplayScene";
+        [SerializeField] private string mainMenuSceneName = "Main Menu";
+        [SerializeField] private string gameplaySceneName = "Game";
 
         [Header("Startup Screen UI")]
         [SerializeField] private CanvasGroup startupCanvasGroup;

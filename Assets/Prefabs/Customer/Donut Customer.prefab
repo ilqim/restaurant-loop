@@ -15,7 +15,7 @@ GameObject:
   - component: {fileID: 1530857357398882890}
   - component: {fileID: -6284560321608163247}
   m_Layer: 0
-  m_Name: Dessert Customer
+  m_Name: Donut Customer
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

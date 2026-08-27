@@ -14,14 +14,18 @@ namespace RestaurantLoop
     /// boş bir "LevelValidation" objesi), LevelData'yı ata (boşsa
     /// GridManager'dan otomatik alır).
     /// </summary>
-    public class LevelConservationChecker : MonoBehaviour
+    public class LevelConservationChecker : MonoBehaviour, ILevelDataReceiver
     {
         [Tooltip("Boş bırakılırsa GridManager'daki LevelDataRef kullanılır.")]
         [SerializeField] private LevelData levelData;
         [SerializeField] private GridManager gridManager;
 
+        private bool started;
+
         private void Start()
         {
+            started = true;
+
             if (levelData == null && gridManager != null) levelData = gridManager.LevelDataRef;
             if (levelData == null) gridManager = FindFirstObjectByType<GridManager>();
             if (levelData == null && gridManager != null) levelData = gridManager.LevelDataRef;
@@ -35,8 +39,32 @@ namespace RestaurantLoop
             CheckConservation();
         }
 
+        /// <summary>
+        /// ILevelDataReceiver — LevelManager, Game sahnesi yüklendiğinde
+        /// bunu çağırıp o anki level'in LevelData'sını verir. Start()'tan
+        /// önce çağrılırsa sadece veri set edilir, Start() zaten kontrolü
+        /// kendisi çalıştırır. Start()'tan sonra çağrılırsa (runtime'da
+        /// level değişimi gibi bir senaryoda) kontrol burada anında tekrar
+        /// çalıştırılır.
+        /// </summary>
+        public void SetLevelData(LevelData data)
+        {
+            levelData = data;
+
+            if (started)
+            {
+                CheckConservation();
+            }
+        }
+
         private void CheckConservation()
         {
+            if (levelData == null)
+            {
+                Debug.LogWarning("LevelConservationChecker: LevelData yok, kontrol atlanıyor.");
+                return;
+            }
+
             var supplyByType = new Dictionary<FoodType, int>();
             foreach (var entry in levelData.queue)
             {

@@ -12,7 +12,7 @@ namespace RestaurantLoop
         public GameObject prefab;
     }
 
-    public class QueueManager : MonoBehaviour
+    public class QueueManager : MonoBehaviour, ILevelDataReceiver
     {
         [Header("Data")]
         [Tooltip("Boş bırakılırsa GridManager'daki LevelDataRef kullanılır.")]
@@ -58,9 +58,31 @@ namespace RestaurantLoop
         private readonly Dictionary<int, List<GameObject>> columnSlotVisuals = new();
         private readonly Dictionary<Food, int> availableFoodColumn = new();
         private Coroutine pendingRebuild;
+        private bool started;
+
+        /// <summary>
+        /// ILevelDataReceiver — LevelManager, Game sahnesi yüklendiğinde
+        /// bunu çağırıp o anki level'in LevelData'sını verir. Start()'tan
+        /// ÖNCE ya da SONRA çağrılmış olması fark etmez:
+        /// - Start()'tan önce çağrılırsa: sadece levelData set edilir,
+        ///   Start() zaten bunu bulup kurulumu kendisi yapar.
+        /// - Start()'tan sonra çağrılırsa (levelData zaten kurulmuşsa):
+        ///   kurulum burada anında tekrar yapılır (yeni level'e geçiş gibi).
+        /// </summary>
+        public void SetLevelData(LevelData data)
+        {
+            levelData = data;
+
+            if (started)
+            {
+                BuildColumnData();
+                RebuildAllVisibleRows();
+            }
+        }
 
         private void Start()
         {
+            started = true;
             if (levelData == null && gridManager != null) levelData = gridManager.LevelDataRef;
             if (levelData == null) gridManager = FindFirstObjectByType<GridManager>();
             if (levelData == null && gridManager != null) levelData = gridManager.LevelDataRef;

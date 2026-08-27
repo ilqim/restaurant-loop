@@ -22,15 +22,15 @@ PrefabInstance:
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: c72c1c025e5e8454bb80e03aa08bce04, type: 3}
       propertyPath: m_LocalPosition.x
-      value: 62.82
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: c72c1c025e5e8454bb80e03aa08bce04, type: 3}
       propertyPath: m_LocalPosition.y
-      value: 0.00000023841858
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: c72c1c025e5e8454bb80e03aa08bce04, type: 3}
       propertyPath: m_LocalPosition.z
-      value: 18.88
+      value: 0
       objectReference: {fileID: 0}
     - target: {fileID: -8679921383154817045, guid: c72c1c025e5e8454bb80e03aa08bce04, type: 3}
       propertyPath: m_LocalRotation.w
@@ -97,7 +97,7 @@ MonoBehaviour:
   foodType: 2
   capacity: 10
   showCapacityLabel: 1
-  labelHeight: 0.6
+  labelHeight: 3
   labelFontSize: 48
   labelCharacterSize: 0.12
   labelColor: {r: 1, g: 1, b: 1, a: 1}
