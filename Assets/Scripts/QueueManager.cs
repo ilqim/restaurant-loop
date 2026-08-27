@@ -112,6 +112,69 @@ namespace RestaurantLoop
             RebuildAllVisibleRows();
         }
 
+        /// <summary>
+        /// SHUFFLE BOOSTER: Tüm kolonlardaki kalan yemekleri (sadece görünen
+        /// 3 satır değil, sıradaki TÜM gizli yemekler dahil) tek bir listede
+        /// toplayıp karıştırır, sonra her kolonun eleman SAYISINI koruyarak
+        /// geri dağıtır — grid şekli (hangi kolonda kaç yemek olduğu) aynı
+        /// kalır, ama hangi yemeğin nerede olduğu tamamen rastgele olur.
+        ///
+        /// Sonunda RebuildAllVisibleRows() çağrılır — bu zaten mevcut
+        /// food/QueueSlot görsellerini yok edip columnData'dan yeniden
+        /// kuran standart akış, shuffle da bu akışa aynen oturuyor.
+        /// </summary>
+        public void ShuffleQueue()
+        {
+            if (levelData == null)
+            {
+                Debug.LogWarning("QueueManager: ShuffleQueue çağrıldı ama levelData yok.");
+                return;
+            }
+
+            // 1) Tüm kolonlardaki tüm kalan entry'leri tek listede topla,
+            // her kolonun kaç eleman taşıdığını (shape'i) ayrıca sakla.
+            var allEntries = new List<QueueEntry>();
+            var countPerColumn = new int[levelData.queueColumns];
+
+            for (int col = 0; col < levelData.queueColumns; col++)
+            {
+                if (columnData.TryGetValue(col, out var list))
+                {
+                    countPerColumn[col] = list.Count;
+                    allEntries.AddRange(list);
+                }
+            }
+
+            // 2) Fisher-Yates shuffle — tüm queue genelinde tam rastgele.
+            for (int i = allEntries.Count - 1; i > 0; i--)
+            {
+                int j = Random.Range(0, i + 1);
+                (allEntries[i], allEntries[j]) = (allEntries[j], allEntries[i]);
+            }
+
+            // 3) Karışmış listeyi, ORİJİNAL kolon eleman sayılarını koruyarak
+            // geri dağıt. row/col alanlarını yeni pozisyonuna göre güncelliyoruz
+            // ki SpawnAt/RebuildAllVisibleRows doğru sırayla okusun.
+            int cursor = 0;
+            for (int col = 0; col < levelData.queueColumns; col++)
+            {
+                int count = countPerColumn[col];
+                var newList = new List<QueueEntry>(count);
+
+                for (int row = 0; row < count; row++)
+                {
+                    QueueEntry entry = allEntries[cursor++];
+                    entry.col = col;
+                    entry.row = row;
+                    newList.Add(entry);
+                }
+
+                columnData[col] = newList;
+            }
+
+            RebuildAllVisibleRows();
+        }
+
         private void BuildColumnData()
         {
             columnData.Clear();
