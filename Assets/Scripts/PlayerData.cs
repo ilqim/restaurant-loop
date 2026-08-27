@@ -7,15 +7,19 @@ namespace RestaurantLoop
     {
         private const string CoinsKey = "PlayerData_Coins";
         private const string HeartsKey = "PlayerData_Hearts";
+        private const string CurrentLevelKey = "PlayerData_CurrentLevel";
 
         public const int MaxHearts = 5;
         public const int DefaultInitialCoins = 100;
+        public const int DefaultStartingLevel = 1;
 
         private static int? coins;
         private static int? hearts;
+        private static int? currentLevel;
 
         public static event Action<int> CoinsChanged;
         public static event Action<int> HeartsChanged;
+        public static event Action<int> CurrentLevelChanged;
 
         public static int Coins
         {
@@ -49,6 +53,28 @@ namespace RestaurantLoop
                 PlayerPrefs.SetInt(HeartsKey, hearts.Value);
                 PlayerPrefs.Save();
                 HeartsChanged?.Invoke(hearts.Value);
+            }
+        }
+
+        /// <summary>
+        /// Oyuncunun şu an sırada olduğu / en son kaldığı level numarası (1'den başlar).
+        /// Uygulama kapatılıp açılsa bile PlayerPrefs üzerinden hatırlanır.
+        /// </summary>
+        public static int CurrentLevel
+        {
+            get
+            {
+                currentLevel ??= PlayerPrefs.GetInt(CurrentLevelKey, DefaultStartingLevel);
+                return currentLevel.Value;
+            }
+            set
+            {
+                int clamped = Mathf.Max(1, value);
+                if (currentLevel.HasValue && currentLevel.Value == clamped) return;
+                currentLevel = clamped;
+                PlayerPrefs.SetInt(CurrentLevelKey, currentLevel.Value);
+                PlayerPrefs.Save();
+                CurrentLevelChanged?.Invoke(currentLevel.Value);
             }
         }
 

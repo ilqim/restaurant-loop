@@ -15,7 +15,7 @@ namespace RestaurantLoop
 
     [DefaultExecutionOrder(-100)]
     [RequireComponent(typeof(Grid))]
-    public class GridManager : MonoBehaviour
+    public class GridManager : MonoBehaviour, ILevelDataReceiver
     {
         [Header("Data")]
         [SerializeField] private LevelData levelData;
@@ -84,6 +84,7 @@ namespace RestaurantLoop
         public Vector3 GridCenterWorld { get; private set; }
 
         private readonly Dictionary<Vector2Int, GameObject> spawnedCustomers = new();
+        private bool started;
 
         void Awake()
         {
@@ -97,7 +98,29 @@ namespace RestaurantLoop
 
         void Start()
         {
+            started = true;
             if (levelData != null) BuildFromData(levelData);
+        }
+
+        /// <summary>
+        /// ILevelDataReceiver — LevelManager, Game sahnesi yüklendiğinde
+        /// bunu çağırıp o anki level'in LevelData'sını verir.
+        /// Awake ile Start arasında çağrılırsa (LevelManager.sceneLoaded
+        /// akışında olan tam da budur): levelData set edilir, Awake'te
+        /// oluşan geçici/varsayılan boyutlu Grid önemsizdir çünkü Start()
+        /// zaten doğru levelData ile BuildFromData'yı çağırıp Grid'i
+        /// baştan doğru boyutlarla kuracaktır.
+        /// Start()'tan SONRA çağrılırsa (örn. runtime'da level değişimi):
+        /// BuildFromData burada anında tekrar çalıştırılır.
+        /// </summary>
+        public void SetLevelData(LevelData data)
+        {
+            levelData = data;
+
+            if (started)
+            {
+                BuildFromData(data);
+            }
         }
 
         public Vector3 GetTrayBaseCenterWorld()

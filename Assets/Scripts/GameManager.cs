@@ -91,6 +91,9 @@ namespace RestaurantLoop
             Debug.Log("FAIL!");
             Debug.Log("Slotlar tamamen dolu. Yeni Food yerleştirilemedi.");
             Debug.Log("=================================");
+
+            // ÖNEMLİ: FAIL'de level İLERLEMİYOR — oyuncu aynı level'i
+            // tekrar oynayacak. PlayerData.CurrentLevel'e hiç dokunmuyoruz.
         }
 
         /// <summary>
@@ -121,12 +124,24 @@ namespace RestaurantLoop
             AudioEvents.PlayLevelComplete();
             PlayerData.AddCoins(coinsPerWin);
 
+            // ÖNEMLİ: Level kazanıldığı AN, bir sonraki level'e ilerliyoruz.
+            // Bu sadece PlayerData.CurrentLevel'i (PlayerPrefs'e kalıcı olarak)
+            // bir arttırır — HİÇBİR sahne yüklemez. Sahne geçişi (Ana Menü'ye
+            // dönme, bir sonraki level'i başlatma vb.) LevelCompleteUI'daki
+            // butonlar üzerinden ayrıca, SceneFlowManager ile yapılmaya devam
+            // ediyor. Burada ilerletmenin amacı: kullanıcı Ana Menü'ye
+            // döndüğünde, MainMenuLevelDisplay'in artık doğru (bir sonraki)
+            // level numarasını göstermesi ve Play'e tekrar basıldığında
+            // SceneFlowManager'ın doğru level'in LevelData'sını yüklemesi.
+            LevelManager.Instance.AdvanceToNextLevel();
+
             if(levelCompleteUI != null)
             {
                 levelCompleteUI.Show(coinsPerWin);
             }
 
             Debug.Log($"WIN! Awarded {coinsPerWin} coins. Total: {PlayerData.Coins}");
+            Debug.Log($"WIN! Bir sonraki level: {LevelManager.Instance.CurrentLevel}");
 
             Debug.Log("=================================");
             Debug.Log("WIN!");

@@ -3,7 +3,17 @@ guid: c72c1c025e5e8454bb80e03aa08bce04
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: cup
+    second: {fileID: 2100000, guid: e0b2ac2fbbf4fc24ab4871e0d0c38dc5, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: straw
+    second: {fileID: 2100000, guid: b159088c91e8f694a9379dd25f49d15f, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0

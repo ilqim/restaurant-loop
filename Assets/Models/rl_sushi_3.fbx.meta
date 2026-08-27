@@ -3,7 +3,22 @@ guid: 6db06585d1f3dce49aaef8ebb0e88a4e
 ModelImporter:
   serializedVersion: 22200
   internalIDToNameTable: []
-  externalObjects: {}
+  externalObjects:
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: fish
+    second: {fileID: 2100000, guid: 153f2a2f785950941bf40e42c0a0aec0, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: rice
+    second: {fileID: 2100000, guid: 740a491ada303ae4bb7f3ff81f40575c, type: 2}
+  - first:
+      type: UnityEngine:Material
+      assembly: UnityEngine.CoreModule
+      name: seaweed
+    second: {fileID: 2100000, guid: 7ac41845f37779f4f9ce040c038aedab, type: 2}
   materials:
     materialImportMode: 2
     materialName: 0
