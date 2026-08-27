@@ -420,5 +420,52 @@ namespace RestaurantLoop
 
             return null;
         }
+
+        public bool CanLaunchTray()
+        {
+            if(currentActiveTrays >= maxActiveTrays)
+            {
+                return false;
+            }
+
+            if(gridManager == null ||
+             gridManager.WaypointWorldPositions == null ||
+              gridManager.WaypointWorldPositions.Count == 0)
+            {
+                return false;
+            }
+
+            return true;
+        }
+
+        /// <summary>
+        /// Add Tray Booster: Konveyördeki maksimum aktif tepsi limitini 1 artırır
+        /// ve Base kuyruğuna hemen yeni bir boş tepsi ekler.
+        /// </summary>
+        public void AddExtraTray()
+        {
+            maxActiveTrays++;
+
+            if (trayPrefab == null)
+                return;
+
+            int newIndex = trayBaseQueue.Count;
+            Vector3 spawnPos = GetBaseStackPosition(newIndex);
+
+            GameObject trayGo = Instantiate(
+                trayPrefab,
+                spawnPos,
+                BaseStackRotation,
+                transform
+            );
+
+            Tray tray = trayGo.GetComponent<Tray>();
+            if (tray != null)
+            {
+                tray.ParkAtBase(this, spawnPos);
+                trayBaseQueue.Add(tray);
+            }
+        }
+
     }
 }
