@@ -1,4 +1,5 @@
 using System;
+using System.Collections;
 using UnityEngine;
 
 namespace RestaurantLoop
@@ -7,6 +8,7 @@ namespace RestaurantLoop
     {
         LockedInQueue,
         AvailableInQueue,
+        Launching,
         OnConveyor,
         InFoodSlot,
         Served
@@ -23,6 +25,10 @@ namespace RestaurantLoop
         [Header("Kapasite")]
         [SerializeField] private int capacity = 10;
 
+        [Header("Zıplama Animasyonu")]
+        [SerializeField] private float jumpDuration = 0.35f;
+        [SerializeField] private float jumpArcHeight = 1.2f;
+
         [Header("Kapasite Debug Etiketi")]
         [SerializeField] private bool showCapacityLabel = true;
         [SerializeField] private float labelHeight = 0.6f;
@@ -37,7 +43,7 @@ namespace RestaurantLoop
         [SerializeField] private bool verboseLogging = true;
 
         [Header("Görseller — Queue ve Food-Slot ayrı renk/sprite kullanır")]
-        [Tooltip("Bu food QUEUE hücresindeyken uygulanacak sprite. Boş bırakılırsa QueueSlot kendi default sprite'ını korur (sadece renk değişir).")]
+        [Tooltip("Bu food QUEUE hücresindeyken uygulanacak sprite. Boş bırakılırsa QueueSlot kendi default sprite'ını korur.")]
         [SerializeField] private Sprite queueSprite;
         public Sprite QueueSprite => queueSprite;
         [Tooltip("Bu food QUEUE hücresindeyken tepsinin rengi.")]
@@ -45,7 +51,7 @@ namespace RestaurantLoop
         public Color QueueColor => queueColor;
 
         [Header("Food-Slot Rengi (Hex)")]
-        [Tooltip("Bu food FOOD-SLOT'a (konveyör sonu, Slot.cs) yerleştiğinde, slotun 'dolu' sprite'ına uygulanacak renk. Hex formatında gir, örn: #FF5733 veya #FF5733FF.")]
+        [Tooltip("Bu food FOOD-SLOT'a yerleştiğinde, slotun 'dolu' sprite'ına uygulanacak renk.")]
         [SerializeField] private string slotColorHex = "#FFFFFF";
         public Color SlotColor
         {
@@ -54,7 +60,7 @@ namespace RestaurantLoop
                 if (ColorUtility.TryParseHtmlString(slotColorHex, out Color c))
                     return c;
 
-                Debug.LogWarning($"Food [{name}]: slotColorHex ('{slotColorHex}') geçersiz bir hex değeri, beyaz kullanılıyor. Format: #RRGGBB veya #RRGGBBAA.");
+                Debug.LogWarning($"Food [{name}]: slotColorHex ('{slotColorHex}') geçersiz bir hex değeri, beyaz kullanılıyor.");
                 return Color.white;
             }
         }
@@ -62,6 +68,7 @@ namespace RestaurantLoop
         private bool queueStatePreset;
         private TextMesh capacityLabel;
         private Camera labelFacingCamera;
+        private Coroutine jumpCoroutine;
 
         public FoodState CurrentState => currentState;
         public FoodType FoodTypeValue => foodType;
@@ -110,9 +117,8 @@ namespace RestaurantLoop
 
             if (currentState == FoodState.AvailableInQueue)
             {
-                // Queue'deki food'u banda göndermek için tıklama.
                 AudioEvents.PlayFoodClick();
-                TryLaunchAndDespawn();
+                TryLaunchWithAnimation();
             }
             else
             {
@@ -121,15 +127,9 @@ namespace RestaurantLoop
             }
         }
 
-        /// <summary>
-        /// Slot, food'u konveyöre geri göndermek istediğinde çağırır.
-        /// Dönüş değeri: food GERÇEKTEN konveyöre çıkabildi mi (true) yoksa
-        /// konveyör dolu olduğu için olduğu yerde mi kaldı (false).
-        /// Slot, bu sonuca göre kendini boşaltıp boşaltmayacağına karar verir.
-        /// </summary>
         public bool EnterConveyorFromSlot()
         {
-            return TryLaunchAndDespawn();
+            return TryLaunchWithAnimation();
         }
 
         public void SetInFoodSlot()
@@ -137,11 +137,7 @@ namespace RestaurantLoop
             ChangeState(FoodState.InFoodSlot);
         }
 
-        /// <summary>
-        /// Konveyöre (tray olarak) çıkışı dener. Başarılıysa food'u despawn eder
-        /// ve true döner. Konveyör doluysa hiçbir şey değiştirmeden false döner.
-        /// </summary>
-        private bool TryLaunchAndDespawn()
+        private bool TryLaunchWithAnimation()
         {
             if (trayManager == null)
             {
@@ -149,16 +145,57 @@ namespace RestaurantLoop
                 return false;
             }
 
-            bool launched = trayManager.TryLaunchTray(foodType, capacity);
-            if (!launched)
+            if (!trayManager.CanLaunchTray())
             {
                 if (verboseLogging) Debug.Log($"Food [{gameObject.name}]: Konveyör dolu, tray başlatılamadı.");
                 return false;
             }
 
-            ChangeState(FoodState.OnConveyor);
-            DespawnSelf();
+            if (jumpCoroutine != null)
+                StopCoroutine(jumpCoroutine);
+
+            jumpCoroutine = StartCoroutine(JumpToConveyorRoutine());
             return true;
+        }
+
+        private IEnumerator JumpToConveyorRoutine()
+        {
+            ChangeState(FoodState.Launching);
+
+            Vector3 startPos = transform.position;
+            Vector3 targetPos = trayManager.GetWaypointPosition(0);
+
+            float elapsed = 0f;
+
+            while (elapsed < jumpDuration)
+            {
+                elapsed += Time.deltaTime;
+                float t = Mathf.Clamp01(elapsed / jumpDuration);
+
+                // Parabolic Arc
+                Vector3 currentPos = Vector3.Lerp(startPos, targetPos, t);
+                float heightOffset = 4f * jumpArcHeight * (t - (t * t));
+                currentPos.y += heightOffset;
+
+                transform.position = currentPos;
+                yield return null;
+            }
+
+            transform.position = targetPos;
+
+            // Finalize launch on the conveyor
+            bool launched = trayManager.TryLaunchTray(foodType, capacity);
+            if (launched)
+            {
+                ChangeState(FoodState.OnConveyor);
+                DespawnSelf();
+            }
+            else
+            {
+                ChangeState(FoodState.AvailableInQueue);
+            }
+
+            jumpCoroutine = null;
         }
 
         private void DespawnSelf()

@@ -2058,6 +2058,7 @@ GameObject:
   - component: {fileID: 445720248}
   - component: {fileID: 445720247}
   - component: {fileID: 445720246}
+  - component: {fileID: 445720249}
   m_Layer: 5
   m_Name: ClawButton
   m_TagString: Untagged
@@ -2127,7 +2128,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 445720247}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 445720249}
+        m_TargetAssemblyTypeName: RestaurantLoop.SelectBoosterButton, Assembly-CSharp
+        m_MethodName: OnSelectButtonPressed
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &445720247
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -2166,6 +2179,21 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 445720244}
   m_CullTransparentMesh: 1
+--- !u!114 &445720249
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 445720244}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3974761943207b547aeef86a9b931548, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  queueManager: {fileID: 0}
+  button: {fileID: 0}
+  countText: {fileID: 49502941}
 --- !u!1 &467102090
 GameObject:
   m_ObjectHideFlags: 0
@@ -2368,6 +2396,41 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 511116456}
   m_CullTransparentMesh: 1
+--- !u!1 &516477475
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 516477476}
+  m_Layer: 5
+  m_Name: Target Coin End
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!224 &516477476
+RectTransform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 516477475}
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 627371811}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+  m_AnchorMin: {x: 0.5, y: 0.5}
+  m_AnchorMax: {x: 0.5, y: 0.5}
+  m_AnchoredPosition: {x: 487, y: 1010}
+  m_SizeDelta: {x: 100, y: 100}
+  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &594656517
 GameObject:
   m_ObjectHideFlags: 0
@@ -2533,6 +2596,7 @@ RectTransform:
   - {fileID: 2135948227}
   - {fileID: 169694589}
   - {fileID: 203092669}
+  - {fileID: 516477476}
   m_Father: {fileID: 1840126557}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -2556,8 +2620,16 @@ MonoBehaviour:
   popupContent: {fileID: 627371810}
   earnedCoinsTMP: {fileID: 169694590}
   earnedCoinsLegacy: {fileID: 0}
+  coinPrefab: {fileID: 5710081200003610101, guid: 221ec0fa388f1694bb61053a59eda73e, type: 3}
+  coinContainer: {fileID: 2135948227}
+  coinStartPoint: {fileID: 2135948227}
+  coinTargetPoint: {fileID: 516477476}
+  animatedCoinCount: 15
+  moveDuration: 0.8
+  totalDelay: 0.4
+  randomOffsetRange: 75
+  moveEase: 26
   fadeDuration: 0.35
-  countUpDuration: 0.8
 --- !u!225 &627371813
 CanvasGroup:
   m_ObjectHideFlags: 0
@@ -3538,6 +3610,7 @@ GameObject:
   - component: {fileID: 969016015}
   - component: {fileID: 969016014}
   - component: {fileID: 969016013}
+  - component: {fileID: 969016016}
   m_Layer: 5
   m_Name: AddTrayButton
   m_TagString: Untagged
@@ -3607,7 +3680,19 @@ MonoBehaviour:
   m_TargetGraphic: {fileID: 969016014}
   m_OnClick:
     m_PersistentCalls:
-      m_Calls: []
+      m_Calls:
+      - m_Target: {fileID: 969016016}
+        m_TargetAssemblyTypeName: RestaurantLoop.AddTrayBoosterButton, Assembly-CSharp
+        m_MethodName: OnAddTrayButtonPressed
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &969016014
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -3646,6 +3731,22 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 969016011}
   m_CullTransparentMesh: 1
+--- !u!114 &969016016
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 969016011}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9d09db474dcc0d443a6f4aabbb997e2c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  trayManager: {fileID: 0}
+  button: {fileID: 0}
+  countText: {fileID: 976981151}
+  maxUsesPerLevel: 1
 --- !u!1 &976981149
 GameObject:
   m_ObjectHideFlags: 0
@@ -6555,6 +6656,11 @@ MonoBehaviour:
   foodYOffset: 0.1
   visibleRows: 3
   lockedAlpha: 0.8
+  targetCamera: {fileID: 0}
+  cameraTransitionDuration: 0.5
+  cameraEase: 7
+  queueCameraMargin: 1.5
+  cameraOffset: 8
 --- !u!1 &2135350543
 GameObject:
   m_ObjectHideFlags: 0
@@ -6581,7 +6687,7 @@ RectTransform:
   m_GameObject: {fileID: 2135350543}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.0011848, y: 1.0011848, z: 1}
+  m_LocalScale: {x: 1.0246913, y: 1.0246913, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 934538700}
@@ -6611,7 +6717,7 @@ MonoBehaviour:
   scaleStrength: 1
   minScale: 1
   maxScale: 1.6
-  currentAppliedScale: 1.0011848
+  currentAppliedScale: 1.0246913
 --- !u!1 &2135948226
 GameObject:
   m_ObjectHideFlags: 0
