@@ -92,5 +92,14 @@ namespace RestaurantLoop
         /// yeniden başlatmaz (AudioManager tarafında kontrol edilir).
         /// </summary>
         public static void PlayMusicForDifficulty(LevelDifficulty difficulty) => MusicForDifficultyRequested?.Invoke(difficulty);
+
+        // ---- Fail Müziği (level kaybedilince — ayrı, kendine has bir müzik) ----
+        public static event Action FailMusicRequested;
+
+        /// <summary>
+        /// Level FAIL olduğunda çağır — level müziğinden farklı, ayrı bir
+        /// "kaybetme" müziği/jingle'ı loop olarak başlatır.
+        /// </summary>
+        public static void PlayFailMusic() => FailMusicRequested?.Invoke();
     }
 }

@@ -1,3 +1,4 @@
+using System.Collections;
 using UnityEngine;
 
 namespace RestaurantLoop
@@ -19,8 +20,16 @@ namespace RestaurantLoop
         [Header("Economy Rewards & Penalties")]
         [SerializeField] private int coinsPerWin = 40;
 
+        [Header("Win/Fail Sonrası Durdurma")]
+        [Tooltip("Win/Fail olduktan kaç saniye sonra oyunun TAMAMEN durdurulacağı (Time.timeScale = 0). " +
+                 "Panelin fade-in animasyonunun tamamlanmasına yetecek kadar süre bırak — aksi halde fade " +
+                 "yarım kalmış görünür.")]
+        [SerializeField] private float pauseDelayAfterGameEnd = 1f;
+
         [Header("UI Reference")]
         [SerializeField] private LevelCompleteUI levelCompleteUI;
+        [Tooltip("Level FAIL olduğunda gösterilecek panel. Boş bırakılırsa Start()'ta otomatik aranır.")]
+        [SerializeField] private FailScreenUI failScreenUI;
         [Tooltip("In-game'de gösterilen 'Level X' üst bar objesi — kazanınca gizlenir (CurrencyBar ile üst üste binmesin diye).")]
         [SerializeField] private GameObject levelTopBar;
         [Tooltip("Bu SAHNEYE (Game) ait, bağımsız CurrencyBar instance'ı. Boş bırakılırsa Start()'ta otomatik aranır.")]
@@ -60,12 +69,22 @@ namespace RestaurantLoop
                 levelCompleteUI = FindFirstObjectByType<LevelCompleteUI>();
             }
 
+            if (failScreenUI == null)
+            {
+                failScreenUI = FindFirstObjectByType<FailScreenUI>();
+            }
+
             if (currencyBar == null)
             {
                 currencyBar = FindFirstObjectByType<CurrencyBar>();
             }
 
             currentState = GameState.Playing;
+
+            // ÖNEMLİ: Önceki bir Win/Fail'den kalma duraklamayı (Time.timeScale=0)
+            // temizliyoruz — bu sahne her yüklendiğinde oyun GARANTİ olarak
+            // normal hızda başlasın.
+            Time.timeScale = 1f;
 
             Debug.Log("===== GAME START =====");
         }
@@ -94,7 +113,21 @@ namespace RestaurantLoop
             AudioEvents.PlayLevelFail();
             PlayerData.ConsumeHeart();
 
+            // İSTEK: Kaybedince level müziği durup, level müziklerinden
+            // AYRI bir "fail müziği" çalmaya başlasın.
+            AudioEvents.StopMusic();
+            AudioEvents.PlayFailMusic();
+
             Debug.Log($"FAIL! Remaining hearts: {PlayerData.Hearts}");
+
+            if (failScreenUI != null)
+            {
+                failScreenUI.Show();
+            }
+            else
+            {
+                Debug.LogWarning("GameManager: FailScreenUI bulunamadı — fail ekranı gösterilemedi.");
+            }
 
             Debug.Log("=================================");
             Debug.Log("FAIL!");
@@ -103,6 +136,10 @@ namespace RestaurantLoop
 
             // ÖNEMLİ: FAIL'de level İLERLEMİYOR — oyuncu aynı level'i
             // tekrar oynayacak. PlayerData.CurrentLevel'e hiç dokunmuyoruz.
+
+            // Panel fade-in'i tamamlansın diye 1sn (parametrik) bekleyip
+            // oyunu tamamen durduruyoruz.
+            PauseGameplayAfterDelay();
         }
 
         /// <summary>
@@ -132,11 +169,6 @@ namespace RestaurantLoop
             //SFX
             AudioEvents.PlayLevelComplete();
 
-            // İSTEK: Kazanınca level top bar (Level X yazan üst bar) gizlenip
-            // yerine coin bar (CurrencyBar) açılıyor — ikisi üst üste binmesin.
-            // Coin ekleme artık bu SAHNEYE ait CurrencyBar üzerinden, ESKİ
-            // DEĞERDEN YENİ DEĞERE SAYARAK (parametrik süre/eğri, Inspector'dan
-            // ayarlanır) animasyonlu şekilde yapılıyor.
             if (levelTopBar != null)
                 levelTopBar.SetActive(false);
 
@@ -151,21 +183,6 @@ namespace RestaurantLoop
                 PlayerData.AddCoins(coinsPerWin);
             }
 
-            // ÖNEMLİ: Level kazanıldığı AN, bir sonraki level'e ilerliyoruz.
-            // Bu sadece PlayerData.CurrentLevel'i (PlayerPrefs'e kalıcı olarak)
-            // bir arttırır — HİÇBİR sahne yüklemez. Sahne geçişi (Ana Menü'ye
-            // dönme, bir sonraki level'i başlatma vb.) LevelCompleteUI'daki
-            // butonlar üzerinden ayrıca, SceneFlowManager ile yapılmaya devam
-            // ediyor. Burada ilerletmenin amacı: kullanıcı Ana Menü'ye
-            // döndüğünde, MainMenuLevelDisplay'in artık doğru (bir sonraki)
-            // level numarasını göstermesi ve Play'e tekrar basıldığında
-            // SceneFlowManager'ın doğru level'in LevelData'sını yüklemesi.
-            //
-            // GÜVENLİK: LevelManager.Instance null olabilir — örn. Game
-            // sahnesi Main Menu'den geçilmeden DİREKT Play'e basılarak test
-            // ediliyorsa (LevelManager'ın persistent singleton'ı hiç
-            // oluşmamış olur). Bu durumda level ilerlemesi atlanır ama WIN
-            // akışının geri kalanı (coin, UI) normal çalışmaya devam eder.
             if (LevelManager.Instance != null)
             {
                 LevelManager.Instance.AdvanceToNextLevel();
@@ -188,6 +205,28 @@ namespace RestaurantLoop
             Debug.Log("WIN!");
             Debug.Log("Tüm müşterilerin siparişleri karşılandı.");
             Debug.Log("=================================");
+
+            // Panel fade-in'i tamamlansın diye 1sn (parametrik) bekleyip
+            // oyunu tamamen durduruyoruz.
+            PauseGameplayAfterDelay();
+        }
+
+        /// <summary>
+        /// Win/Fail olduktan pauseDelayAfterGameEnd saniye sonra oyunu
+        /// TAMAMEN durdurur (Time.timeScale = 0). WaitForSecondsRealtime
+        /// kullanıyoruz ki timeScale'e bağlı kalmasın — normal WaitForSeconds
+        /// kullansaydık, timeScale sıfırlandığı anda kendi beklemesi de
+        /// donardı (paradoks).
+        /// </summary>
+        private void PauseGameplayAfterDelay()
+        {
+            StartCoroutine(PauseAfterDelayRoutine());
+        }
+
+        private IEnumerator PauseAfterDelayRoutine()
+        {
+            yield return new WaitForSecondsRealtime(pauseDelayAfterGameEnd);
+            Time.timeScale = 0f;
         }
 
         /// <summary>
