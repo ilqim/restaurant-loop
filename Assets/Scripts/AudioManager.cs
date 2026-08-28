@@ -12,29 +12,6 @@ namespace RestaurantLoop
         [Range(0f, 1f)] public float volume;
     }
 
-    /// <summary>
-    /// AudioEvents'e abone olup gerçek sesi çalan tek merkez. Diğer
-    /// scriptler bu sınıfı hiç görmez, sadece AudioEvents.PlayXxx()
-    /// çağırır — bkz. AudioEvents.cs.
-    ///
-    /// Neden tek bir AudioSource yeterli DEĞİL: aynı frame'de birden
-    /// fazla food'a aynı anda tıklanabilir ya da iki teslimat üst üste
-    /// gelebilir. Tek source kullansaydık, ikinci PlayOneShot çağrısı
-    /// birinciyi KESMEZ (PlayOneShot zaten üst üste çalabilir) ama biz
-    /// yine de birden fazla source'u round-robin döndürüyoruz ki farklı
-    /// sesler birbirini asla "override" etmesin ve volume/pitch gibi
-    /// per-clip ayarlar çakışmasın.
-    ///
-    /// Müzik tamamen ayrı bir AudioSource üzerinden, loop olarak çalar —
-    /// SFX one-shot source'larıyla hiç karışmaz, bu yüzden "hangi kanalda
-    /// çaldığı" her zaman net: AudioEvents.PlayMusic(...) -> musicSource,
-    /// AudioEvents.Play(...) / PlayXxx() -> oneShotSources.
-    ///
-    /// Ayar (müzik/sfx açık-kapalı) durumu GameSettings'te tutuluyor.
-    /// Burada sadece o duruma göre ilgili source'ları susturuyoruz/açıyoruz
-    /// — GameSettings sahne geçişinde zaten kalıcı (static), AudioManager
-    /// da DontDestroyOnLoad ile tek instance olarak kalıyor.
-    /// </summary>
     public class AudioManager : MonoBehaviour
     {
         public static AudioManager Instance { get; private set; }
@@ -44,24 +21,33 @@ namespace RestaurantLoop
         [SerializeField]
         private List<SfxClip> clips = new()
         {
-            new SfxClip { id = SfxId.ButtonClick, volume = 1f },           // button click.mp3
-            new SfxClip { id = SfxId.NegativeButtonClick, volume = 1f },   // negative button click.mp3
-            new SfxClip { id = SfxId.FoodClick, volume = 1f },             // food click.mp3
-            new SfxClip { id = SfxId.OrderDelivered, volume = 1f },        // sipariş teslim.mp3
-            new SfxClip { id = SfxId.New, volume = 1f },                   // new.wav
-            new SfxClip { id = SfxId.LevelComplete, volume = 1f },         // level win.mp3
-            new SfxClip { id = SfxId.LevelFail, volume = 1f },             // level fail.mp3
-            new SfxClip { id = SfxId.CoinEarn, volume = 1f },              // henüz clip yok
-            new SfxClip { id = SfxId.TimedCustomerFail, volume = 1f },     // henüz clip yok
+            new SfxClip { id = SfxId.ButtonClick, volume = 1f },
+            new SfxClip { id = SfxId.NegativeButtonClick, volume = 1f },
+            new SfxClip { id = SfxId.FoodClick, volume = 1f },
+            new SfxClip { id = SfxId.OrderDelivered, volume = 1f },
+            new SfxClip { id = SfxId.New, volume = 1f },
+            new SfxClip { id = SfxId.LevelComplete, volume = 1f },
+            new SfxClip { id = SfxId.LevelFail, volume = 1f },
+            new SfxClip { id = SfxId.CoinEarn, volume = 1f },
+            new SfxClip { id = SfxId.TimedCustomerFail, volume = 1f },
         };
 
         [Header("Süreli Müşteri Geri Sayım Sesi (loop — Start/Stop ile kontrol edilir, SFX kanalı sayılır)")]
         [SerializeField] private AudioClip timedCustomerCountdownClip;
         [Range(0f, 1f)] [SerializeField] private float timedCustomerCountdownVolume = 1f;
 
-        [Header("Müzik (loop — ayrı kanal, şu an sadece ana menüde çalıyor)")]
+        [Header("Müzik — Ana Menü (loop)")]
         [SerializeField] private AudioClip menuMusicClip;
         [Range(0f, 1f)] [SerializeField] private float menuMusicVolume = 1f;
+
+        [Header("Level Müzikleri — Zorluğa Göre (Game sahnesinde çalar)")]
+        [Tooltip("Level zorluğu Easy ise bu müzik çalar.")]
+        [SerializeField] private AudioClip easyMusicClip;
+        [Tooltip("Level zorluğu Hard ise bu müzik çalar.")]
+        [SerializeField] private AudioClip hardMusicClip;
+        [Tooltip("Level zorluğu SuperHard ise bu müzik çalar.")]
+        [SerializeField] private AudioClip superHardMusicClip;
+        [Range(0f, 1f)] [SerializeField] private float levelMusicVolume = 1f;
 
         [Header("Kaynaklar")]
         [Tooltip("Aynı anda üst üste binen one-shot sesler için havuz boyutu. 3-4 genelde yeterli.")]
@@ -143,6 +129,7 @@ namespace RestaurantLoop
             AudioEvents.TimedCustomerCountdownStopRequested += HandleCountdownStop;
             AudioEvents.MusicPlayRequested += HandlePlayMusic;
             AudioEvents.MusicStopRequested += HandleMusicStop;
+            AudioEvents.MusicForDifficultyRequested += PlayMusicForDifficulty;
 
             GameSettings.MusicEnabledChanged += HandleMusicEnabledChanged;
             GameSettings.SfxEnabledChanged += HandleSfxEnabledChanged;
@@ -155,6 +142,7 @@ namespace RestaurantLoop
             AudioEvents.TimedCustomerCountdownStopRequested -= HandleCountdownStop;
             AudioEvents.MusicPlayRequested -= HandlePlayMusic;
             AudioEvents.MusicStopRequested -= HandleMusicStop;
+            AudioEvents.MusicForDifficultyRequested -= PlayMusicForDifficulty;
 
             GameSettings.MusicEnabledChanged -= HandleMusicEnabledChanged;
             GameSettings.SfxEnabledChanged -= HandleSfxEnabledChanged;
@@ -162,11 +150,6 @@ namespace RestaurantLoop
 
         private void HandleSfxRequested(SfxId id) => PlaySfx(id);
 
-        /// <summary>
-        /// Doğrudan da çağrılabilir (AudioManager.Instance.PlaySfx(...)),
-        /// ama önerilen yol AudioEvents üzerinden gitmek — diğer
-        /// scriptlerin bu sınıfa referans tutmasını gerektirmiyor.
-        /// </summary>
         public void PlaySfx(SfxId id)
         {
             if (!GameSettings.SfxEnabled)
@@ -207,7 +190,7 @@ namespace RestaurantLoop
         }
 
         /// <summary>
-        /// Doğrudan da çağrılabilir, ama önerilen yol AudioEvents.PlayMusic().
+        /// ANA MENÜ müziği. AudioEvents.PlayMusic() üzerinden çağrılır.
         /// Zaten çalıyorsa yeniden baştan başlatmaz.
         /// </summary>
         public void HandlePlayMusic()
@@ -227,6 +210,37 @@ namespace RestaurantLoop
             musicSource.Play();
         }
 
+        /// <summary>
+        /// LEVEL MÜZİĞİ — LevelManager, Game sahnesi yüklendiğinde o anki
+        /// level'in zorluğuna göre bunu çağırır. AYNI musicSource'u
+        /// kullanır (menü müziğiyle aynı kanal) — zaten çalan clip
+        /// istenenle aynıysa yeniden başlatmaz.
+        /// </summary>
+        public void PlayMusicForDifficulty(LevelDifficulty difficulty)
+        {
+            AudioClip clip = difficulty switch
+            {
+                LevelDifficulty.Easy => easyMusicClip,
+                LevelDifficulty.Hard => hardMusicClip,
+                LevelDifficulty.SuperHard => superHardMusicClip,
+                _ => null
+            };
+
+            if (clip == null)
+            {
+                Debug.LogWarning($"AudioManager: '{difficulty}' zorluğu için müzik clip'i atanmamış (Inspector'dan sürükle).");
+                return;
+            }
+
+            if (musicSource.isPlaying && musicSource.clip == clip)
+                return;
+
+            musicSource.clip = clip;
+            musicSource.volume = levelMusicVolume;
+            musicSource.mute = !GameSettings.MusicEnabled;
+            musicSource.Play();
+        }
+
         private void HandleMusicStop()
         {
             if (musicSource.isPlaying)
@@ -237,9 +251,6 @@ namespace RestaurantLoop
 
         private void HandleSfxEnabledChanged(bool enabled)
         {
-            // One-shot'lar zaten anlık çaldığı için PlaySfx içindeki kontrol
-            // yeterli; ama countdown loop şu an çalıyor olabilir, onu da
-            // anında suspend/resume etmemiz lazım.
             countdownSource.mute = !enabled;
         }
     }

@@ -50,6 +50,10 @@ namespace RestaurantLoop
         [Tooltip("Shuffle booster bu level numarasından İTİBAREN (>=) açılır/interactable olur.")]
         [SerializeField] private int shuffleBoosterUnlockLevel = 15;
 
+        [Header("Level Müziği")]
+        [Tooltip("Bu sahne yüklendiğinde, o anki level'in zorluğuna göre müzik otomatik çalar (AudioManager.PlayMusicForDifficulty). SceneFlowManager'daki 'Gameplay Scene Name' ile aynı olmalı.")]
+        [SerializeField] private string gameplaySceneName = "Game";
+
         public int TotalLevelCount => levels.Count;
 
         /// <summary>Şu anki level numarası (1'den başlar), toplam level sayısına clamp'lenmiş.</summary>
@@ -164,6 +168,23 @@ namespace RestaurantLoop
             foreach (var gate in allMonoBehaviours.OfType<IBoosterLevelGate>())
             {
                 gate.RefreshLevelGate();
+            }
+
+            // 3) LEVEL MÜZİĞİ — SADECE Game sahnesinde, o anki level'in
+            // zorluğuna (Easy/Hard/SuperHard) göre otomatik çalar. AudioManager'a
+            // DOĞRUDAN referans TUTMUYORUZ — mimari gereği tüm ses istekleri
+            // AudioEvents üzerinden gider (AudioManager sahnede yoksa bile
+            // hiçbir şey patlamaz, sadece sessiz kalır).
+            if (scene.name == gameplaySceneName)
+            {
+                if (TryGetLevelDifficulty(CurrentLevel, out LevelDifficulty difficulty))
+                {
+                    AudioEvents.PlayMusicForDifficulty(difficulty);
+                }
+                else
+                {
+                    Debug.LogWarning($"LevelManager: Level {CurrentLevel} için zorluk bilgisi bulunamadı — level müziği çalınamadı.");
+                }
             }
         }
     }

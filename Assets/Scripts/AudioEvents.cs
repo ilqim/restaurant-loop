@@ -72,7 +72,7 @@ namespace RestaurantLoop
         /// <summary>Süreli müşteri sonuçlandığında (teslim edildi/fail oldu/despawn) çağır — loop durur.</summary>
         public static void StopTimedCustomerCountdown() => TimedCustomerCountdownStopRequested?.Invoke();
 
-        // ---- Müzik (ayrı kanal — şu an tek parça: sadece ana menüde çalıyor) ----
+        // ---- Müzik (ayrı kanal — ana menüde çalıyor) ----
         public static event Action MusicPlayRequested;
         public static event Action MusicStopRequested;
 
@@ -81,5 +81,16 @@ namespace RestaurantLoop
 
         /// <summary>Müzik kanalını durdurur (ör. oyun sahnesine geçince).</summary>
         public static void StopMusic() => MusicStopRequested?.Invoke();
+
+        // ---- Level Müziği (zorluğa göre — Game sahnesinde çalar) ----
+        public static event Action<LevelDifficulty> MusicForDifficultyRequested;
+
+        /// <summary>
+        /// Belirtilen zorluğun (Easy/Hard/SuperHard) müziğini loop olarak
+        /// başlatır — LevelManager, Game sahnesi yüklendiğinde o anki
+        /// level'in zorluğuyla bunu çağırır. Zaten aynı clip çalıyorsa
+        /// yeniden başlatmaz (AudioManager tarafında kontrol edilir).
+        /// </summary>
+        public static void PlayMusicForDifficulty(LevelDifficulty difficulty) => MusicForDifficultyRequested?.Invoke(difficulty);
     }
 }
