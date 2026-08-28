@@ -146,9 +146,6 @@ MonoBehaviour:
   labelColor: {r: 1, g: 1, b: 1, a: 1}
   currentState: 1
   verboseLogging: 1
-  queueSprite: {fileID: 21300000, guid: a8df6b42ade65bd439011c8ebdebefef, type: 3}
-  queueColor: {r: 1, g: 0.7882353, b: 0.15686275, a: 1}
-  slotColorHex: '#FFC928'
 --- !u!1 &2165531453432303332
 GameObject:
   m_ObjectHideFlags: 0
@@ -262,7 +259,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0.7071068, z: -0.7071068, w: 0}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 2, y: 2, z: 2}
+  m_LocalScale: {x: 1.9999999, y: 1.9999999, z: 1.9999999}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 719083500054721143}
@@ -311,7 +308,7 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 101
-  m_Sprite: {fileID: 21300000, guid: 1d9be727bc981d94f9b15390ed3082ad, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 160b4e649bc2acc4cb2964af5f52277c, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
