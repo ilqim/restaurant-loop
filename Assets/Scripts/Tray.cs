@@ -941,6 +941,9 @@ namespace RestaurantLoop
                 return;
             }
 
+            float startScale = config.deliveryStartScale > 0.001f ? config.deliveryStartScale : 0.35f;
+            float endScale = config.deliveryEndScale > 0.001f ? config.deliveryEndScale : 1f;
+
             ObjectPool.Instance.StartCoroutine(
                 DeliverCloneRoutine(
                     this,
@@ -950,7 +953,9 @@ namespace RestaurantLoop
                     target,
                     config.deliverySpeed,
                     config.deliverySpinSpeed,
-                    config.deliverySpinAxis
+                    config.deliverySpinAxis,
+                    startScale,
+                    endScale
                 )
             );
         }
@@ -963,7 +968,9 @@ namespace RestaurantLoop
             Customer target,
             float speed,
             float spinSpeed,
-            Vector3 spinAxis)
+            Vector3 spinAxis,
+            float startScaleMultiplier = 0.3f,
+            float endScaleMultiplier = 1f)
         {
             GameObject clone =
                 ObjectPool.Instance.Get(
@@ -984,6 +991,12 @@ namespace RestaurantLoop
 
                 yield break;
             }
+
+            Vector3 baseScale = clone.GetComponent<PooledObject>() != null 
+            ? clone.GetComponent<PooledObject>().OriginalLocalScale 
+            : prefab.transform.localScale;
+
+            clone.transform.localScale = baseScale * Mathf.Max(0.01f,startScaleMultiplier);
 
             TrailRenderer trail =
                 clone.GetComponent<TrailRenderer>();
@@ -1051,6 +1064,9 @@ namespace RestaurantLoop
                         t
                     );
 
+                float scaleProgress = Mathf.SmoothStep(startScaleMultiplier, endScaleMultiplier, t);
+                clone.transform.localScale = baseScale * scaleProgress;
+
                 if (spinSpeed != 0f)
                 {
                     clone.transform.Rotate(
@@ -1066,6 +1082,7 @@ namespace RestaurantLoop
             if (clone != null)
             {
                 clone.transform.position = targetPos;
+                clone.transform.localScale = baseScale * endScaleMultiplier;
 
                 if (trail != null)
                 {
