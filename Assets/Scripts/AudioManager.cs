@@ -49,6 +49,11 @@ namespace RestaurantLoop
         [SerializeField] private AudioClip superHardMusicClip;
         [Range(0f, 1f)] [SerializeField] private float levelMusicVolume = 1f;
 
+        [Header("Fail Müziği (level kaybedilince)")]
+        [Tooltip("Level FAIL olduğunda çalacak, level müziklerinden AYRI bir müzik/jingle.")]
+        [SerializeField] private AudioClip failMusicClip;
+        [Range(0f, 1f)] [SerializeField] private float failMusicVolume = 1f;
+
         [Header("Kaynaklar")]
         [Tooltip("Aynı anda üst üste binen one-shot sesler için havuz boyutu. 3-4 genelde yeterli.")]
         [SerializeField] private int oneShotSourceCount = 4;
@@ -130,6 +135,7 @@ namespace RestaurantLoop
             AudioEvents.MusicPlayRequested += HandlePlayMusic;
             AudioEvents.MusicStopRequested += HandleMusicStop;
             AudioEvents.MusicForDifficultyRequested += PlayMusicForDifficulty;
+            AudioEvents.FailMusicRequested += PlayFailMusic;
 
             GameSettings.MusicEnabledChanged += HandleMusicEnabledChanged;
             GameSettings.SfxEnabledChanged += HandleSfxEnabledChanged;
@@ -143,6 +149,7 @@ namespace RestaurantLoop
             AudioEvents.MusicPlayRequested -= HandlePlayMusic;
             AudioEvents.MusicStopRequested -= HandleMusicStop;
             AudioEvents.MusicForDifficultyRequested -= PlayMusicForDifficulty;
+            AudioEvents.FailMusicRequested -= PlayFailMusic;
 
             GameSettings.MusicEnabledChanged -= HandleMusicEnabledChanged;
             GameSettings.SfxEnabledChanged -= HandleSfxEnabledChanged;
@@ -237,6 +244,28 @@ namespace RestaurantLoop
 
             musicSource.clip = clip;
             musicSource.volume = levelMusicVolume;
+            musicSource.mute = !GameSettings.MusicEnabled;
+            musicSource.Play();
+        }
+
+        /// <summary>
+        /// FAIL MÜZİĞİ — level müziklerinden AYRI, kendine has bir müzik/
+        /// jingle. AYNI musicSource'u kullanır (tek müzik kanalı), zaten
+        /// çalan clip aynıysa yeniden başlatmaz.
+        /// </summary>
+        public void PlayFailMusic()
+        {
+            if (failMusicClip == null)
+            {
+                Debug.LogWarning("AudioManager: Fail Music Clip atanmamış (Inspector'dan sürükle).");
+                return;
+            }
+
+            if (musicSource.isPlaying && musicSource.clip == failMusicClip)
+                return;
+
+            musicSource.clip = failMusicClip;
+            musicSource.volume = failMusicVolume;
             musicSource.mute = !GameSettings.MusicEnabled;
             musicSource.Play();
         }

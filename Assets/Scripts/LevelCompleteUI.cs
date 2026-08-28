@@ -61,8 +61,12 @@ namespace RestaurantLoop
             {
                 panelCanvasGroup.blocksRaycasts = true;
                 panelCanvasGroup.alpha = 0f;
-                panelCanvasGroup.DOFade(1f, fadeDuration);
-                yield return new WaitForSeconds(fadeDuration);
+                // PAUSE-GÜVENLİ: SetUpdate(true) — GameManager, Win'den ~1sn
+                // sonra Time.timeScale = 0 yapıyor. Bu tween scaled kalsaydı,
+                // pause tam bu fade sırasında tetiklenirse yarım kalırdı.
+                panelCanvasGroup.DOFade(1f, fadeDuration).SetUpdate(true);
+                // PAUSE-GÜVENLİ: WaitForSecondsRealtime — aynı sebep.
+                yield return new WaitForSecondsRealtime(fadeDuration);
                 panelCanvasGroup.interactable = true;
             }
 
@@ -108,13 +112,19 @@ namespace RestaurantLoop
                 // Scale: küçük (0.1) -> büyük (1.3) -> küçük (0.6) — üç aşamalı.
                 // Büyüme, hareketin ilk %40'ında biter; küçülme kalan %60'ında
                 // gerçekleşip coin hedefe varırken küçülmüş halde tamamlanır.
+                // PAUSE-GÜVENLİ: SetUpdate(true) — bu animasyon (totalDelay +
+                // moveDuration, varsayılan ~1.2sn) GameManager'ın 1sn'lik
+                // pause gecikmesini AŞABİLİR; scaled kalsaydı pause tam bu
+                // sırada tetiklenirse coin havada donup kalırdı.
                 Sequence scaleSequence = DOTween.Sequence();
+                scaleSequence.SetUpdate(true);
                 scaleSequence.SetDelay(delay);
                 scaleSequence.Append(rect.DOScale(1.3f, moveDuration * 0.4f).SetEase(Ease.OutBack));
                 scaleSequence.Append(rect.DOScale(0.6f, moveDuration * 0.6f).SetEase(Ease.InQuad));
 
                 // Move to target
                 rect.DOMove(coinTargetPoint.position, moveDuration)
+                    .SetUpdate(true)
                     .SetDelay(delay)
                     .SetEase(moveEase)
                     .OnComplete(() =>
@@ -123,7 +133,7 @@ namespace RestaurantLoop
                         SetCoinText($"+{displayedCoins}");
 
                         // Punch scale the target UI icon if desired
-                        coinTargetPoint.DOPunchScale(Vector3.one * 0.15f, 0.1f, 5, 1);
+                        coinTargetPoint.DOPunchScale(Vector3.one * 0.15f, 0.1f, 5, 1).SetUpdate(true);
 
                         activeCoins.Remove(coin);
                         Destroy(coin);
@@ -134,7 +144,7 @@ namespace RestaurantLoop
             DOVirtual.DelayedCall(totalDelay + moveDuration, () =>
             {
                 SetCoinText($"+{earnedAmount}");
-            });
+            }).SetUpdate(true);
         }
 
         private void SetCoinText(string text)

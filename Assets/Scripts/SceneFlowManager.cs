@@ -76,13 +76,19 @@ namespace RestaurantLoop
                 startupCanvasGroup.alpha = 1f;
                 startupCanvasGroup.blocksRaycasts = true;
 
-                yield return new WaitForSeconds(startupHoldDuration);
+                // PAUSE-GÜVENLİ: WaitForSecondsRealtime — Time.timeScale = 0
+                // olsa bile (ör. bir önceki Win/Fail'den kalma durumda) bu
+                // bekleme donmasın diye.
+                yield return new WaitForSecondsRealtime(startupHoldDuration);
 
                 float elapsed = 0f;
 
                 while (elapsed < startupFadeDuration)
                 {
-                    elapsed += Time.deltaTime;
+                    // PAUSE-GÜVENLİ: Time.unscaledDeltaTime — Time.timeScale
+                    // = 0 iken normal Time.deltaTime hep 0 döner, bu da bu
+                    // döngünün sonsuza kadar takılı kalmasına yol açardı.
+                    elapsed += Time.unscaledDeltaTime;
 
                     startupCanvasGroup.alpha =
                         Mathf.Lerp(1f, 0f, elapsed / startupFadeDuration);
@@ -162,7 +168,13 @@ namespace RestaurantLoop
 
             while (!op.isDone)
             {
-                loadTimer += Time.deltaTime;
+                // PAUSE-GÜVENLİ: Time.unscaledDeltaTime — bu, "buton
+                // çalışmıyor" gibi görünen asıl sorunu çözüyor. Time.timeScale
+                // = 0 iken normal Time.deltaTime hep 0 döndüğü için, bu
+                // sayaç asla ilerlemez ve sahne geçişi sessizce sonsuza
+                // kadar takılı kalırdı (RETRY/HOME butonlarına basınca
+                // "hiçbir şey olmuyormuş" gibi görünmesinin sebebi buydu).
+                loadTimer += Time.unscaledDeltaTime;
 
                 // Unity loads the scene to 90%, then waits for activation.
                 if (op.progress >= 0.9f &&
@@ -239,7 +251,8 @@ namespace RestaurantLoop
                 if (index >= loadingStates.Length)
                     index = 0;
 
-                yield return new WaitForSeconds(loadingTextInterval);
+                // PAUSE-GÜVENLİ: WaitForSecondsRealtime — aynı sebep.
+                yield return new WaitForSecondsRealtime(loadingTextInterval);
             }
         }
 
@@ -263,7 +276,8 @@ namespace RestaurantLoop
 
             while (elapsed < duration)
             {
-                elapsed += Time.deltaTime;
+                // PAUSE-GÜVENLİ: Time.unscaledDeltaTime — aynı sebep.
+                elapsed += Time.unscaledDeltaTime;
 
                 group.alpha =
                     Mathf.Lerp(
