@@ -101,8 +101,13 @@ namespace RestaurantLoop
 
                 float delay = i * delayPerCoin;
 
-                // Scale up
-                rect.DOScale(1f, 0.2f).SetDelay(delay);
+                // Scale: küçük (0.1) -> büyük (1.3) -> küçük (0.6) — üç aşamalı.
+                // Büyüme, hareketin ilk %40'ında biter; küçülme kalan %60'ında
+                // gerçekleşip coin hedefe varırken küçülmüş halde tamamlanır.
+                Sequence scaleSequence = DOTween.Sequence();
+                scaleSequence.SetDelay(delay);
+                scaleSequence.Append(rect.DOScale(1.3f, moveDuration * 0.4f).SetEase(Ease.OutBack));
+                scaleSequence.Append(rect.DOScale(0.6f, moveDuration * 0.6f).SetEase(Ease.InQuad));
 
                 // Move to target
                 rect.DOMove(coinTargetPoint.position, moveDuration)

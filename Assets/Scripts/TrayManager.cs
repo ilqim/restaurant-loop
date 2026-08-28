@@ -62,7 +62,9 @@ namespace RestaurantLoop
         [Tooltip("Başlangıçta Tray Base alanında yan yana duracak boş tepsi sayısı.")]
         [SerializeField] private int initialBaseTrays = 6;
 
-        [Tooltip("Tepsilerin Base alanında duruş açısı (Z: +90).")]
+        [Tooltip("Tepsilerin Base alanında duruş açısı (Z: +90). ÖNEMLİ: Bu rotasyon artık Tray'in KENDİ " +
+                 "KÖKÜNE değil, Tray.cs içindeki ModelPivot'a (Visual Model) uygulanır — kök obje asla " +
+                 "döndürülmez, sadece pozisyon taşır.")]
         [SerializeField] private Vector3 baseStackRotation = new Vector3(0f, 0f, 90f);
 
         [Tooltip("Tepsilerin Base'de yan yana dizilme aralığı.")]
@@ -169,10 +171,17 @@ namespace RestaurantLoop
             {
                 Vector3 spawnPos = GetBaseStackPosition(i);
 
+                // ÖNEMLİ: Kök obje HER ZAMAN Quaternion.identity ile spawn
+                // edilir — BaseStackRotation ARTIK KÖKE DEĞİL, hemen aşağıda
+                // çağrılan ParkAtBase() içinde Tray'in kendi ModelPivot'una
+                // uygulanıyor. Kökü burada BaseStackRotation ile spawn edip
+                // sonra ParkAtBase'in ModelPivot'u AYRICA döndürmesi, kökün
+                // gereksiz yere kalıcı bir rotasyon taşımasına (ve buna bağlı
+                // CountLabel gibi child'ların tutarsız davranmasına) yol açardı.
                 GameObject trayGo = Instantiate(
                     trayPrefab,
                     spawnPos,
-                    BaseStackRotation,
+                    Quaternion.identity,
                     transform
                 );
 
@@ -304,7 +313,15 @@ namespace RestaurantLoop
             Vector3 finalSlotPos = GetBaseStackPosition(targetIndex);
 
             tray.transform.position = finalSlotPos;
-            tray.transform.rotation = BaseStackRotation;
+
+            // ÖNEMLİ: Kökün rotasyonuna DOKUNMUYORUZ artık — her zaman
+            // Quaternion.identity'de sabit kalması gerekiyor. BaseStackRotation
+            // (Z=90 vb.), az aşağıda çağrılan ParkAtBase() içinde Tray'in kendi
+            // ModelPivot'una uygulanıyor. Burada eskiden "tray.transform.rotation
+            // = BaseStackRotation" satırı vardı — kökü gereksiz yere döndürüp
+            // CountLabel gibi kökün child'larının tutarsız görünmesine sebep
+            // oluyordu. O satır kaldırıldı.
+            tray.transform.rotation = Quaternion.identity;
 
             tray.ParkAtBase(this, finalSlotPos);
 
@@ -361,8 +378,11 @@ namespace RestaurantLoop
                                 t
                             );
 
-                        trayBaseQueue[i].transform.rotation =
-                            BaseStackRotation;
+                        // ÖNEMLİ: Kökün rotasyonuna artık dokunmuyoruz —
+                        // her zaman identity kalması gerekiyor. Base'de
+                        // beklerken görsel yönelim zaten ParkAtBase()
+                        // üzerinden ModelPivot'a uygulanmış durumda,
+                        // kaydırma sırasında tekrar ayarlamaya gerek yok.
                     }
                 }
 
@@ -374,7 +394,6 @@ namespace RestaurantLoop
                 if (trayBaseQueue[i] != null)
                 {
                     trayBaseQueue[i].transform.position = targetPositions[i];
-                    trayBaseQueue[i].transform.rotation = BaseStackRotation;
                 }
             }
 
@@ -452,10 +471,12 @@ namespace RestaurantLoop
             int newIndex = trayBaseQueue.Count;
             Vector3 spawnPos = GetBaseStackPosition(newIndex);
 
+            // ÖNEMLİ: Kök yine identity ile spawn edilir, ParkAtBase
+            // ModelPivot'u doğru döndürür.
             GameObject trayGo = Instantiate(
                 trayPrefab,
                 spawnPos,
-                BaseStackRotation,
+                Quaternion.identity,
                 transform
             );
 
