@@ -7,7 +7,8 @@ namespace RestaurantLoop
     /// <summary>
     /// Shuffle booster butonu. Basıldığında QueueManager.ShuffleQueue()'yu
     /// çağırır, hakkı PlayerData üzerinden (kalıcı olarak) 1 azaltır.
-    /// Hak 0'a inince buton otomatik olarak interactable=false olur.
+    /// Hak 0'a inince VEYA level'a göre henüz açılmamışsa buton otomatik
+    /// olarak interactable=false olur.
     ///
     /// ÖNEMLİ: Sayaç artık burada TUTULMUYOR — tek doğruluk kaynağı
     /// PlayerData.ShuffleBoosterCount (PlayerPrefs'e kalıcı, coin/can ile
@@ -19,7 +20,7 @@ namespace RestaurantLoop
     /// OnShuffleButtonPressed() metodunu bağla.
     /// </summary>
     [RequireComponent(typeof(Button))]
-    public class ShuffleBoosterButton : MonoBehaviour
+    public class ShuffleBoosterButton : MonoBehaviour, IBoosterLevelGate
     {
         [Header("Referanslar")]
         [Tooltip("Boş bırakılırsa sahnede otomatik aranır.")]
@@ -28,6 +29,10 @@ namespace RestaurantLoop
         [SerializeField] private Button button;
         [Tooltip("Opsiyonel — kalan hak sayısını gösteren text (örn. '99').")]
         [SerializeField] private TMP_Text countText;
+
+        // LevelManager'dan gelen "bu level'de açık mı" bilgisi — RefreshLevelGate
+        // ile güncellenir, RefreshUI bunu hak sayısıyla BİRLİKTE değerlendirir.
+        private bool unlockedByLevel = true;
 
         private void Awake()
         {
@@ -38,7 +43,7 @@ namespace RestaurantLoop
         private void OnEnable()
         {
             PlayerData.BoosterCountChanged += OnBoosterCountChanged;
-            RefreshUI();
+            RefreshLevelGate();
         }
 
         private void OnDisable()
@@ -52,9 +57,24 @@ namespace RestaurantLoop
                 RefreshUI();
         }
 
+        /// <summary>
+        /// IBoosterLevelGate — LevelManager, Game sahnesi her yüklendiğinde
+        /// bunu çağırır. "Şu anki level'de bu booster açık mı" bilgisini
+        /// LevelManager'dan sorup UI'ı günceller.
+        /// </summary>
+        public void RefreshLevelGate()
+        {
+            unlockedByLevel = LevelManager.Instance == null ||
+                               LevelManager.Instance.IsBoosterUnlocked(BoosterType.Shuffle);
+            RefreshUI();
+        }
+
         /// <summary>Butonun OnClick()'ine bağlanacak metod.</summary>
         public void OnShuffleButtonPressed()
         {
+            if (!unlockedByLevel)
+                return;
+
             if (queueManager == null)
             {
                 Debug.LogWarning("ShuffleBoosterButton: Sahnede QueueManager bulunamadı.");
@@ -85,7 +105,7 @@ namespace RestaurantLoop
                 countText.text = remaining.ToString();
 
             if (button != null)
-                button.interactable = remaining > 0;
+                button.interactable = unlockedByLevel && remaining > 0;
         }
     }
 }

@@ -466,7 +466,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   renderersToFade: []
-  blockedAlpha: 0.35
+  blockedAlpha: 0.75
   orderBubble: {fileID: 0}
   currentState: 0
   verboseLogging: 1

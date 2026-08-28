@@ -5,7 +5,7 @@ using UnityEngine.UI;
 namespace RestaurantLoop
 {
     [RequireComponent(typeof(Button))]
-    public class AddTrayBoosterButton : MonoBehaviour
+    public class AddTrayBoosterButton : MonoBehaviour, IBoosterLevelGate
     {
         [Header("Referanslar")]
         [Tooltip("Boş bırakılırsa sahnede otomatik aranır.")]
@@ -21,6 +21,9 @@ namespace RestaurantLoop
 
         private int usesThisLevel = 0;
 
+        // LevelManager'dan gelen "bu level'de açık mı" bilgisi.
+        private bool unlockedByLevel = true;
+
         private void Awake()
         {
             if (button == null) button = GetComponent<Button>();
@@ -30,7 +33,7 @@ namespace RestaurantLoop
         private void OnEnable()
         {
             PlayerData.BoosterCountChanged += OnBoosterCountChanged;
-            RefreshUI();
+            RefreshLevelGate();
         }
 
         private void OnDisable()
@@ -44,8 +47,22 @@ namespace RestaurantLoop
                 RefreshUI();
         }
 
+        /// <summary>
+        /// IBoosterLevelGate — LevelManager, Game sahnesi her yüklendiğinde
+        /// bunu çağırır.
+        /// </summary>
+        public void RefreshLevelGate()
+        {
+            unlockedByLevel = LevelManager.Instance == null ||
+                               LevelManager.Instance.IsBoosterUnlocked(BoosterType.AddTray);
+            RefreshUI();
+        }
+
         public void OnAddTrayButtonPressed()
         {
+            if (!unlockedByLevel)
+                return;
+
             if (trayManager == null)
                 trayManager = FindFirstObjectByType<TrayManager>();
 
@@ -77,7 +94,7 @@ namespace RestaurantLoop
                 countText.text = remaining.ToString();
 
             if (button != null)
-                button.interactable = remaining > 0 && usesThisLevel < maxUsesPerLevel;
+                button.interactable = unlockedByLevel && remaining > 0 && usesThisLevel < maxUsesPerLevel;
         }
     }
 }
