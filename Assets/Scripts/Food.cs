@@ -31,6 +31,10 @@ namespace RestaurantLoop
         [Tooltip("Uçuş ve conveyordayken aktif olan 3D objesi.")]
         [SerializeField] private GameObject modelVisual;
 
+        [Header("Blocked/Locked Görsel (Çapraz Solma)")]
+        [Tooltip("Blocked (kilitli) durumdayken görünecek SpriteRenderer — artık '2D Visual'ın child'ı OLMAK ZORUNDA DEĞİL, buraya elle sürükle.")]
+        [SerializeField] private SpriteRenderer blockedSpriteRenderer;
+
         [Header("Zıplama Animasyonu")]
         [SerializeField] private float jumpDuration = 0.35f;
         [SerializeField] private float jumpPower = 1.2f;
@@ -50,6 +54,14 @@ namespace RestaurantLoop
 
         private static readonly int BlockedBaseColorId = Shader.PropertyToID("_BaseColor");
         private MaterialPropertyBlock mpb;
+
+        // 2D Visual'ın kendi SpriteRenderer'ı ve onun "Blocked" child'ının
+        // SpriteRenderer'ı — Blocked/Available arası ÇAPRAZ SOLMA
+        // (crossfade) için cache'leniyor. ApplyBlockedVisual (RGB karartma)
+        // farklı bir mekanizma — bu ikisi karıştırılmasın.
+        private SpriteRenderer twoDVisualRenderer;
+        private SpriteRenderer blockedChildRenderer;
+        private bool blockedRenderersCached;
 
         private bool queueStatePreset;
         private TextMesh capacityLabel;
@@ -88,6 +100,12 @@ namespace RestaurantLoop
                 var mr = GetComponentInChildren<MeshRenderer>(true);
                 if(mr != null) modelVisual = mr.gameObject;
             }
+
+            // Oyun başlar başlamaz (Blocked mı değil mi kontrol edilerek)
+            // alfaları ANINDA doğru değere sabitliyoruz — Editor'de prefab
+            // üzerinde bırakılmış olabilecek yanlış varsayılan alfa
+            // değerlerine güvenmiyoruz.
+            EnsureBlockedRenderersCached();
         }
 
         private void Start()
@@ -203,6 +221,126 @@ namespace RestaurantLoop
                 mpb.SetColor(BlockedBaseColorId, baseColor);
                 r.SetPropertyBlock(mpb);
             }
+        }
+
+        /// <summary>
+        /// "2D Visual" (parent, kendi SpriteRenderer'ı — Available/normal
+        /// görünüm) ile onun "Blocked" child'ının SpriteRenderer'ı (Locked
+        /// görünüm) arasında ÇAPRAZ SOLMA yapar:
+        /// - isBlocked=true  -> Blocked child alfa=1, 2D Visual'ın kendi alfa=0
+        /// - isBlocked=false -> 2D Visual'ın kendi alfa=1, Blocked child alfa=0
+        ///
+        /// duration=0 verilirsen ANINDA (animasyonsuz) uygulanır — ilk
+        /// spawn/kurulum için. duration>0 verilirsen DOTween ile o sürede
+        /// YUMUŞAKÇA geçiş yapar — QueueManager'daki "öne kayma" (shift)
+        /// animasyonuyla AYNI süreyi vererek, pozisyon değişimiyle TAM
+        /// SENKRON bir Blocked->Available geçişi elde edilir.
+        /// </summary>
+        public void SetBlockedCrossfade(bool isBlocked, float duration = 0f)
+        {
+            EnsureBlockedRenderersCached();
+
+            // TEŞHİS — sorun bulununca bu satırı sil.
+            Debug.Log($"[TEŞHİS] {gameObject.name} SetBlockedCrossfade(isBlocked={isBlocked}, duration={duration}) — " +
+                      $"twoDVisualRenderer null mu={twoDVisualRenderer == null}, blockedChildRenderer null mu={blockedChildRenderer == null}", this);
+
+            if (duration <= 0f)
+            {
+                ApplyCrossfadeInstant(isBlocked);
+                return;
+            }
+
+            float targetVisualAlpha = isBlocked ? 0f : 1f;
+            float targetBlockedAlpha = isBlocked ? 1f : 0f;
+
+            if (twoDVisualRenderer != null)
+            {
+                twoDVisualRenderer.DOKill();
+                twoDVisualRenderer.DOFade(targetVisualAlpha, duration).OnUpdate(() =>
+                {
+                    Debug.Log($"[TEŞHİS] {gameObject.name} twoDVisualRenderer.color.a ŞU AN = {twoDVisualRenderer.color.a}", this);
+                });
+            }
+
+            if (blockedChildRenderer != null)
+            {
+                blockedChildRenderer.DOKill();
+                blockedChildRenderer.DOFade(targetBlockedAlpha, duration).OnUpdate(() =>
+                {
+                    Debug.Log($"[TEŞHİS] {gameObject.name} blockedChildRenderer.color.a ŞU AN = {blockedChildRenderer.color.a}", this);
+                });
+            }
+        }
+
+        /// <summary>
+        /// Alfayı ANINDA (animasyonsuz) set eder — RGB'ye ASLA dokunmaz,
+        /// sadece .color.a değiştirir. Hem ilk kurulum (Awake) hem
+        /// SetBlockedCrossfade'in duration=0 dalı bunu kullanır — tek bir
+        /// yerden, tutarlı şekilde.
+        /// </summary>
+        private void ApplyCrossfadeInstant(bool isBlocked)
+        {
+            float targetVisualAlpha = isBlocked ? 0f : 1f;
+            float targetBlockedAlpha = isBlocked ? 1f : 0f;
+
+            if (twoDVisualRenderer != null)
+            {
+                Color c = twoDVisualRenderer.color; // RGB'ye dokunulmuyor
+                c.a = targetVisualAlpha;
+                twoDVisualRenderer.color = c;
+
+                // TEŞHİS — sorun bulununca bu satırı sil.
+                Debug.Log($"[TEŞHİS] {gameObject.name} ApplyCrossfadeInstant: twoDVisualRenderer.color SONRASI = {twoDVisualRenderer.color}", this);
+            }
+
+            if (blockedChildRenderer != null)
+            {
+                Color c = blockedChildRenderer.color; // RGB'ye dokunulmuyor
+                c.a = targetBlockedAlpha;
+                blockedChildRenderer.color = c;
+
+                // TEŞHİS — sorun bulununca bu satırı sil.
+                Debug.Log($"[TEŞHİS] {gameObject.name} ApplyCrossfadeInstant: blockedChildRenderer.color SONRASI = {blockedChildRenderer.color}", this);
+            }
+        }
+
+        private void EnsureBlockedRenderersCached()
+        {
+            if (blockedRenderersCached) return;
+
+            if (spriteVisual != null && twoDVisualRenderer == null)
+                twoDVisualRenderer = spriteVisual.GetComponent<SpriteRenderer>();
+
+            // ÖNCELİK: Elle sürüklenen blockedSpriteRenderer — artık
+            // "2D Visual"ın child'ı olmak ZORUNDA DEĞİL, Inspector'dan
+            // doğrudan atanıyor. Boş bırakılırsa (geri uyumluluk için)
+            // eski "2D Visual altında 'Blocked' adında bir child ara"
+            // yöntemine düşülür.
+            if (blockedChildRenderer == null)
+            {
+                if (blockedSpriteRenderer != null)
+                {
+                    blockedChildRenderer = blockedSpriteRenderer;
+                }
+                else if (spriteVisual != null)
+                {
+                    Transform blockedT = spriteVisual.transform.Find("Blocked");
+                    if (blockedT != null)
+                        blockedChildRenderer = blockedT.GetComponent<SpriteRenderer>();
+                    else
+                        Debug.LogWarning($"Food [{gameObject.name}]: 'Blocked Sprite Renderer' atanmamış ve '2D Visual' altında 'Blocked' adında bir child da bulunamadı.", this);
+                }
+            }
+
+            blockedRenderersCached = true;
+
+            // OYUN BAŞLAR BAŞLAMAZ: o anki gerçek state Blocked mi (LockedInQueue)
+            // değil mi kontrol edilip, alfalar ANINDA (animasyonsuz) doğru
+            // değere sabitleniyor — Editor'de prefab üzerinde bırakılmış
+            // olabilecek YANLIŞ varsayılan alfa değerlerine (ör. ikisi de
+            // 255/tam opak) güvenmiyoruz.
+            bool isBlockedNow = currentState == FoodState.LockedInQueue;
+            ApplyCrossfadeInstant(isBlockedNow);
         }
 
         /// <summary>

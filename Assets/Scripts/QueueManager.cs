@@ -198,7 +198,7 @@ namespace RestaurantLoop
             var food = foodGo.GetComponent<Food>();
             food.PresetCapacity(entry.capacity);
             food.PresetQueueState(FoodState.AvailableInQueue);
-            food.ApplyBlockedVisual(false);
+            food.SetBlockedCrossfade(false);
 
             activeSelectableFoods[food] = (col, indexInCol);
             food.StateChanged += OnSelectModeFoodStateChanged;
@@ -399,12 +399,12 @@ namespace RestaurantLoop
                 food.PresetQueueState(FoodState.AvailableInQueue);
                 availableFoodColumn[food] = col;
                 food.StateChanged += OnAvailableFoodStateChanged;
-                food.ApplyBlockedVisual(false);
+                food.SetBlockedCrossfade(false);
             }
             else
             {
                 food.PresetQueueState(FoodState.LockedInQueue);
-                food.ApplyBlockedVisual(true, lockedAlpha);
+                food.SetBlockedCrossfade(true);
             }
         }
 
@@ -504,7 +504,11 @@ namespace RestaurantLoop
                 if (row == 0 && item.food != null)
                 {
                     item.food.PresetQueueState(FoodState.AvailableInQueue);
-                    item.food.ApplyBlockedVisual(false);
+                    // ÖNEMLİ: duration=shiftDuration — Blocked'tan Available'a
+                    // geçiş, TAM OLARAK öne kayma (DOMove) ile aynı sürede,
+                    // senkron gerçekleşiyor. Artık anlık bir renk/alfa
+                    // sıçraması yok, ikisi birlikte biter.
+                    item.food.SetBlockedCrossfade(false, shiftDuration);
                     availableFoodColumn[item.food] = col;
                     item.food.StateChanged += OnAvailableFoodStateChanged;
                 }

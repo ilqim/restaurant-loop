@@ -11140,7 +11140,7 @@ MonoBehaviour:
   cellSpacingZ: 1.8
   foodYOffset: 0.05
   visibleRows: 3
-  lockedAlpha: 0.65
+  lockedAlpha: 1
   shiftDuration: 0.25
   shiftEase: 6
   targetCamera: {fileID: 0}
