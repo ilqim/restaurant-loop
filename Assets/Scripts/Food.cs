@@ -25,6 +25,12 @@ namespace RestaurantLoop
         [Header("Kapasite")]
         [SerializeField] private int capacity = 10;
 
+        [Header("Görsel Ayrımı (2D/3D)")]
+        [Tooltip("Queue ve Slot'tayken aktif olan 2D Sprite/Image objesi.")]
+        [SerializeField] private GameObject spriteVisual;
+        [Tooltip("Uçuş ve conveyordayken aktif olan 3D objesi.")]
+        [SerializeField] private GameObject modelVisual;
+
         [Header("Zıplama Animasyonu")]
         [SerializeField] private float jumpDuration = 0.35f;
         [SerializeField] private float jumpPower = 1.2f;
@@ -83,12 +89,28 @@ namespace RestaurantLoop
         {
             currentState = state;
             queueStatePreset = true;
+            UpdateVisualMode();
         }
 
         public void PresetCapacity(int value)
         {
             capacity = Mathf.Max(0, value);
             UpdateCapacityLabel();
+        }
+
+        private void Awake()
+        {
+            if(spriteVisual == null)
+            {
+                var sr = GetComponentInChildren<SpriteRenderer>(true);
+                if(sr != null) spriteVisual = sr.gameObject;
+            }
+
+            if(modelVisual == null)
+            {
+                var mr = GetComponentInChildren<MeshRenderer>(true);
+                if(mr != null) modelVisual = mr.gameObject;
+            }
         }
 
         private void Start()
@@ -101,6 +123,7 @@ namespace RestaurantLoop
             if (!queueStatePreset)
                 ChangeState(FoodState.AvailableInQueue);
 
+            UpdateVisualMode();
             CreateCapacityLabel();
         }
 
@@ -122,7 +145,7 @@ namespace RestaurantLoop
                 // Queue'deki food'u banda göndermek için tıklama. Ses SADECE
                 // konveyörde gerçekten yer varsa (yemek fiilen çıkabildiyse)
                 // çalar — her tıklamada değil.
-                bool launched = TryLaunchAndDespawn();
+                bool launched = TryLaunchWithAnimation();
                 if (launched)
                     AudioEvents.PlayFoodClick();
             }
@@ -147,6 +170,20 @@ namespace RestaurantLoop
         public void SetInFoodSlot()
         {
             ChangeState(FoodState.InFoodSlot);
+        }
+
+        private void UpdateVisualMode()
+        {
+            bool isStaticInSlotOrQueue = (currentState == FoodState.AvailableInQueue ||
+                                          currentState == FoodState.LockedInQueue ||
+                                          currentState == FoodState.InFoodSlot);
+
+            // Kuyrukta ve slotta 2D Sprite göster, fırlatma/uçuş anında ve konveyörde 3D modeli göster
+            if (spriteVisual != null)
+                spriteVisual.SetActive(isStaticInSlotOrQueue);
+
+            if (modelVisual != null)
+                modelVisual.SetActive(!isStaticInSlotOrQueue);
         }
 
         /// <summary>
@@ -213,6 +250,8 @@ namespace RestaurantLoop
 
             ChangeState(FoodState.Launching);
 
+            UpdateVisualMode();
+
             // Smooth DOTween jump to the conveyor starting position
             transform.DOJump(targetPos, jumpPower, 1, jumpDuration)
                 .SetEase(Ease.OutQuad)
@@ -245,6 +284,7 @@ namespace RestaurantLoop
         private void ChangeState(FoodState newState)
         {
             currentState = newState;
+            UpdateVisualMode();
             if (verboseLogging) Debug.Log($"Food [{gameObject.name}] State: {currentState}");
             StateChanged?.Invoke(this, newState);
         }
