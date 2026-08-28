@@ -6,6 +6,18 @@ using UnityEngine.SceneManagement;
 namespace RestaurantLoop
 {
     /// <summary>
+    /// Level listesindeki tek bir satır — hangi LevelData ve hangi zorlukta
+    /// olduğu. Inspector'da bunu görüp her level'in yanına zorluğunu
+    /// (Easy/Hard/SuperHard) seçebilirsin.
+    /// </summary>
+    [System.Serializable]
+    public struct LevelEntry
+    {
+        public LevelData data;
+        public LevelDifficulty difficulty;
+    }
+
+    /// <summary>
     /// Tüm level'lar TEK bir "Game" sahnesinde yaşıyor — LevelManager bu
     /// yüzden HİÇBİR sahne yüklemez, sadece:
     /// 1) "Şu an hangi level'deyiz" bilgisini tutar (PlayerData üzerinden kalıcı).
@@ -13,6 +25,8 @@ namespace RestaurantLoop
     ///    "Game" sahne adıyla), sahnedeki TÜM ILevelDataReceiver
     ///    implementasyonlarına (GridManager, QueueManager,
     ///    LevelConservationChecker...) o anki level'in LevelData'sını verir.
+    /// 3) Her level'in zorluğunu (Easy/Hard/SuperHard) tutar — Main Menu'deki
+    ///    difficulty balonlarının hangi varyantı gösterileceğini buradan sorar.
     ///
     /// Sahneler arası kalıcı (DontDestroyOnLoad) bir singleton — Main Menu
     /// (veya en baştaki bootstrap sahnesi) içine BİR KERE koyulmalı.
@@ -23,8 +37,10 @@ namespace RestaurantLoop
 
         [Header("Level Veritabanı")]
         [Tooltip("Sırasıyla Level 1, Level 2, Level 3... İndeks 0 = Level 1. " +
-                 "Buraya kaç LevelData asset'i eklersen oyunda o kadar level olur.")]
-        [SerializeField] private List<LevelData> levels = new();
+                 "Her satırda hem o level'in LevelData'sını HEM DE zorluğunu " +
+                 "(Easy/Hard/SuperHard) seçiyorsun — Main Menu'deki difficulty " +
+                 "balonları buradan besleniyor.")]
+        [SerializeField] private List<LevelEntry> levels = new();
 
         [Header("Booster Level Kilitleri (parametrik)")]
         [Tooltip("Select booster bu level numarasından İTİBAREN (>=) açılır/interactable olur. Öncesinde soluk/kilitli durur.")]
@@ -85,7 +101,27 @@ namespace RestaurantLoop
                 return null;
             }
 
-            return levels[index];
+            return levels[index].data;
+        }
+
+        /// <summary>
+        /// Belirtilen level numarasının zorluğunu döner. Liste dışında bir
+        /// numara istenirse (örn. toplam level sayısını aşan bir "future"
+        /// slot) false döner — çağıran taraf bu durumda ilgili balonu
+        /// tamamen gizlemeli (hiçbiri aktif olmasın).
+        /// </summary>
+        public bool TryGetLevelDifficulty(int levelNumber, out LevelDifficulty difficulty)
+        {
+            int index = levelNumber - 1;
+
+            if (index < 0 || index >= levels.Count)
+            {
+                difficulty = LevelDifficulty.Easy;
+                return false;
+            }
+
+            difficulty = levels[index].difficulty;
+            return true;
         }
 
         /// <summary>
@@ -124,8 +160,7 @@ namespace RestaurantLoop
             // 2) Booster butonları — Main Menu'de kurulu olsa bile, Game
             // sahnesi her yüklendiğinde buradaki butonlar otomatik bulunup
             // "bu level'de açık mı" bilgisine göre kilit/interactable
-            // durumları güncellenir. Main Menu gibi bu butonları içermeyen
-            // sahnelerde liste boş döner, hiçbir şey yapılmaz.
+            // durumları güncellenir.
             foreach (var gate in allMonoBehaviours.OfType<IBoosterLevelGate>())
             {
                 gate.RefreshLevelGate();
