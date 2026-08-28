@@ -16,16 +16,20 @@ namespace RestaurantLoop
 
     public class Customer : MonoBehaviour
     {
-        [Header("Görsel — Blocked iken saydamlaşacak renderer'lar")]
-        [Tooltip("Boş bırakılırsa Awake'te GetComponentsInChildren<Renderer> ile otomatik doldurulur.")]
+        [Header("Görsel — Blocked iken saydamlaşacak renderer'lar (BUBBLE HARİÇ — Bubble artık ayrı yönetiliyor, aşağıya bak)")]
+        [Tooltip("Boş bırakılırsa Awake'te GetComponentsInChildren<Renderer> ile otomatik doldurulur (Bubble'lar hariç tutulur).")]
         [SerializeField] private Renderer[] renderersToFade;
 
         [Range(0f, 1f)]
         [SerializeField] private float blockedAlpha = 0.35f;
 
         [Header("Customer Order Bubble")]
-        [Tooltip("Prefab içindeki adı 'Bubble' olan child obje otomatik bulunur. Inspector'dan atamana gerek yok.")]
+        [Tooltip("Normal (Blocked OLMAYAN) durumda gösterilen balon. Prefab içindeki adı 'Bubble' olan child obje otomatik bulunur.")]
         [SerializeField] private Transform orderBubble;
+
+        [Tooltip("Blocked durumundayken orderBubble YERİNE gösterilecek ayrı bir balon objesi — ELLE ata (Inspector'dan sürükle). " +
+                 "Boş bırakılırsa eski davranışa (Blocked'ta hiç balon gizlenmez, sadece orderBubble kalır) düşülür.")]
+        [SerializeField] private Transform blockedOrderBubble;
 
         [Header("Debug")]
         [SerializeField] private CustomerState currentState = CustomerState.Blocked;
@@ -86,20 +90,48 @@ namespace RestaurantLoop
 
         private void Awake()
         {
-            // Renderer'ları otomatik bul.
+            // Prefab içindeki "Bubble" child'ını otomatik bul (blockedOrderBubble
+            // için otomatik arama YOK — onu sen elle atıyorsun, farklı isimde/
+            // yapıda olabileceği için otomatik bulmaya çalışmıyoruz).
+            FindOrderBubble();
+
+            // Renderer'ları otomatik bul — BUBBLE'LARI (orderBubble ve
+            // blockedOrderBubble) HARİÇ TUTARAK. Onlar artık alfa/karartma
+            // sistemine hiç girmiyor, sadece aktif/pasif ediliyorlar.
             if (renderersToFade == null || renderersToFade.Length == 0)
-                renderersToFade = GetComponentsInChildren<Renderer>(true);
+                renderersToFade = CollectRenderersExcludingBubbles();
 
             animator = GetComponentInChildren<Animator>();
-
-            // Prefab içindeki "Bubble" child'ını otomatik bul.
-            FindOrderBubble();
 
             // MaterialPropertyBlock hazırla.
             mpb = new MaterialPropertyBlock();
 
-            // Bubble'ı instantiate edilir edilmez kameraya hizala.
+            // Bubble'ları instantiate edilir edilmez kameraya hizala.
             AlignOrderBubbleToCamera();
+        }
+
+        /// <summary>
+        /// GetComponentsInChildren&lt;Renderer&gt;(true) ile bulunan tüm
+        /// renderer'lardan, orderBubble ve blockedOrderBubble'ın ALTINDA
+        /// kalanları çıkarır. Bu iki balon artık alfa ile soluklaştırılmıyor,
+        /// tamamen ayrı bir GameObject aktif/pasif mantığıyla yönetiliyor.
+        /// </summary>
+        private Renderer[] CollectRenderersExcludingBubbles()
+        {
+            var all = GetComponentsInChildren<Renderer>(true);
+            var result = new System.Collections.Generic.List<Renderer>(all.Length);
+
+            foreach (var r in all)
+            {
+                if (r == null) continue;
+
+                if (orderBubble != null && r.transform.IsChildOf(orderBubble)) continue;
+                if (blockedOrderBubble != null && r.transform.IsChildOf(blockedOrderBubble)) continue;
+
+                result.Add(r);
+            }
+
+            return result.ToArray();
         }
 
 
@@ -159,15 +191,17 @@ namespace RestaurantLoop
             // garantiye al.
             FindOrderBubble();
 
-            if (renderersToFade == null || renderersToFade.Length == 0)
-                renderersToFade =
-                    GetComponentsInChildren<Renderer>(true);
+            // Food/orderBubble tekrar bulunmuş olabileceği için (pool'dan
+            // dönen obje) renderer listesini de tazeleyelim ki filtre
+            // (bubble hariç tutma) hep doğru kalsın.
+            renderersToFade = CollectRenderersExcludingBubbles();
 
             if (mpb == null)
                 mpb = new MaterialPropertyBlock();
 
             CacheOriginalColors();
             ApplyVisual();
+            UpdateBubbleVisibility();
 
             // Init sırasında da tekrar hizala.
             // Böylece pool'dan geri geldiğinde de doğru olur.
@@ -203,26 +237,50 @@ namespace RestaurantLoop
 
         private void AlignOrderBubbleToCamera()
         {
-            if (orderBubble == null)
-                return;
-
             Camera cam = Camera.main;
-
             if (cam == null)
                 return;
 
-            /*
-             * Bubble'ın yüzeyini kameranın görüş düzlemine paralel yapıyoruz.
-             *
-             * Kamera sabit olduğu için her frame billboard yapmıyoruz.
-             * Sadece oluşturulurken / pool'dan geri alınırken bir kez
-             * hizalanıyor.
-             */
-            orderBubble.rotation =
-                Quaternion.LookRotation(
-                    cam.transform.forward,
-                    cam.transform.up
-                );
+            Quaternion rot = Quaternion.LookRotation(cam.transform.forward, cam.transform.up);
+
+            // İkisi de aynı açıya hizalanıyor — hangisi aktifse o görünür.
+            if (orderBubble != null)
+                orderBubble.rotation = rot;
+
+            if (blockedOrderBubble != null)
+                blockedOrderBubble.rotation = rot;
+        }
+
+
+        // ============================================================
+        // BUBBLE AKTİF/PASİF (Blocked <-> Normal geçişi)
+        // ============================================================
+
+        /// <summary>
+        /// Blocked durumundaysa blockedOrderBubble'ı aktif edip
+        /// orderBubble'ı pasif eder; değilse tam tersi. blockedOrderBubble
+        /// atanmamışsa (eski davranış) sadece orderBubble kullanılmaya
+        /// devam eder, hiçbir şey kırılmaz.
+        /// </summary>
+        private void UpdateBubbleVisibility()
+        {
+            bool isBlocked = currentState == CustomerState.Blocked;
+
+            if (blockedOrderBubble != null)
+            {
+                blockedOrderBubble.gameObject.SetActive(isBlocked);
+
+                if (orderBubble != null)
+                    orderBubble.gameObject.SetActive(!isBlocked);
+            }
+            else if (orderBubble != null)
+            {
+                // blockedOrderBubble hiç atanmamışsa eski davranış: balon
+                // her zaman aktif kalır (soluklaştırma da artık yok, çünkü
+                // Bubble renderersToFade'den çıkarıldı) — sadece
+                // ReceiveFood() sırasında ayrıca kapatılır (aşağıda).
+                orderBubble.gameObject.SetActive(true);
+            }
         }
 
 
@@ -347,7 +405,10 @@ namespace RestaurantLoop
             // Banttaki food müşteriyle eşleştiğinde.
             AudioEvents.PlayOrderDelivered();
 
-            orderBubble.gameObject.SetActive(false);
+            // İKİ balonu da kapat — hangisi aktifse (normal ya da blocked
+            // varyantı) artık gösterilmemeli.
+            if (orderBubble != null) orderBubble.gameObject.SetActive(false);
+            if (blockedOrderBubble != null) blockedOrderBubble.gameObject.SetActive(false);
 
             SetState(CustomerState.Eating);
 
@@ -400,6 +461,7 @@ namespace RestaurantLoop
             currentState = newState;
 
             ApplyVisual();
+            UpdateBubbleVisibility();
         }
 
 
@@ -440,6 +502,10 @@ namespace RestaurantLoop
         // VISUAL
         // ============================================================
 
+        /// <summary>
+        /// Artık SADECE body/kafa gibi Bubble-dışı renderer'ları etkiler —
+        /// Bubble'lar UpdateBubbleVisibility() ile ayrı yönetiliyor.
+        /// </summary>
         private void ApplyVisual()
         {
             if (renderersToFade == null ||
@@ -461,13 +527,6 @@ namespace RestaurantLoop
                 Color c = originalColors[i];
                 c.a = alpha;
 
-                // ÖNEMLİ FIX: SpriteRenderer (örn. Bubble) MaterialPropertyBlock
-                // ile _BaseColor set etmeye hiç tepki vermiyordu — Sprite
-                // shader'ları bu property'yi tanımıyor, kendi .color'ını
-                // kullanıyor. Bu yüzden Bubble görsel olarak hiç solmuyordu
-                // (body/kafa URP/Lit kullandığı için _BaseColor'da sorun
-                // yoktu, sadece Bubble etkilenmiyordu). SpriteRenderer için
-                // doğrudan .color kullanarak bunu düzeltiyoruz.
                 if (r is SpriteRenderer sr)
                 {
                     sr.color = c;
@@ -502,10 +561,6 @@ namespace RestaurantLoop
                     continue;
                 }
 
-                // ÖNEMLİ: SpriteRenderer (örn. Bubble) _BaseColor DEĞİL,
-                // kendi .color property'sini kullanır — eskiden bu sorgu
-                // sessizce başarısız olup her zaman beyaz (fallback)
-                // dönüyordu, gerçek rengi hiç yakalamıyordu.
                 if (r is SpriteRenderer sr)
                 {
                     originalColors[i] = sr.color;
