@@ -1,5 +1,6 @@
 using System;
 using UnityEngine;
+using DG.Tweening;
 
 namespace RestaurantLoop
 {
@@ -23,6 +24,10 @@ namespace RestaurantLoop
 
         [Header("Kapasite")]
         [SerializeField] private int capacity = 10;
+
+        [Header("Zıplama Animasyonu")]
+        [SerializeField] private float jumpDuration = 0.35f;
+        [SerializeField] private float jumpPower = 1.2f;
 
         [Header("Kapasite Debug Etiketi")]
         [SerializeField] private bool showCapacityLabel = true;
@@ -116,7 +121,7 @@ namespace RestaurantLoop
             {
                 // Queue'deki food'u banda göndermek için tıklama.
                 AudioEvents.PlayFoodClick();
-                TryLaunchAndDespawn();
+                TryLaunchWithAnimation();
             }
             else
             {
@@ -133,7 +138,7 @@ namespace RestaurantLoop
         /// </summary>
         public bool EnterConveyorFromSlot()
         {
-            return TryLaunchAndDespawn();
+            return TryLaunchWithAnimation();
         }
 
         public void SetInFoodSlot()
@@ -187,7 +192,7 @@ namespace RestaurantLoop
         /// Konveyöre (tray olarak) çıkışı dener. Başarılıysa food'u despawn eder
         /// ve true döner. Konveyör doluysa hiçbir şey değiştirmeden false döner.
         /// </summary>
-        private bool TryLaunchAndDespawn()
+        private bool TryLaunchWithAnimation()
         {
             if (trayManager == null)
             {
@@ -195,15 +200,33 @@ namespace RestaurantLoop
                 return false;
             }
 
-            bool launched = trayManager.TryLaunchTray(foodType, capacity);
-            if (!launched)
+            if (!trayManager.CanLaunchTray())
             {
                 if (verboseLogging) Debug.Log($"Food [{gameObject.name}]: Konveyör dolu, tray başlatılamadı.");
                 return false;
             }
 
-            ChangeState(FoodState.OnConveyor);
-            DespawnSelf();
+            Vector3 targetPos = trayManager.GetWaypointPosition(0);
+
+            ChangeState(FoodState.Launching);
+
+            // Smooth DOTween jump to the conveyor starting position
+            transform.DOJump(targetPos, jumpPower, 1, jumpDuration)
+                .SetEase(Ease.OutQuad)
+                .OnComplete(() =>
+                {
+                    bool launched = trayManager.TryLaunchTray(foodType, capacity);
+                    if (launched)
+                    {
+                        ChangeState(FoodState.OnConveyor);
+                        DespawnSelf();
+                    }
+                    else
+                    {
+                        ChangeState(FoodState.AvailableInQueue);
+                    }
+                });
+
             return true;
         }
 
