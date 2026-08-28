@@ -61,6 +61,9 @@ namespace RestaurantLoop
             // geri dönülüyor.
             defaultSprite = spriteRenderer.sprite;
             defaultColor = spriteRenderer.color;
+
+            // Slot başlangıçta Empty — count label child'ı da baştan kapalı olsun.
+            countLabel?.SetVisible(false);
         }
 
         private void Update()
@@ -107,7 +110,18 @@ namespace RestaurantLoop
             spriteRenderer.sprite = occupiedSprite != null ? occupiedSprite : defaultSprite;
             spriteRenderer.color = food.SlotColor;
 
-            countLabel?.SetCount(food.Capacity);
+            // Capacity 0 (ya da altı) ise içinde gösterilecek bir sayı yok
+            // demektir — countLabel'ı SetVisible(false) ile tamamen kapatıyoruz.
+            // Pozitifse aktif edip sayıyı yazıyoruz.
+            if (food.Capacity <= 0)
+            {
+                countLabel?.SetVisible(false);
+            }
+            else
+            {
+                countLabel?.SetVisible(true);
+                countLabel?.SetCount(food.Capacity);
+            }
 
             return true;
         }
