@@ -114,9 +114,12 @@ namespace RestaurantLoop
 
             if (currentState == FoodState.AvailableInQueue)
             {
-                // Queue'deki food'u banda göndermek için tıklama.
-                AudioEvents.PlayFoodClick();
-                TryLaunchAndDespawn();
+                // Queue'deki food'u banda göndermek için tıklama. Ses SADECE
+                // konveyörde gerçekten yer varsa (yemek fiilen çıkabildiyse)
+                // çalar — her tıklamada değil.
+                bool launched = TryLaunchAndDespawn();
+                if (launched)
+                    AudioEvents.PlayFoodClick();
             }
             else
             {

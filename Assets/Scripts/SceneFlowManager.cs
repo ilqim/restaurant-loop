@@ -2,6 +2,7 @@ using System.Collections;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
+using TMPro;
 
 namespace RestaurantLoop
 {
@@ -20,12 +21,18 @@ namespace RestaurantLoop
 
         [Header("Loading Screen Overlay UI")]
         [SerializeField] private CanvasGroup loadingCanvasGroup;
-        [SerializeField] private Slider loadingProgressBar;
+
+        [Header("Loading Text Animation")]
+        [SerializeField] private TMP_Text loadingText;
+        [SerializeField] private float loadingTextInterval = 0.25f;
+
+        [Header("Loading Screen")]
         [SerializeField] private float fadeDuration = 0.3f;
         [SerializeField] private float minimumLoadingScreenTime = 0.8f;
 
-        // Tracks whether the game has already completed its initial boot sequence
         private static bool hasCompletedStartupSequence = false;
+
+        private Coroutine loadingTextCoroutine;
 
         private void Awake()
         {
@@ -42,12 +49,12 @@ namespace RestaurantLoop
             {
                 loadingCanvasGroup.alpha = 0f;
                 loadingCanvasGroup.blocksRaycasts = false;
+                loadingCanvasGroup.interactable = false;
             }
         }
 
         private void Start()
         {
-            // If we've already done the startup screen in this session, keep it hidden
             if (hasCompletedStartupSequence)
             {
                 HideStartupScreenImmediately();
@@ -61,6 +68,7 @@ namespace RestaurantLoop
         // ==========================================
         // STARTUP FLOW
         // ==========================================
+
         private IEnumerator StartupSequenceRoutine()
         {
             if (startupCanvasGroup != null)
@@ -70,12 +78,15 @@ namespace RestaurantLoop
 
                 yield return new WaitForSeconds(startupHoldDuration);
 
-                // Fade out Startup Screen
                 float elapsed = 0f;
+
                 while (elapsed < startupFadeDuration)
                 {
                     elapsed += Time.deltaTime;
-                    startupCanvasGroup.alpha = Mathf.Lerp(1f, 0f, elapsed / startupFadeDuration);
+
+                    startupCanvasGroup.alpha =
+                        Mathf.Lerp(1f, 0f, elapsed / startupFadeDuration);
+
                     yield return null;
                 }
 
@@ -100,23 +111,42 @@ namespace RestaurantLoop
         // ==========================================
         // SCENE TRANSITIONS
         // ==========================================
+
         public void LoadGameplayScene()
         {
-            StartCoroutine(LoadSceneAsyncRoutine(gameplaySceneName, isEnteringGameplay: true));
+            StartCoroutine(
+                LoadSceneAsyncRoutine(
+                    gameplaySceneName,
+                    isEnteringGameplay: true
+                )
+            );
         }
 
         public void LoadMainMenuScene()
         {
-            StartCoroutine(LoadSceneAsyncRoutine(mainMenuSceneName, isEnteringGameplay: false));
+            StartCoroutine(
+                LoadSceneAsyncRoutine(
+                    mainMenuSceneName,
+                    isEnteringGameplay: false
+                )
+            );
         }
 
-        private IEnumerator LoadSceneAsyncRoutine(string sceneName, bool isEnteringGameplay)
+        private IEnumerator LoadSceneAsyncRoutine(
+            string sceneName,
+            bool isEnteringGameplay)
         {
             // 1. Fade IN Loading Screen
-            if (loadingProgressBar != null)
-                loadingProgressBar.value = 0f;
+            yield return StartCoroutine(
+                FadeCanvasGroup(
+                    loadingCanvasGroup,
+                    1f,
+                    fadeDuration
+                )
+            );
 
-            yield return StartCoroutine(FadeCanvasGroup(loadingCanvasGroup, 1f, fadeDuration));
+            // Start Loading text animation
+            StartLoadingTextAnimation();
 
             if (isEnteringGameplay)
             {
@@ -125,6 +155,7 @@ namespace RestaurantLoop
 
             // 2. Load Target Scene Asynchronously
             AsyncOperation op = SceneManager.LoadSceneAsync(sceneName);
+
             op.allowSceneActivation = false;
 
             float loadTimer = 0f;
@@ -132,15 +163,10 @@ namespace RestaurantLoop
             while (!op.isDone)
             {
                 loadTimer += Time.deltaTime;
-                
-                // Normalizes Unity's 0.0 - 0.9 progress range
-                float progress = Mathf.Clamp01(op.progress / 0.9f);
 
-                if (loadingProgressBar != null)
-                    loadingProgressBar.value = progress;
-
-                // Wait until scene is loaded in memory AND minimum load duration has passed
-                if (op.progress >= 0.9f && loadTimer >= minimumLoadingScreenTime)
+                // Unity loads the scene to 90%, then waits for activation.
+                if (op.progress >= 0.9f &&
+                    loadTimer >= minimumLoadingScreenTime)
                 {
                     op.allowSceneActivation = true;
                 }
@@ -148,7 +174,10 @@ namespace RestaurantLoop
                 yield return null;
             }
 
-            // Ensure startup screen remains disabled if returning to Main Menu
+            // Stop Loading text animation
+            StopLoadingTextAnimation();
+
+            // Ensure startup screen remains disabled
             HideStartupScreenImmediately();
 
             if (!isEnteringGameplay)
@@ -157,22 +186,92 @@ namespace RestaurantLoop
             }
 
             // 3. Fade OUT Loading Screen
-            yield return StartCoroutine(FadeCanvasGroup(loadingCanvasGroup, 0f, fadeDuration));
+            yield return StartCoroutine(
+                FadeCanvasGroup(
+                    loadingCanvasGroup,
+                    0f,
+                    fadeDuration
+                )
+            );
         }
 
-        private IEnumerator FadeCanvasGroup(CanvasGroup group, float targetAlpha, float duration)
+        // ==========================================
+        // LOADING TEXT ANIMATION
+        // ==========================================
+
+        private void StartLoadingTextAnimation()
         {
-            if (group == null) yield break;
+            if (loadingText == null)
+                return;
+
+            StopLoadingTextAnimation();
+
+            loadingTextCoroutine =
+                StartCoroutine(LoadingTextAnimationRoutine());
+        }
+
+        private void StopLoadingTextAnimation()
+        {
+            if (loadingTextCoroutine != null)
+            {
+                StopCoroutine(loadingTextCoroutine);
+                loadingTextCoroutine = null;
+            }
+        }
+
+        private IEnumerator LoadingTextAnimationRoutine()
+        {
+            string[] loadingStates =
+            {
+                "Loading...",
+                "Loading..",
+                "Loading."
+            };
+
+            int index = 0;
+
+            while (true)
+            {
+                loadingText.text = loadingStates[index];
+
+                index++;
+
+                if (index >= loadingStates.Length)
+                    index = 0;
+
+                yield return new WaitForSeconds(loadingTextInterval);
+            }
+        }
+
+        // ==========================================
+        // CANVAS FADE
+        // ==========================================
+
+        private IEnumerator FadeCanvasGroup(
+            CanvasGroup group,
+            float targetAlpha,
+            float duration)
+        {
+            if (group == null)
+                yield break;
 
             group.blocksRaycasts = targetAlpha > 0.01f;
             group.interactable = targetAlpha > 0.01f;
+
             float startAlpha = group.alpha;
             float elapsed = 0f;
 
             while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
-                group.alpha = Mathf.Lerp(startAlpha, targetAlpha, elapsed / duration);
+
+                group.alpha =
+                    Mathf.Lerp(
+                        startAlpha,
+                        targetAlpha,
+                        elapsed / duration
+                    );
+
                 yield return null;
             }
 

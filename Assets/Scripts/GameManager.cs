@@ -128,7 +128,7 @@ namespace RestaurantLoop
                 return;
 
             currentState = GameState.Win;
-
+            AudioEvents.StopMusic();
             //SFX
             AudioEvents.PlayLevelComplete();
 
