@@ -26,6 +26,14 @@ namespace RestaurantLoop
                  "Buraya kaç LevelData asset'i eklersen oyunda o kadar level olur.")]
         [SerializeField] private List<LevelData> levels = new();
 
+        [Header("Booster Level Kilitleri (parametrik)")]
+        [Tooltip("Select booster bu level numarasından İTİBAREN (>=) açılır/interactable olur. Öncesinde soluk/kilitli durur.")]
+        [SerializeField] private int selectBoosterUnlockLevel = 20;
+        [Tooltip("Add Tray booster bu level numarasından İTİBAREN (>=) açılır/interactable olur.")]
+        [SerializeField] private int addTrayBoosterUnlockLevel = 9;
+        [Tooltip("Shuffle booster bu level numarasından İTİBAREN (>=) açılır/interactable olur.")]
+        [SerializeField] private int shuffleBoosterUnlockLevel = 15;
+
         public int TotalLevelCount => levels.Count;
 
         /// <summary>Şu anki level numarası (1'den başlar), toplam level sayısına clamp'lenmiş.</summary>
@@ -53,6 +61,18 @@ namespace RestaurantLoop
             if (Instance == this)
                 SceneManager.sceneLoaded -= OnSceneLoaded;
         }
+
+        /// <summary>Bu booster tipinin hangi level'da (>=) açıldığını döner.</summary>
+        public int GetBoosterUnlockLevel(BoosterType type) => type switch
+        {
+            BoosterType.Select => selectBoosterUnlockLevel,
+            BoosterType.AddTray => addTrayBoosterUnlockLevel,
+            BoosterType.Shuffle => shuffleBoosterUnlockLevel,
+            _ => 1
+        };
+
+        /// <summary>Şu anki level'de bu booster açık mı (unlock level'a ulaşılmış mı)?</summary>
+        public bool IsBoosterUnlocked(BoosterType type) => CurrentLevel >= GetBoosterUnlockLevel(type);
 
         public LevelData GetLevelData(int levelNumber)
         {
@@ -90,19 +110,25 @@ namespace RestaurantLoop
         {
             LevelData data = CurrentLevelData;
 
-            if (data == null)
-                return;
+            var allMonoBehaviours = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None);
 
-            // Sahnedeki TÜM ILevelDataReceiver implementasyonlarını bul
-            // (GridManager, QueueManager, LevelConservationChecker vb.) ve
-            // şu anki level'in verisini ver. Main Menu gibi bu component'leri
-            // içermeyen sahnelerde liste boş döner, hiçbir şey yapılmaz.
-            var receivers = FindObjectsByType<MonoBehaviour>(FindObjectsSortMode.None)
-                .OfType<ILevelDataReceiver>();
-
-            foreach (var receiver in receivers)
+            // 1) Level verisi — GridManager/QueueManager/LevelConservationChecker vb.
+            if (data != null)
             {
-                receiver.SetLevelData(data);
+                foreach (var receiver in allMonoBehaviours.OfType<ILevelDataReceiver>())
+                {
+                    receiver.SetLevelData(data);
+                }
+            }
+
+            // 2) Booster butonları — Main Menu'de kurulu olsa bile, Game
+            // sahnesi her yüklendiğinde buradaki butonlar otomatik bulunup
+            // "bu level'de açık mı" bilgisine göre kilit/interactable
+            // durumları güncellenir. Main Menu gibi bu butonları içermeyen
+            // sahnelerde liste boş döner, hiçbir şey yapılmaz.
+            foreach (var gate in allMonoBehaviours.OfType<IBoosterLevelGate>())
+            {
+                gate.RefreshLevelGate();
             }
         }
     }

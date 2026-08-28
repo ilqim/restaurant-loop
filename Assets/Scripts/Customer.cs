@@ -458,13 +458,24 @@ namespace RestaurantLoop
                 if (r == null)
                     continue;
 
-                r.GetPropertyBlock(mpb);
-
                 Color c = originalColors[i];
                 c.a = alpha;
 
-                mpb.SetColor(BaseColorId, c);
+                // ÖNEMLİ FIX: SpriteRenderer (örn. Bubble) MaterialPropertyBlock
+                // ile _BaseColor set etmeye hiç tepki vermiyordu — Sprite
+                // shader'ları bu property'yi tanımıyor, kendi .color'ını
+                // kullanıyor. Bu yüzden Bubble görsel olarak hiç solmuyordu
+                // (body/kafa URP/Lit kullandığı için _BaseColor'da sorun
+                // yoktu, sadece Bubble etkilenmiyordu). SpriteRenderer için
+                // doğrudan .color kullanarak bunu düzeltiyoruz.
+                if (r is SpriteRenderer sr)
+                {
+                    sr.color = c;
+                    continue;
+                }
 
+                r.GetPropertyBlock(mpb);
+                mpb.SetColor(BaseColorId, c);
                 r.SetPropertyBlock(mpb);
             }
         }
@@ -483,10 +494,25 @@ namespace RestaurantLoop
                 i < renderersToFade.Length;
                 i++)
             {
-                var mat =
-                    renderersToFade[i] != null
-                        ? renderersToFade[i].sharedMaterial
-                        : null;
+                var r = renderersToFade[i];
+
+                if (r == null)
+                {
+                    originalColors[i] = Color.white;
+                    continue;
+                }
+
+                // ÖNEMLİ: SpriteRenderer (örn. Bubble) _BaseColor DEĞİL,
+                // kendi .color property'sini kullanır — eskiden bu sorgu
+                // sessizce başarısız olup her zaman beyaz (fallback)
+                // dönüyordu, gerçek rengi hiç yakalamıyordu.
+                if (r is SpriteRenderer sr)
+                {
+                    originalColors[i] = sr.color;
+                    continue;
+                }
+
+                var mat = r.sharedMaterial;
 
                 originalColors[i] =
                     mat != null &&

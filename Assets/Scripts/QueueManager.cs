@@ -79,15 +79,6 @@ namespace RestaurantLoop
         public bool IsSelectModeActive => isSelectModeActive;
         public event Action SelectModeEnded;
 
-        /// <summary>
-        /// ILevelDataReceiver — LevelManager, Game sahnesi yüklendiğinde
-        /// bunu çağırıp o anki level'in LevelData'sını verir. Start()'tan
-        /// ÖNCE ya da SONRA çağrılmış olması fark etmez:
-        /// - Start()'tan önce çağrılırsa: sadece levelData set edilir,
-        ///   Start() zaten bunu bulup kurulumu kendisi yapar.
-        /// - Start()'tan sonra çağrılırsa (levelData zaten kurulmuşsa):
-        ///   kurulum burada anında tekrar yapılır (yeni level'e geçiş gibi).
-        /// </summary>
         public void SetLevelData(LevelData data)
         {
             levelData = data;
@@ -208,6 +199,9 @@ namespace RestaurantLoop
             var food = foodGo.GetComponent<Food>();
             food.PresetCapacity(entry.capacity);
             food.PresetQueueState(FoodState.AvailableInQueue); // All fully active & bright
+            // Select modunda TÜM item'lar tam parlak/aktif görünmeli — burada
+            // locked görünümü hiç uygulanmıyor, garanti için resetliyoruz.
+            food.ApplyBlockedVisual(false);
 
             activeSelectableFoods[food] = (col, indexInCol);
             food.StateChanged += OnSelectModeFoodStateChanged;
@@ -232,7 +226,6 @@ namespace RestaurantLoop
             food.StateChanged -= OnSelectModeFoodStateChanged;
             activeSelectableFoods.Remove(food);
 
-            // Remove selected element from columnData
             if (columnData.TryGetValue(info.col, out var list) && info.indexInCol < list.Count)
             {
                 list.RemoveAt(info.indexInCol);
@@ -260,7 +253,6 @@ namespace RestaurantLoop
             float queueWidth = levelData.queueColumns * cellSpacingX;
             float queueHeight = maxRowsInAnyCol * cellSpacingZ;
 
-            // Center of the queue on XZ plane
             Vector3 centerPos = originPoint.position + (originPoint.forward * (-queueHeight * 0.5f));
 
             Vector3 targetCamPos = new Vector3(centerPos.x, defaultCamPos.y - cameraOffset, centerPos.z);
@@ -290,18 +282,11 @@ namespace RestaurantLoop
             });
         }
 
-
-
         /// <summary>
         /// SHUFFLE BOOSTER: Tüm kolonlardaki kalan yemekleri (sadece görünen
         /// 3 satır değil, sıradaki TÜM gizli yemekler dahil) tek bir listede
         /// toplayıp karıştırır, sonra her kolonun eleman SAYISINI koruyarak
-        /// geri dağıtır — grid şekli (hangi kolonda kaç yemek olduğu) aynı
-        /// kalır, ama hangi yemeğin nerede olduğu tamamen rastgele olur.
-        ///
-        /// Sonunda RebuildAllVisibleRows() çağrılır — bu zaten mevcut
-        /// food/QueueSlot görsellerini yok edip columnData'dan yeniden
-        /// kuran standart akış, shuffle da bu akışa aynen oturuyor.
+        /// geri dağıtır.
         /// </summary>
         public void ShuffleQueue()
         {
@@ -311,8 +296,6 @@ namespace RestaurantLoop
                 return;
             }
 
-            // 1) Tüm kolonlardaki tüm kalan entry'leri tek listede topla,
-            // her kolonun kaç eleman taşıdığını (shape'i) ayrıca sakla.
             var allEntries = new List<QueueEntry>();
             var countPerColumn = new int[levelData.queueColumns];
 
@@ -325,16 +308,12 @@ namespace RestaurantLoop
                 }
             }
 
-            // 2) Fisher-Yates shuffle — tüm queue genelinde tam rastgele.
             for (int i = allEntries.Count - 1; i > 0; i--)
             {
                 int j = UnityEngine.Random.Range(0, i + 1);
                 (allEntries[i], allEntries[j]) = (allEntries[j], allEntries[i]);
             }
 
-            // 3) Karışmış listeyi, ORİJİNAL kolon eleman sayılarını koruyarak
-            // geri dağıt. row/col alanlarını yeni pozisyonuna göre güncelliyoruz
-            // ki SpawnAt/RebuildAllVisibleRows doğru sırayla okusun.
             int cursor = 0;
             for (int col = 0; col < levelData.queueColumns; col++)
             {
@@ -367,21 +346,6 @@ namespace RestaurantLoop
             }
         }
 
-        /// <summary>
-        /// TÜM görünür satırları (0..visibleRows-1) sıfırdan kurar.
-        ///
-        /// ÖNEMLİ: Her item'ın X pozisyonu KENDİ SABİT kolon index'ine
-        /// göre hesaplanır (levelData.queueColumns'a göre BİR KEZ
-        /// ortalanmış grid pozisyonu) — o satırda o anda kaç kolonun
-        /// dolu olduğuna göre YENİDEN merkezlenmez. Böylece bir kolon
-        /// tükenip boşaldığında sadece o hücre boş kalır, DİĞER kolonlar
-        /// asla kaymaz / çapraz durmaz — gerçek bir sabit grid gibi
-        /// davranır (örn. 1,2,3 / 4,5,6 düzeninde "1" gidince "4" tam
-        /// "1"in eski yerine gelir, "2" ve "3" hiç kıpırdamaz).
-        ///
-        /// Her hücrede food'un YANINDA bir QueueSlot da spawn edilir —
-        /// tıklanabilir collider food'ta değil, bu QueueSlot'ta duruyor.
-        /// </summary>
         private void RebuildAllVisibleRows()
         {
             ClearAllVisuals();
@@ -432,17 +396,8 @@ namespace RestaurantLoop
                 return;
             }
 
-            // Bu food'un kaç teslimat hakkı olduğu — level tasarımında
-            // seçilen "Yerleştirilecek Kapasite" değeri (sabit 10 DEĞİL,
-            // her hücre için ayrı seçilebiliyor).
             food.PresetCapacity(entry.capacity);
 
-            // Tıklanabilir hücre — food'un pozisyonuyla AYNI kaynaktan
-            // (slotPos) türetiliyor, iki ayrı yerde offset tanımlanmıyor.
-            // ÖNEMLİ: rotasyon Quaternion.identity DEĞİL, prefabin kendi
-            // rotasyonu (queueSlotPrefab.transform.rotation) kullanılıyor —
-            // 2D objede X ekseninde 90° yatık duracak şekilde ayarladığın
-            // prefab rotasyonu, aksi halde identity ile eziliyordu.
             var slotGo = Instantiate(queueSlotPrefab, slotPos, queueSlotPrefab.transform.rotation);
             if (!columnSlotVisuals.TryGetValue(col, out var slotVisuals))
             {
@@ -466,11 +421,18 @@ namespace RestaurantLoop
                 food.PresetQueueState(FoodState.AvailableInQueue);
                 availableFoodColumn[food] = col;
                 food.StateChanged += OnAvailableFoodStateChanged;
+                // Görünür/available satır — orijinal renge dön (rebuild sonrası
+                // eski locked haliyle kalmasın).
+                food.ApplyBlockedVisual(false);
             }
             else
             {
                 food.PresetQueueState(FoodState.LockedInQueue);
-                ApplyLockedVisual(foodGo);
+                // ÖNEMLİ: Saydamlık (alpha) DEĞİL, RGB karartma — Food.cs
+                // içindeki ApplyBlockedVisual bunu garantiliyor, materyal
+                // Opaque kalmaya devam ediyor, altındaki 2D queue slot
+                // sprite'ıyla derinlik/sıralama çakışması olmuyor.
+                food.ApplyBlockedVisual(true, lockedAlpha);
             }
         }
 
@@ -505,10 +467,6 @@ namespace RestaurantLoop
             columnVisuals.Clear();
             availableFoodColumn.Clear();
 
-            // QueueSlot'lar hiçbir gameplay state'i taşımıyor, sadece
-            // "hangi food burada" bilgisini tutuyor — food konveyöre
-            // geçse bile queue hücresi olarak burası artık geçersiz,
-            // o yüzden istisnasız hepsi yok edilip yeniden kuruluyor.
             foreach (var slotVisuals in columnSlotVisuals.Values)
             {
                 foreach (var slotGo in slotVisuals)
@@ -547,38 +505,6 @@ namespace RestaurantLoop
             foreach (var entry in foodPrefabs)
                 if (entry.food == food) return entry.prefab;
             return null;
-        }
-
-        private void ApplyLockedVisual(GameObject go)
-        {
-            // ÖNEMLİ: Material'lar Opaque olmalı (hamburger'in tray'in önünde
-            // doğru render olması buna bağlı — bkz. derinlik/sorting sorunu).
-            // Opaque materyallerde alpha görmezden gelinir, o yüzden "kilitli"
-            // görünümünü ALPHA değil RGB karartma ile veriyoruz: rengi
-            // lockedAlpha oranında koyulaştırıyoruz, alpha'yı 1'de tutuyoruz.
-            var renderers = go.GetComponentsInChildren<Renderer>();
-            foreach (var r in renderers)
-            {
-                if (r.material.HasProperty("_Color"))
-                {
-                    var c = r.material.color;
-                    c.r *= lockedAlpha;
-                    c.g *= lockedAlpha;
-                    c.b *= lockedAlpha;
-                    c.a = 1f;
-                    r.material.color = c;
-                }
-                else if (r.material.HasProperty("_BaseColor"))
-                {
-                    // URP Lit/Simple Lit shader'larda renk "_BaseColor" altında.
-                    var c = r.material.GetColor("_BaseColor");
-                    c.r *= lockedAlpha;
-                    c.g *= lockedAlpha;
-                    c.b *= lockedAlpha;
-                    c.a = 1f;
-                    r.material.SetColor("_BaseColor", c);
-                }
-            }
         }
     }
 }

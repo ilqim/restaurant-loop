@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using UnityEngine;
 
 namespace RestaurantLoop
@@ -25,10 +24,6 @@ namespace RestaurantLoop
         [Header("Kapasite")]
         [SerializeField] private int capacity = 10;
 
-        [Header("Zıplama Animasyonu")]
-        [SerializeField] private float jumpDuration = 0.35f;
-        [SerializeField] private float jumpArcHeight = 1.2f;
-
         [Header("Kapasite Debug Etiketi")]
         [SerializeField] private bool showCapacityLabel = true;
         [SerializeField] private float labelHeight = 0.6f;
@@ -43,7 +38,7 @@ namespace RestaurantLoop
         [SerializeField] private bool verboseLogging = true;
 
         [Header("Görseller — Queue ve Food-Slot ayrı renk/sprite kullanır")]
-        [Tooltip("Bu food QUEUE hücresindeyken uygulanacak sprite. Boş bırakılırsa QueueSlot kendi default sprite'ını korur.")]
+        [Tooltip("Bu food QUEUE hücresindeyken uygulanacak sprite. Boş bırakılırsa QueueSlot kendi default sprite'ını korur (sadece renk değişir).")]
         [SerializeField] private Sprite queueSprite;
         public Sprite QueueSprite => queueSprite;
         [Tooltip("Bu food QUEUE hücresindeyken tepsinin rengi.")]
@@ -51,7 +46,7 @@ namespace RestaurantLoop
         public Color QueueColor => queueColor;
 
         [Header("Food-Slot Rengi (Hex)")]
-        [Tooltip("Bu food FOOD-SLOT'a yerleştiğinde, slotun 'dolu' sprite'ına uygulanacak renk.")]
+        [Tooltip("Bu food FOOD-SLOT'a (konveyör sonu, Slot.cs) yerleştiğinde, slotun 'dolu' sprite'ına uygulanacak renk. Hex formatında gir, örn: #FF5733 veya #FF5733FF.")]
         [SerializeField] private string slotColorHex = "#FFFFFF";
         public Color SlotColor
         {
@@ -60,15 +55,17 @@ namespace RestaurantLoop
                 if (ColorUtility.TryParseHtmlString(slotColorHex, out Color c))
                     return c;
 
-                Debug.LogWarning($"Food [{name}]: slotColorHex ('{slotColorHex}') geçersiz bir hex değeri, beyaz kullanılıyor.");
+                Debug.LogWarning($"Food [{name}]: slotColorHex ('{slotColorHex}') geçersiz bir hex değeri, beyaz kullanılıyor. Format: #RRGGBB veya #RRGGBBAA.");
                 return Color.white;
             }
         }
 
+        private static readonly int BlockedBaseColorId = Shader.PropertyToID("_BaseColor");
+        private MaterialPropertyBlock mpb;
+
         private bool queueStatePreset;
         private TextMesh capacityLabel;
         private Camera labelFacingCamera;
-        private Coroutine jumpCoroutine;
 
         public FoodState CurrentState => currentState;
         public FoodType FoodTypeValue => foodType;
@@ -117,8 +114,9 @@ namespace RestaurantLoop
 
             if (currentState == FoodState.AvailableInQueue)
             {
+                // Queue'deki food'u banda göndermek için tıklama.
                 AudioEvents.PlayFoodClick();
-                TryLaunchWithAnimation();
+                TryLaunchAndDespawn();
             }
             else
             {
@@ -127,9 +125,15 @@ namespace RestaurantLoop
             }
         }
 
+        /// <summary>
+        /// Slot, food'u konveyöre geri göndermek istediğinde çağırır.
+        /// Dönüş değeri: food GERÇEKTEN konveyöre çıkabildi mi (true) yoksa
+        /// konveyör dolu olduğu için olduğu yerde mi kaldı (false).
+        /// Slot, bu sonuca göre kendini boşaltıp boşaltmayacağına karar verir.
+        /// </summary>
         public bool EnterConveyorFromSlot()
         {
-            return TryLaunchWithAnimation();
+            return TryLaunchAndDespawn();
         }
 
         public void SetInFoodSlot()
@@ -137,7 +141,53 @@ namespace RestaurantLoop
             ChangeState(FoodState.InFoodSlot);
         }
 
-        private bool TryLaunchWithAnimation()
+        /// <summary>
+        /// Queue'da locked (henüz sırası gelmemiş) durumdaki görünüm.
+        /// ÖNEMLİ: Saydamlık (alpha) DEĞİL, RGB karartma kullanıyor —
+        /// materyal Opaque kalmaya devam ediyor, bu yüzden altındaki 2D
+        /// queue slot sprite'ıyla derinlik/sıralama çakışması olmuyor.
+        /// isBlocked=false ile çağırırsan orijinal renge geri döner.
+        /// </summary>
+        public void ApplyBlockedVisual(bool isBlocked, float darkenFactor = 0.35f)
+        {
+            if (mpb == null) mpb = new MaterialPropertyBlock();
+
+            var renderers = GetComponentsInChildren<Renderer>(true);
+            float factor = isBlocked ? Mathf.Clamp01(darkenFactor) : 1f;
+
+            foreach (var r in renderers)
+            {
+                if (r == null) continue;
+
+                // SpriteRenderer varsa (Customer.cs'deki Bubble fix'iyle
+                // aynı mantık) direkt .color kullan — _BaseColor sprite
+                // shader'ında yok.
+                if (r is SpriteRenderer sr)
+                {
+                    Color c = sr.color;
+                    c.r *= factor; c.g *= factor; c.b *= factor;
+                    c.a = 1f; // ALFAYA DOKUNMA — Opaque kalmalı
+                    sr.color = c;
+                    continue;
+                }
+
+                var mat = r.sharedMaterial;
+                if (mat == null || !mat.HasProperty(BlockedBaseColorId)) continue;
+
+                r.GetPropertyBlock(mpb);
+                Color baseColor = mat.GetColor(BlockedBaseColorId);
+                baseColor.r *= factor; baseColor.g *= factor; baseColor.b *= factor;
+                baseColor.a = 1f; // ALFAYA DOKUNMA — Opaque kalmalı
+                mpb.SetColor(BlockedBaseColorId, baseColor);
+                r.SetPropertyBlock(mpb);
+            }
+        }
+
+        /// <summary>
+        /// Konveyöre (tray olarak) çıkışı dener. Başarılıysa food'u despawn eder
+        /// ve true döner. Konveyör doluysa hiçbir şey değiştirmeden false döner.
+        /// </summary>
+        private bool TryLaunchAndDespawn()
         {
             if (trayManager == null)
             {
@@ -145,57 +195,16 @@ namespace RestaurantLoop
                 return false;
             }
 
-            if (!trayManager.CanLaunchTray())
+            bool launched = trayManager.TryLaunchTray(foodType, capacity);
+            if (!launched)
             {
                 if (verboseLogging) Debug.Log($"Food [{gameObject.name}]: Konveyör dolu, tray başlatılamadı.");
                 return false;
             }
 
-            if (jumpCoroutine != null)
-                StopCoroutine(jumpCoroutine);
-
-            jumpCoroutine = StartCoroutine(JumpToConveyorRoutine());
+            ChangeState(FoodState.OnConveyor);
+            DespawnSelf();
             return true;
-        }
-
-        private IEnumerator JumpToConveyorRoutine()
-        {
-            ChangeState(FoodState.Launching);
-
-            Vector3 startPos = transform.position;
-            Vector3 targetPos = trayManager.GetWaypointPosition(0);
-
-            float elapsed = 0f;
-
-            while (elapsed < jumpDuration)
-            {
-                elapsed += Time.deltaTime;
-                float t = Mathf.Clamp01(elapsed / jumpDuration);
-
-                // Parabolic Arc
-                Vector3 currentPos = Vector3.Lerp(startPos, targetPos, t);
-                float heightOffset = 4f * jumpArcHeight * (t - (t * t));
-                currentPos.y += heightOffset;
-
-                transform.position = currentPos;
-                yield return null;
-            }
-
-            transform.position = targetPos;
-
-            // Finalize launch on the conveyor
-            bool launched = trayManager.TryLaunchTray(foodType, capacity);
-            if (launched)
-            {
-                ChangeState(FoodState.OnConveyor);
-                DespawnSelf();
-            }
-            else
-            {
-                ChangeState(FoodState.AvailableInQueue);
-            }
-
-            jumpCoroutine = null;
         }
 
         private void DespawnSelf()

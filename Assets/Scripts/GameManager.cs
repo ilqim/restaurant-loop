@@ -21,6 +21,10 @@ namespace RestaurantLoop
 
         [Header("UI Reference")]
         [SerializeField] private LevelCompleteUI levelCompleteUI;
+        [Tooltip("In-game'de gösterilen 'Level X' üst bar objesi — kazanınca gizlenir (CurrencyBar ile üst üste binmesin diye).")]
+        [SerializeField] private GameObject levelTopBar;
+        [Tooltip("Bu SAHNEYE (Game) ait, bağımsız CurrencyBar instance'ı. Boş bırakılırsa Start()'ta otomatik aranır.")]
+        [SerializeField] private CurrencyBar currencyBar;
 
         private CustomerManager customerManager;
 
@@ -54,6 +58,11 @@ namespace RestaurantLoop
             if(levelCompleteUI == null)
             {
                 levelCompleteUI = FindFirstObjectByType<LevelCompleteUI>();
+            }
+
+            if (currencyBar == null)
+            {
+                currencyBar = FindFirstObjectByType<CurrencyBar>();
             }
 
             currentState = GameState.Playing;
@@ -120,9 +129,27 @@ namespace RestaurantLoop
 
             currentState = GameState.Win;
 
-            //SFX & COIN REWARD
+            //SFX
             AudioEvents.PlayLevelComplete();
-            PlayerData.AddCoins(coinsPerWin);
+
+            // İSTEK: Kazanınca level top bar (Level X yazan üst bar) gizlenip
+            // yerine coin bar (CurrencyBar) açılıyor — ikisi üst üste binmesin.
+            // Coin ekleme artık bu SAHNEYE ait CurrencyBar üzerinden, ESKİ
+            // DEĞERDEN YENİ DEĞERE SAYARAK (parametrik süre/eğri, Inspector'dan
+            // ayarlanır) animasyonlu şekilde yapılıyor.
+            if (levelTopBar != null)
+                levelTopBar.SetActive(false);
+
+            if (currencyBar != null)
+            {
+                currencyBar.gameObject.SetActive(true);
+                currencyBar.AddCoinsAnimated(coinsPerWin);
+            }
+            else
+            {
+                Debug.LogWarning("GameManager: CurrencyBar bulunamadı — coin animasyonsuz eklendi.");
+                PlayerData.AddCoins(coinsPerWin);
+            }
 
             // ÖNEMLİ: Level kazanıldığı AN, bir sonraki level'e ilerliyoruz.
             // Bu sadece PlayerData.CurrentLevel'i (PlayerPrefs'e kalıcı olarak)
@@ -133,7 +160,22 @@ namespace RestaurantLoop
             // döndüğünde, MainMenuLevelDisplay'in artık doğru (bir sonraki)
             // level numarasını göstermesi ve Play'e tekrar basıldığında
             // SceneFlowManager'ın doğru level'in LevelData'sını yüklemesi.
-            LevelManager.Instance.AdvanceToNextLevel();
+            //
+            // GÜVENLİK: LevelManager.Instance null olabilir — örn. Game
+            // sahnesi Main Menu'den geçilmeden DİREKT Play'e basılarak test
+            // ediliyorsa (LevelManager'ın persistent singleton'ı hiç
+            // oluşmamış olur). Bu durumda level ilerlemesi atlanır ama WIN
+            // akışının geri kalanı (coin, UI) normal çalışmaya devam eder.
+            if (LevelManager.Instance != null)
+            {
+                LevelManager.Instance.AdvanceToNextLevel();
+                Debug.Log($"WIN! Bir sonraki level: {LevelManager.Instance.CurrentLevel}");
+            }
+            else
+            {
+                Debug.LogWarning("GameManager: LevelManager.Instance bulunamadı — level ilerlemesi atlandı " +
+                                  "(muhtemelen Main Menu'den geçmeden direkt bu sahneden test ediliyorsun).");
+            }
 
             if(levelCompleteUI != null)
             {
@@ -141,7 +183,6 @@ namespace RestaurantLoop
             }
 
             Debug.Log($"WIN! Awarded {coinsPerWin} coins. Total: {PlayerData.Coins}");
-            Debug.Log($"WIN! Bir sonraki level: {LevelManager.Instance.CurrentLevel}");
 
             Debug.Log("=================================");
             Debug.Log("WIN!");

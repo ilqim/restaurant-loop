@@ -5,7 +5,7 @@ using UnityEngine.UI;
 namespace RestaurantLoop
 {
     [RequireComponent(typeof(Button))]
-    public class SelectBoosterButton : MonoBehaviour
+    public class SelectBoosterButton : MonoBehaviour, IBoosterLevelGate
     {
         [Header("Referanslar")]
         [Tooltip("Boş bırakılırsa sahnede otomatik aranır.")]
@@ -14,6 +14,9 @@ namespace RestaurantLoop
         [SerializeField] private Button button;
         [Tooltip("Opsiyonel — kalan hak sayısını gösteren text.")]
         [SerializeField] private TMP_Text countText;
+
+        // LevelManager'dan gelen "bu level'de açık mı" bilgisi.
+        private bool unlockedByLevel = true;
 
         private void Awake()
         {
@@ -25,7 +28,7 @@ namespace RestaurantLoop
         {
             PlayerData.BoosterCountChanged += OnBoosterCountChanged;
             if (queueManager != null) queueManager.SelectModeEnded += RefreshUI;
-            RefreshUI();
+            RefreshLevelGate();
         }
 
         private void OnDisable()
@@ -40,8 +43,22 @@ namespace RestaurantLoop
                 RefreshUI();
         }
 
+        /// <summary>
+        /// IBoosterLevelGate — LevelManager, Game sahnesi her yüklendiğinde
+        /// bunu çağırır.
+        /// </summary>
+        public void RefreshLevelGate()
+        {
+            unlockedByLevel = LevelManager.Instance == null ||
+                               LevelManager.Instance.IsBoosterUnlocked(BoosterType.Select);
+            RefreshUI();
+        }
+
         public void OnSelectButtonPressed()
         {
+            if (!unlockedByLevel)
+                return;
+
             if (queueManager == null) queueManager = FindFirstObjectByType<QueueManager>();
             if (queueManager == null)
             {
@@ -69,7 +86,8 @@ namespace RestaurantLoop
                 countText.text = remaining.ToString();
 
             if (button != null)
-                button.interactable = remaining > 0 && (queueManager == null || !queueManager.IsSelectModeActive);
+                button.interactable = unlockedByLevel && remaining > 0 &&
+                                       (queueManager == null || !queueManager.IsSelectModeActive);
         }
     }
 }
