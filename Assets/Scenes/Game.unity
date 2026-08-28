@@ -590,7 +590,7 @@ MonoBehaviour:
   spriteRotationOffset: -90
   yOffset: 0.7
   arrowSpacing: 1.5
-  scrollSpeed: 3.5
+  scrollSpeed: 1
   startOffsetDistance: -1.5
   endOffsetDistance: -2
   edgeFadeDistance: 0.5
@@ -7026,7 +7026,7 @@ MonoBehaviour:
     pieceHeightSpacing: 0.4
     maxVisualPieces: 20
     removeFromTopFirst: 1
-    conveyorSpeed: 5
+    conveyorSpeed: 3.5
     deliverySpeed: 10
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
@@ -7037,7 +7037,7 @@ MonoBehaviour:
     pieceHeightSpacing: 0.4
     maxVisualPieces: 20
     removeFromTopFirst: 1
-    conveyorSpeed: 5
+    conveyorSpeed: 3.5
     deliverySpeed: 10
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
@@ -7048,7 +7048,7 @@ MonoBehaviour:
     pieceHeightSpacing: 0.4
     maxVisualPieces: 20
     removeFromTopFirst: 1
-    conveyorSpeed: 5
+    conveyorSpeed: 3.5
     deliverySpeed: 10
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
@@ -7059,7 +7059,7 @@ MonoBehaviour:
     pieceHeightSpacing: 0.4
     maxVisualPieces: 20
     removeFromTopFirst: 1
-    conveyorSpeed: 4
+    conveyorSpeed: 3.5
     deliverySpeed: 7
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
