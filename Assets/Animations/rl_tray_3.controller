@@ -141,8 +141,8 @@ AnimatorStateMachine:
     m_State: {fileID: -6837393982608511274}
     m_Position: {x: -110, y: 150, z: 0}
   - serializedVersion: 1
-    m_State: {fileID: -7908281430698556042}
-    m_Position: {x: 190, y: 130, z: 0}
+    m_State: {fileID: 8205287663362554706}
+    m_Position: {x: -75, y: 215, z: 0}
   m_ChildStateMachines: []
   m_AnyStateTransitions:
   - {fileID: 4669995163524893455}
@@ -242,6 +242,32 @@ AnimatorState:
   m_CycleOffsetParameterActive: 0
   m_TimeParameterActive: 0
   m_Motion: {fileID: 7400000, guid: 17447efde4e852c4eb75dfcec7240ea0, type: 2}
+  m_Tag: 
+  m_SpeedParameter: 
+  m_MirrorParameter: 
+  m_CycleOffsetParameter: 
+  m_TimeParameter: 
+--- !u!1102 &8205287663362554706
+AnimatorState:
+  serializedVersion: 6
+  m_ObjectHideFlags: 1
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: TrayMovingAnim
+  m_Speed: 1
+  m_CycleOffset: 0
+  m_Transitions: []
+  m_StateMachineBehaviours: []
+  m_Position: {x: 50, y: 50, z: 0}
+  m_IKOnFeet: 0
+  m_WriteDefaultValues: 1
+  m_Mirror: 0
+  m_SpeedParameterActive: 0
+  m_MirrorParameterActive: 0
+  m_CycleOffsetParameterActive: 0
+  m_TimeParameterActive: 0
+  m_Motion: {fileID: 7400000, guid: 0449bb378d2db0748b147ddf367d91df, type: 2}
   m_Tag: 
   m_SpeedParameter: 
   m_MirrorParameter: 

@@ -8578,6 +8578,32 @@ MonoBehaviour:
     deliverySpeed: 10
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
+    deliveryStartScale: 0.2
+    deliveryEndScale: 2
+    deliveryScaleCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 2
+        outSlope: 2
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   - food: 1
     stackPiecePrefab: {fileID: 194044074211895501, guid: 60974fb3379a9374f9d7ce5b1b3948ee, type: 3}
     foodBaseYOffset: 0.05
@@ -8589,6 +8615,32 @@ MonoBehaviour:
     deliverySpeed: 10
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
+    deliveryStartScale: 1
+    deliveryEndScale: 2
+    deliveryScaleCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 2
+        outSlope: 2
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   - food: 2
     stackPiecePrefab: {fileID: 7669723658021224773, guid: 25828ffdb9c727c4fae77709a0761fe8, type: 3}
     foodBaseYOffset: 0.05
@@ -8600,6 +8652,32 @@ MonoBehaviour:
     deliverySpeed: 10
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
+    deliveryStartScale: 0.2
+    deliveryEndScale: 3
+    deliveryScaleCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   - food: 3
     stackPiecePrefab: {fileID: 1076883276192951387, guid: ba903950fdf38b34a9f570ee84c73bd4, type: 3}
     foodBaseYOffset: 0.05
@@ -8611,6 +8689,32 @@ MonoBehaviour:
     deliverySpeed: 10
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
+    deliveryStartScale: 0.2
+    deliveryEndScale: 1
+    deliveryScaleCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   - food: 4
     stackPiecePrefab: {fileID: 5710328474086436543, guid: 5aabb5195644684459d8ed7fe46ca96e, type: 3}
     foodBaseYOffset: 0.05
@@ -8622,6 +8726,32 @@ MonoBehaviour:
     deliverySpeed: 10
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
+    deliveryStartScale: 0.2
+    deliveryEndScale: 1
+    deliveryScaleCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 2
+        outSlope: 2
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   - food: 3
     stackPiecePrefab: {fileID: 1076883276192951387, guid: ba903950fdf38b34a9f570ee84c73bd4, type: 3}
     foodBaseYOffset: 0.05
@@ -8633,6 +8763,32 @@ MonoBehaviour:
     deliverySpeed: 7
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
+    deliveryStartScale: 0.2
+    deliveryEndScale: 1
+    deliveryScaleCurve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: 0
+        inSlope: 2
+        outSlope: 2
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      - serializedVersion: 3
+        time: 1
+        value: 1
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+        weightedMode: 0
+        inWeight: 0
+        outWeight: 0
+      m_PreInfinity: 2
+      m_PostInfinity: 2
+      m_RotationOrder: 4
   loopIfSlotsFull: 0
   foodPrefabsForMerge:
   - food: 0
