@@ -457,6 +457,7 @@ namespace RestaurantLoop
                         if (availableFoodColumn.ContainsKey(food))
                         {
                             food.StateChanged -= OnAvailableFoodStateChanged;
+                            food.StateChanged -= OnSelectModeFoodStateChanged;
                             availableFoodColumn.Remove(food);
                         }
                     }
@@ -465,6 +466,7 @@ namespace RestaurantLoop
                 }
             }
             columnVisuals.Clear();
+            activeSelectableFoods.Clear();
             availableFoodColumn.Clear();
 
             foreach (var slotVisuals in columnSlotVisuals.Values)
