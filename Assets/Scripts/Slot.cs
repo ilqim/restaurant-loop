@@ -9,18 +9,7 @@ namespace RestaurantLoop
         Occupied
     }
 
-    /// <summary>
-    /// Food-slot (konveyör sonu). Tıklanabilir collider'ı DA burada taşıyor
-    /// — ayrı bir "SlotClickTarget" component'ine gerek yok, Slot kendisi
-    /// IQueueClickable implement ediyor. Food'un kendisinde collider yok.
-    ///
-    /// GÖRSEL: Ayrı bir prefab instantiate ETMİYORUZ. Bu objenin ÜZERİNDE
-    /// zaten duran SpriteRenderer'ın sprite/color'ını, atanan food'a göre
-    /// değiştiriyoruz. Obje sayısı hiç artmıyor, extra collider/script
-    /// oluşmuyor, GC allocation yok — en ucuz yöntem.
-    /// </summary>
     [RequireComponent(typeof(Collider))]
-    [RequireComponent(typeof(SpriteRenderer))]
     public class Slot : MonoBehaviour, IQueueClickable
     {
         [Header("State")]
@@ -32,10 +21,6 @@ namespace RestaurantLoop
         [Header("Yerleşim")]
         [Tooltip("Food, slot pozisyonunun ne kadar yukarısına yerleştirilsin (dünya Y ekseni).")]
         [SerializeField] private float foodYOffset = 0.3f;
-
-        [Header("Görsel")]
-        [Tooltip("Slot doluyken gösterilecek TEK sprite — tüm food'lar için aynı sprite/renk kullanılır.")]
-        [SerializeField] private Sprite occupiedSprite;
 
         [Header("Debug")]
         [SerializeField] private bool verboseFallbackLog = true;
@@ -62,9 +47,6 @@ namespace RestaurantLoop
         [Tooltip("Min'den max'a (ya da tersi) geçişin süresi (saniye) — küçültürsen hızlanır, büyütürsen yavaşlar. Bir tam yanıp-sönme (min->max->min) bunun 2 katı sürer.")]
         [SerializeField] private float warningFlashHalfCycleDuration = 0.15f;
 
-        private SpriteRenderer spriteRenderer;
-        private Sprite defaultSprite;
-        private Color defaultColor;
         private Coroutine warningFlashRoutine;
 
         public SlotState CurrentState => currentState;
@@ -74,18 +56,8 @@ namespace RestaurantLoop
 
         private void Awake()
         {
-            spriteRenderer = GetComponent<SpriteRenderer>();
-
-            // Prefab'de baştan atanmış olan sprite+renk "boş slot" görünümü
-            // kabul ediliyor — bu AYNEN korunuyor, food çıktığında buna
-            // geri dönülüyor.
-            defaultSprite = spriteRenderer.sprite;
-            defaultColor = spriteRenderer.color;
-
-            // Slot başlangıçta Empty — count label child'ı da baştan kapalı olsun.
             countLabel?.SetVisible(false);
 
-            // Uyarı objesi de başta görünmez (min alfa) olsun.
             if (warningFlashRenderer != null)
             {
                 Color c = warningFlashRenderer.color;
@@ -96,12 +68,6 @@ namespace RestaurantLoop
 
         private void Update()
         {
-            // GÜVENLİK: Normal akışta slot, OnReenterRequested üzerinden
-            // RemoveFood() çağrılarak boşalır. Ama food herhangi bir sebeple
-            // (örn. Tray/pool tarafında beklenmedik bir Destroy, ya da event
-            // zincirinin atlandığı bir edge-case) bu akışı hiç tetiklemeden
-            // yok olursa, slot bunu fark edemez ve Occupied/eski sprite'ta
-            // takılı kalır.
             if (currentState == SlotState.Occupied && currentFood == null)
             {
                 RemoveFood();
@@ -123,21 +89,10 @@ namespace RestaurantLoop
             pos.y += foodYOffset;
             food.transform.position = pos;
 
-            // Food'un "slottan çıkmak istiyorum" isteğine ABONE OLUYORUZ.
             food.ReenterConveyorRequested += OnReenterRequested;
 
             food.SetInFoodSlot();
 
-            // FOOD VARKEN SLOT'UN KENDİ SPRITE'INI GİZLE.
-            spriteRenderer.enabled = false;
-
-            // Sprite yine atanıyor, fakat renderer kapalı olduğu için
-            // ekranda görünmüyor. Food çıktığında default sprite'a dönüyor.
-            spriteRenderer.sprite = occupiedSprite != null
-                ? occupiedSprite
-                : defaultSprite;
-
-            // Capacity 0 (ya da altı) ise içinde gösterilecek bir sayı yok.
             if (food.Capacity <= 0)
             {
                 countLabel?.SetVisible(false);
@@ -153,12 +108,19 @@ namespace RestaurantLoop
 
         /// <summary>
         /// Food (slottayken) tıklanıp konveyöre dönmek istediğinde tetiklenir.
-        /// SIRALAMA KESİN: slot ancak food GERÇEKTEN konveyöre çıkabildiyse
-        /// boşalır.
+        ///
+        /// ÖNEMLİ: countLabel artık food'un GERÇEKTEN konveyöre gidip
+        /// gitmediğini (animasyonun bitmesini) BEKLEMİYOR — tıklanır
+        /// tıklanmaz HEMEN kapanıyor. Food.EnterConveyorFromSlot() zaten
+        /// SENKRON olarak true/false döner (asıl uçuş animasyonu arka
+        /// planda ayrı devam eder). Sonuç başarısızsa (konveyör doluysa)
+        /// aynı frame içinde countLabel geri açılıyor.
         /// </summary>
         private void OnReenterRequested(Food food)
         {
             food.ReenterConveyorRequested -= OnReenterRequested;
+
+            countLabel?.SetVisible(false);
 
             bool left = food.EnterConveyorFromSlot();
 
@@ -168,6 +130,12 @@ namespace RestaurantLoop
             }
             else
             {
+                if (food.Capacity > 0)
+                {
+                    countLabel?.SetVisible(true);
+                    countLabel?.SetCount(food.Capacity);
+                }
+
                 if (verboseFallbackLog)
                 {
                     Debug.Log(
@@ -176,7 +144,6 @@ namespace RestaurantLoop
                     );
                 }
 
-                // Tekrar tıklanabilsin diye event'e yeniden abone ol.
                 food.ReenterConveyorRequested += OnReenterRequested;
             }
         }
@@ -189,20 +156,9 @@ namespace RestaurantLoop
             currentFood = null;
             currentState = SlotState.Empty;
 
-            // FOOD GİTTİ → SLOT'UN SPRITE'INI TEKRAR GÖSTER.
-            spriteRenderer.enabled = true;
-
-            // Slot boşaldı, default sprite/renge dön.
-            spriteRenderer.sprite = defaultSprite;
-            spriteRenderer.color = defaultColor;
-
             countLabel?.Clear();
         }
 
-        /// <summary>
-        /// Eski SlotClickTarget'ın yaptığı iş — artık ayrı bir component
-        /// değil, doğrudan Slot'un kendisi. IQueueClickable.HandleClick.
-        /// </summary>
         public void HandleClick()
         {
             if (IsEmpty)
@@ -216,11 +172,6 @@ namespace RestaurantLoop
         // TÜM slotlara bunu çağırır.
         // ============================================================
 
-        /// <summary>
-        /// warningFlashRenderer'ın alfasını warningFlashMinAlpha ile
-        /// warningFlashMaxAlpha arasında warningFlashCount kez yanıp
-        /// söndürür.
-        /// </summary>
         public void PlayWarningFlash()
         {
             if (warningFlashRenderer == null)
@@ -232,9 +183,6 @@ namespace RestaurantLoop
             warningFlashRoutine = StartCoroutine(WarningFlashRoutine());
         }
 
-        /// <summary>
-        /// Halihazırda oynayan yanıp-sönmeyi durdurup min alfaya sıfırlar.
-        /// </summary>
         public void StopWarningFlash()
         {
             if (warningFlashRoutine != null)
@@ -272,7 +220,6 @@ namespace RestaurantLoop
                 );
             }
 
-            // Bitince min alfada bırak.
             Color finalColor = baseColor;
             finalColor.a = warningFlashMinAlpha;
             warningFlashRenderer.color = finalColor;
