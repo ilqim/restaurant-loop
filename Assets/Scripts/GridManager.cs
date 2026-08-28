@@ -225,12 +225,12 @@ namespace RestaurantLoop
             int colDiff = data.baseCol - data.trayBaseCol;
             bool splitByRow = Mathf.Abs(rowDiff) >= Mathf.Abs(colDiff);
 
-            // Start'a yakın taraf hangi index (0 mı 1 mi)?
+            // Start'a yakın taraf hangi index (0 mı 1 mi)? — TİP (BO/BC)
+            // belirleme mantığı DEĞİŞMEDİ, zaten doğru çalışıyordu.
             int nearIndex = splitByRow ? (rowDiff > 0 ? 1 : 0) : (colDiff > 0 ? 1 : 0);
 
-            // TEK bir eksen yön vektörü — hücre bazlı nokta hesaplaması YOK.
-            // Bu sayede tüm Opening tile'ları birebir aynı açıda, tüm Cover
-            // tile'ları da bunun tam 180° tersinde durur.
+            // Taraf başına TEK bir temel yön — bu, o tarafın (opening ya da
+            // cover) "0°" referans açısı olacak.
             Vector3 axisDir = splitByRow
                 ? Grid.GetCellCenterWorld(data.trayBaseRow + 1, data.trayBaseCol) -
                   Grid.GetCellCenterWorld(data.trayBaseRow, data.trayBaseCol)
@@ -242,8 +242,8 @@ namespace RestaurantLoop
             Vector3 openingFacing = nearIndex == 1 ? axisDir : -axisDir;
             Vector3 coverFacing = -openingFacing;
 
-            Quaternion openingRot = Quaternion.LookRotation(openingFacing, Vector3.up);
-            Quaternion coverRot = Quaternion.LookRotation(coverFacing, Vector3.up);
+            Quaternion openingBaseRot = Quaternion.LookRotation(openingFacing, Vector3.up);
+            Quaternion coverBaseRot = Quaternion.LookRotation(coverFacing, Vector3.up);
 
             for (int dr = 0; dr < LevelData.ConveyorBlockSize; dr++)
             {
@@ -264,7 +264,15 @@ namespace RestaurantLoop
                     }
 
                     Vector3 cellWorld = Grid.GetCellCenterWorld(rr, cc);
-                    Quaternion rot = isNearSide ? openingRot : coverRot;
+                    Quaternion sideBaseRot = isNearSide ? openingBaseRot : coverBaseRot;
+
+                    // ÖNEMLİ: Aynı taraftaki iki hücre (örn. iki BO) 180°
+                    // KARŞILIKLI DEĞİL — biri 0° (temel açı), diğeri buna göre
+                    // -90° dönük olmalı. "widthIndex", split ekseni HARİÇ
+                    // değişen eksendeki index (0 ya da 1) — splitByRow ise dc,
+                    // splitByColumn ise dr. widthIndex=0 -> +0°, widthIndex=1 -> -90°.
+                    int widthIndex = splitByRow ? dc : dr;
+                    Quaternion rot = sideBaseRot * Quaternion.Euler(0f, widthIndex * -90f, 0f);
 
                     SpawnFromPool(prefab, cellWorld, rot, $"TrayBase_{type}_{rr}_{cc}");
                 }

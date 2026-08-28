@@ -31,8 +31,10 @@ namespace RestaurantLoop
     {
         private Food assignedFood;
         private SpriteRenderer spriteRenderer;
-        private Sprite defaultSprite;
-        private Color defaultColor;
+
+        [Header("Sayı Etiketi")]
+        [Tooltip("İçindeki food'un kapasitesini gösteren 3D etiket (Canvas değil, normal derinlik testine tabi).")]
+        [SerializeField] private WorldSpaceCountLabel countLabel;
 
         public Food AssignedFood => assignedFood;
 
@@ -40,11 +42,11 @@ namespace RestaurantLoop
         {
             spriteRenderer = GetComponent<SpriteRenderer>();
 
-            // Prefab/sahnede baştan atanmış olan sprite+renk "boş hücre"
-            // görünümü kabul ediliyor — food gelmediğinde / ClearFood
-            // sonrası buna geri dönülüyor.
-            defaultSprite = spriteRenderer.sprite;
-            defaultColor = spriteRenderer.color;
+            // QueueSlot'ta "boş" durumun default bir görünümü YOK — Slot.cs'in
+            // aksine burada boşken hiçbir şekil gösterilmiyor. Bu yüzden
+            // prefab'deki sprite'ı "default" olarak saklamıyoruz, renderer'ı
+            // doğrudan kapatıyoruz.
+            spriteRenderer.enabled = false;
         }
 
         public void AssignFood(Food food)
@@ -53,8 +55,12 @@ namespace RestaurantLoop
 
             if (food != null)
             {
-                spriteRenderer.sprite = food.QueueSprite != null ? food.QueueSprite : defaultSprite;
+                spriteRenderer.enabled = true;
+                if (food.QueueSprite != null)
+                    spriteRenderer.sprite = food.QueueSprite;
                 spriteRenderer.color = food.QueueColor;
+
+                countLabel?.SetCount(food.Capacity);
             }
             else
             {
@@ -65,8 +71,8 @@ namespace RestaurantLoop
         public void ClearFood()
         {
             assignedFood = null;
-            spriteRenderer.sprite = defaultSprite;
-            spriteRenderer.color = defaultColor;
+            spriteRenderer.enabled = false;
+            countLabel?.Clear();
         }
 
         public void HandleClick()

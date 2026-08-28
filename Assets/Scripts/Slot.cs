@@ -39,6 +39,10 @@ namespace RestaurantLoop
         [Header("Debug")]
         [SerializeField] private bool verboseFallbackLog = true;
 
+        [Header("Sayı Etiketi")]
+        [Tooltip("İçindeki food'un kapasitesini gösteren 3D etiket (Canvas değil, normal derinlik testine tabi).")]
+        [SerializeField] private WorldSpaceCountLabel countLabel;
+
         private SpriteRenderer spriteRenderer;
         private Sprite defaultSprite;
         private Color defaultColor;
@@ -103,6 +107,8 @@ namespace RestaurantLoop
             spriteRenderer.sprite = occupiedSprite != null ? occupiedSprite : defaultSprite;
             spriteRenderer.color = food.SlotColor;
 
+            countLabel?.SetCount(food.Capacity);
+
             return true;
         }
 
@@ -143,6 +149,8 @@ namespace RestaurantLoop
             // Slot boşaldı, default sprite/renge dön.
             spriteRenderer.sprite = defaultSprite;
             spriteRenderer.color = defaultColor;
+
+            countLabel?.Clear();
         }
 
         /// <summary>

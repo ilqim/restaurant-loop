@@ -125,6 +125,6 @@ MonoBehaviour:
   currentState: 0
   currentFood: {fileID: 0}
   foodYOffset: 0.3
-  defaultSlotVisualPrefab: {fileID: 0}
-  visualRoot: {fileID: 0}
+  occupiedSprite: {fileID: 0}
   verboseFallbackLog: 1
+  countLabel: {fileID: 0}

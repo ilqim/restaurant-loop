@@ -31,10 +31,11 @@ namespace RestaurantLoop
     /// (standart sayım mantığına düşer) — "açık taraf" (path'in geri
     /// kalanına komşu OLMAYAN yarı) Start/Exit olur.
     ///
-    /// Açık taraftaki 2 hücrenin yönü, genişlik ekseninde (path eksenine
-    /// DİK eksende) her hücrenin kendi eksik komşusuna göre hesaplanır —
-    /// bu da normal Straight çiftinin "karşılıklı 180°" davranışıyla
-    /// birebir aynı mekanizma, o yüzden otomatik olarak karşılıklı çıkar.
+    /// Açık taraftaki 2 hücrenin yönü artık 180° KARŞILIKLI DEĞİL — biri
+    /// referans (0°, kendi eksik komşusuna bakarak WidthAxisFacing ile
+    /// hesaplanır), diğeri buna göre -90° bağıl farkla döner. Hangi
+    /// hücrenin referans olduğu widthIndex==0 ile belirlenir (genişlik
+    /// ekseni boyunca blok içindeki pozisyon, 0 ya da 1).
     ///
     /// Köşe rotasyon kuralı (hem Inner hem Outer için aynı tablo):
     ///   Kuzey+Doğu  -> 0°   (varsayılan: yukarıdan sağa dönüş)
@@ -151,9 +152,22 @@ namespace RestaurantLoop
             if (!isOpening)
                 return false; // bağlantı tarafı — normal Straight mantığına düş
 
-            // splitByColumn true  -> genişlik ekseni DİKEY  (N/S'e bak)
-            // splitByColumn false -> genişlik ekseni YATAY  (E/W'a bak)
-            Vector3 facing = WidthAxisFacing(data, grid, row, col, widthIsVertical: splitByColumn);
+            // splitByColumn true  -> genişlik ekseni DİKEY  (N/S'e bak) -> widthIndex = row - originRow
+            // splitByColumn false -> genişlik ekseni YATAY  (E/W'a bak) -> widthIndex = col - originCol
+            int widthIndex = splitByColumn ? (row - originRow) : (col - originCol);
+
+            // Referans hücrenin (widthIndex==0) GERÇEK koordinatları — hangi
+            // hücre şu an sınıflandırılıyor olursa olsun, facing HER ZAMAN bu
+            // referans hücreye göre hesaplanır, sonra ikinci hücreye -90°
+            // bağıl fark uygulanır. Böylece iki paralel hücre artık 180°
+            // KARŞILIKLI DEĞİL — biri 0° (referans), diğeri -90° dönük olur.
+            int refRow = splitByColumn ? originRow : row;
+            int refCol = splitByColumn ? col : originCol;
+
+            Vector3 baseFacing = WidthAxisFacing(data, grid, refRow, refCol, widthIsVertical: splitByColumn);
+            Vector3 facing = widthIndex == 0
+                ? baseFacing
+                : Quaternion.Euler(0f, -90f, 0f) * baseFacing;
 
             info = new ConveyorTileInfo { Type = endpointType, Forward = facing };
             return true;
@@ -161,9 +175,8 @@ namespace RestaurantLoop
 
         /// <summary>
         /// Genişlik ekseni boyunca (yol eksenine dik) hangi komşunun eksik
-        /// olduğuna bakarak facing üretir. İki paralel şerit hücresi için
-        /// biri N eksik/diğeri S eksik (ya da E/W) çıktığı için otomatik
-        /// olarak 180° karşılıklı sonuç verir.
+        /// olduğuna bakarak facing üretir. Sadece REFERANS hücre (widthIndex==0)
+        /// için çağrılır — ikinci hücrenin facing'i buna -90° eklenerek elde edilir.
         /// </summary>
         private static Vector3 WidthAxisFacing(LevelData data, GameGrid grid, int row, int col, bool widthIsVertical)
         {

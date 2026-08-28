@@ -18,12 +18,18 @@ namespace RestaurantLoop
             Vanishing
         }
 
-        [Header("Kapasite Debug Etiketi")]
-        [SerializeField] private bool showCapacityLabel = true;
-        [SerializeField] private float labelMarginAboveStack = 0.4f;
-        [SerializeField] private int labelFontSize = 48;
-        [SerializeField] private float labelCharacterSize = 0.12f;
-        [SerializeField] private Color labelColor = Color.white;
+        [Header("Görsel Model — ÖNEMLİ")]
+        [Tooltip("Tray'in GERÇEK 3D mesh'ini taşıyan child obje. Path takibi için gereken TÜM rotasyon " +
+                 "artık KÖK objeye (transform) değil, buraya uygulanıyor — böylece kök obje hep sabit " +
+                 "(rotasyonsuz) kalır ve CountLabel gibi kökün child'ları path dönüşünden hiç etkilenmez. " +
+                 "Boş bırakılırsa (geri uyumluluk için) kökün kendisi kullanılır — YİNE ESKİ DAVRANIŞ, " +
+                 "yani bu alanı MUTLAKA ata.")]
+        [SerializeField] private Transform visualModel;
+
+        [Header("Sayı Etiketi")]
+        [Tooltip("Tray'in kalan kapasitesini gösteren 3D etiket (Canvas değil, normal derinlik testine tabi). " +
+                 "Kökün (bu objenin) child'ı olmalı, visualModel'in DEĞİL — böylece path dönüşünden etkilenmez.")]
+        [SerializeField] private WorldSpaceCountLabel countLabel;
 
         [Header("Yönelim")]
         [SerializeField] private float rotationSmoothing = 15f;
@@ -99,14 +105,22 @@ namespace RestaurantLoop
         private float[] cumulativeMovementDistance;
         private float totalMovementLength;
 
-        private TextMesh capacityLabel;
-        private Transform capacityLabelTransform;
-        private Camera labelFacingCamera;
+        /// <summary>
+        /// Path takibi / yönelim için kullanılacak GERÇEK transform.
+        /// visualModel atanmışsa o, atanmamışsa (geri uyumluluk) kökün kendisi.
+        /// </summary>
+        private Transform ModelTransform => visualModel != null ? visualModel : transform;
 
         private void Awake()
         {
             if (trayAnimator == null)
                 trayAnimator = GetComponentInChildren<Animator>(true);
+
+            if (countLabel == null)
+                Debug.LogWarning($"Tray [{gameObject.name}]: Count Label atanmamış — sayı gösterilemeyecek.", this);
+
+            if (visualModel == null)
+                Debug.LogWarning($"Tray [{gameObject.name}]: Visual Model atanmamış — path dönüşü hâlâ kök objeyi (dolayısıyla CountLabel'ı da) etkileyecek.", this);
         }
 
         public void ParkAtBase(TrayManager manager, Vector3 pos)
@@ -125,14 +139,16 @@ namespace RestaurantLoop
 
             trayManager = manager;
             transform.position = pos;
-            transform.rotation = manager != null
+
+            // ÖNEMLİ: Rotasyon artık KÖK objeye değil, visualModel'e uygulanıyor.
+            // Kök hep identity/sabit kalır, CountLabel (kökün child'ı) bundan etkilenmez.
+            ModelTransform.rotation = manager != null
                 ? manager.BaseStackRotation
                 : Quaternion.identity;
 
             ClearStackVisuals();
 
-            if (capacityLabel != null)
-                capacityLabel.text = "";
+            countLabel?.Clear();
 
             SetState(TrayState.InTrayBase);
 
@@ -194,7 +210,8 @@ namespace RestaurantLoop
                 facings.Count > 0 &&
                 facings[0].sqrMagnitude > 0.0001f)
             {
-                transform.rotation =
+                // ÖNEMLİ: Yönelim artık visualModel'e uygulanıyor, köke değil.
+                ModelTransform.rotation =
                     Quaternion.LookRotation(
                         facings[0],
                         Vector3.up
@@ -229,8 +246,7 @@ namespace RestaurantLoop
             nextCheckpointIndex = 1;
 
             BuildStackVisuals();
-            CreateCapacityLabel();
-            UpdateCapacityLabel();
+            countLabel?.SetCount(capacity);
 
             if (deliveryCheckpoints != null &&
                 deliveryCheckpoints.Count > 0)
@@ -268,23 +284,8 @@ namespace RestaurantLoop
             }
         }
 
-        private void LateUpdate()
-        {
-            if (capacityLabel == null)
-                return;
-
-            if (labelFacingCamera == null)
-                labelFacingCamera = Camera.main;
-
-            if (labelFacingCamera != null)
-            {
-                capacityLabel.transform.rotation =
-                    Quaternion.LookRotation(
-                        capacityLabel.transform.position -
-                        labelFacingCamera.transform.position
-                    );
-            }
-        }
+        // Billboard rotasyonu WorldSpaceCountLabel'ın kendi LateUpdate'inde
+        // yapılıyor — Tray'in ayrıca bir şey yapmasına gerek yok.
 
         // ---------------------------------------------------------------
         // Tray State / Animasyon
@@ -294,6 +295,11 @@ namespace RestaurantLoop
         {
             currentState = newState;
             debugCurrentState = newState;
+
+            // Sayı etiketi SADECE konveyördeyken görünür (o an anlamlı olan
+            // "kaç porsiyon kaldı" bilgisi budur) — base'de dururken ya da
+            // vanish sırasında gizli.
+            countLabel?.SetVisible(newState == TrayState.InConveyor);
 
             if (trayAnimator == null)
                 return;
@@ -414,29 +420,12 @@ namespace RestaurantLoop
 
             debugLastTargetRowCol = new Vector2Int(target.Row, target.Col);
 
-            var gridManager = trayManager != null ? trayManager.GridManagerRef : null;
-
-            // 1. İÇ BÜKEY (CONCAVE) KÖŞE KONTROLÜ
-            // Eğer şu anki waypoint bir iç köşeyse: { Din, -Dout } yönlerindeki müşterilere atış serbesttir.
-            if (gridManager != null && 
-                gridManager.WaypointIsConcaveCorner != null && 
-                currentIndex < gridManager.WaypointIsConcaveCorner.Count && 
-                gridManager.WaypointIsConcaveCorner[currentIndex])
-            {
-                AllowedShootDirections allowed = gridManager.WaypointAllowedShootDirs[currentIndex];
-                bool isAllowed = IsCustomerInAllowedDirection(trayCell, target, allowed);
-
-                debugLastAlignmentResult = $"İÇ KÖŞE (Concave) | AllowedDirs={allowed} | Target=({target.Row},{target.Col}) vs Tray=({trayCell.x},{trayCell.y}) -> {(isAllowed ? "MATCH (Serbest Atış)" : "RED")}";
-                return isAllowed;
-            }
-
-            // 2. NORMAL DÜZ SEGMENT VEYA DIŞ BÜKEY (CONVEX) KÖŞE
-            // Standart eksen bazlı dik atış kontrolü uygulanır.
             switch (currentMoveAxis)
             {
                 case WaypointMoveAxis.Row:
                 {
-                    // Row sabit, Col değişiyor (Yatay hareket). Dik atış dikey gider -> müşteri aynı COL'da olmalı.
+                    // Row sabit, Col değişiyor (Yatay hareket). Dik atış dikey gider.
+                    // Bu yüzden müşteri aynı COL'da olmalı.
                     bool match = target.Col == trayCell.y;
                     debugLastAlignmentResult =
                         $"AXIS=Row (Yatay) | target.Col={target.Col} vs trayCell.y={trayCell.y} -> {(match ? "MATCH" : "RED (aynı sütun değil)")}";
@@ -445,7 +434,8 @@ namespace RestaurantLoop
 
                 case WaypointMoveAxis.Col:
                 {
-                    // Col sabit, Row değişiyor (Dikey hareket). Dik atış yatay gider -> müşteri aynı ROW'da olmalı.
+                    // Col sabit, Row değişiyor (Dikey hareket). Dik atış yatay gider.
+                    // Bu yüzden müşteri aynı ROW'da olmalı.
                     bool match = target.Row == trayCell.x;
                     debugLastAlignmentResult =
                         $"AXIS=Col (Dikey) | target.Row={target.Row} vs trayCell.x={trayCell.x} -> {(match ? "MATCH" : "RED (aynı satır değil)")}";
@@ -483,19 +473,6 @@ namespace RestaurantLoop
             }
         }
 
-        private bool IsCustomerInAllowedDirection(Vector2Int trayCell, Customer target, AllowedShootDirections allowedDirs)
-        {
-            Vector2Int delta = new Vector2Int(target.Row - trayCell.x, target.Col - trayCell.y);
-
-            // Delta kontrolü: Müşteri tepsiye göre hangi yönde kalıyor?
-            if (delta.x > 0 && delta.y == 0 && allowedDirs.HasFlag(AllowedShootDirections.PosX)) return true;
-            if (delta.x < 0 && delta.y == 0 && allowedDirs.HasFlag(AllowedShootDirections.NegX)) return true;
-            if (delta.y > 0 && delta.x == 0 && allowedDirs.HasFlag(AllowedShootDirections.PosZ)) return true;
-            if (delta.y < 0 && delta.x == 0 && allowedDirs.HasFlag(AllowedShootDirections.NegZ)) return true;
-
-            return false;
-        }
-
         private void FireDeliveryAt(Customer target)
         {
             capacity = Mathf.Max(
@@ -506,13 +483,13 @@ namespace RestaurantLoop
             Vector3 dirToCustomer =
                 target != null
                     ? target.transform.position - transform.position
-                    : transform.forward;
+                    : ModelTransform.forward;
 
             RemoveStackPieceTowardCustomer(
                 dirToCustomer
             );
 
-            UpdateCapacityLabel();
+            countLabel?.SetCount(capacity);
 
             LaunchDeliveryClone(
                 target,
@@ -542,7 +519,6 @@ namespace RestaurantLoop
             if (config.stackPiecePrefab == null)
             {
                 currentLayerCount = 0;
-                PositionLabelAboveStack();
                 return;
             }
 
@@ -563,8 +539,6 @@ namespace RestaurantLoop
             {
                 SpawnStackPiece(i);
             }
-
-            PositionLabelAboveStack();
         }
 
         private void SpawnStackPiece(int index)
@@ -585,18 +559,22 @@ namespace RestaurantLoop
                     ? half
                     : -half;
 
+            // ÖNEMLİ: Parent artık ModelTransform — stack parçaları görsel
+            // model ile BİRLİKTE dönsün istiyoruz (kökle değil), aksi halde
+            // tray köşede dönerken üzerindeki yemek yığını sabit kalır gibi
+            // görünürdü.
             GameObject piece =
                 ObjectPool.Instance != null
                     ? ObjectPool.Instance.Get(
                         config.stackPiecePrefab,
-                        transform.position,
+                        ModelTransform.position,
                         config.stackPiecePrefab.transform.rotation,
-                        transform)
+                        ModelTransform)
                     : Instantiate(
                         config.stackPiecePrefab,
-                        transform.position,
+                        ModelTransform.position,
                         config.stackPiecePrefab.transform.rotation,
-                        transform);
+                        ModelTransform);
 
             float yOffset =
                 config.foodBaseYOffset +
@@ -644,8 +622,10 @@ namespace RestaurantLoop
             if (layerPieces.Count == 0)
                 return;
 
+            // ÖNEMLİ: ModelTransform üzerinden — tray'in GERÇEK görsel
+            // yönelimine göre hesaplanmalı, sabit kalan kökün rotasyonuna göre DEĞİL.
             Vector3 localDir =
-                transform.InverseTransformDirection(
+                ModelTransform.InverseTransformDirection(
                     dirToCustomerWorld
                 );
 
@@ -700,8 +680,6 @@ namespace RestaurantLoop
                     ? stackPieceInfos.Max(
                         p => p.layerIndex) + 1
                     : 0;
-
-            PositionLabelAboveStack();
         }
 
         private void ClearStackVisuals()
@@ -848,12 +826,14 @@ namespace RestaurantLoop
                     ? cumulativeMovementDistance[fromIndex]
                     : 0f;
 
+            // ÖNEMLİ: Hedef rotasyon hesaplanırken "şu anki rotasyon" artık
+            // ModelTransform'dan okunuyor (kökten değil).
             Quaternion targetRotation =
                 targetFacing.sqrMagnitude > 0.0001f
                     ? Quaternion.LookRotation(
                         targetFacing,
                         Vector3.up)
-                    : transform.rotation;
+                    : ModelTransform.rotation;
 
             float elapsed = 0f;
 
@@ -866,6 +846,9 @@ namespace RestaurantLoop
                         elapsed / duration
                     );
 
+                // Pozisyon KÖK objede kalmaya devam ediyor — waypoint/teslimat
+                // hesaplamalarının hepsi transform.position'a göre yapılıyor,
+                // buna dokunmuyoruz.
                 transform.position =
                     Vector3.Lerp(
                         start,
@@ -873,10 +856,12 @@ namespace RestaurantLoop
                         t
                     );
 
-                transform.rotation =
+                // ROTASYON artık ModelTransform'a uygulanıyor — kök hep sabit
+                // kalıyor, CountLabel (kökün child'ı) bundan etkilenmiyor.
+                ModelTransform.rotation =
                     rotationSmoothing > 0f
                         ? Quaternion.Slerp(
-                            transform.rotation,
+                            ModelTransform.rotation,
                             targetRotation,
                             Time.deltaTime *
                             rotationSmoothing)
@@ -901,7 +886,7 @@ namespace RestaurantLoop
             }
 
             transform.position = target;
-            transform.rotation = targetRotation;
+            ModelTransform.rotation = targetRotation;
         }
 
         private void AdvanceDeliveryCheckpoints(
@@ -961,7 +946,7 @@ namespace RestaurantLoop
                     this,
                     config.stackPiecePrefab,
                     launchPosition,
-                    transform.rotation,
+                    ModelTransform.rotation,
                     target,
                     config.deliverySpeed,
                     config.deliverySpinSpeed,
@@ -1158,6 +1143,21 @@ namespace RestaurantLoop
             }
 
             capacity = 0;
+
+            // ÖNEMLİ: Food zaten slota ışınlandı (TryPlaceFood içinde, yukarıda
+            // — o metod food.transform.position'ı doğrudan slot pozisyonuna
+            // set ediyor). Ama tray'in kendi üzerindeki stack görselleri
+            // (stackPieceInfos — dekoratif yığın parçaları) o ana kadar hâlâ
+            // duruyordu ve normalde sadece ParkAtBase()'de temizleniyordu.
+            // Yani vanish animasyonu SÜRESİNCE tray'in üzerinde "hayalet" bir
+            // yığın görünmeye devam ediyor, food'un slota vardığı an fark
+            // edilmiyordu. Burada, vanish animasyonu başlamadan (Despawn()
+            // çağrılmadan) ÖNCE temizleyerek "food slota gitti" ile "tray'in
+            // üzeri boşaldı" aynı frame'de gerçekleşiyor — animasyon zaten
+            // boşalmış bir tray üzerinde oynuyor, kopukluk hissi kalkıyor.
+            ClearStackVisuals();
+            countLabel?.SetCount(capacity);
+
             return true;
         }
 
@@ -1175,83 +1175,6 @@ namespace RestaurantLoop
                 StopCoroutine(vanishRoutine);
 
             vanishRoutine = StartCoroutine(VanishThenReturnToBase());
-        }
-
-        private void CreateCapacityLabel()
-        {
-            if (!showCapacityLabel)
-                return;
-
-            if (capacityLabel != null)
-            {
-                UpdateCapacityLabel();
-                PositionLabelAboveStack();
-                return;
-            }
-
-            GameObject labelGO =
-                new GameObject(
-                    "CapacityLabel"
-                );
-
-            labelGO.transform.SetParent(
-                transform,
-                false
-            );
-
-            capacityLabelTransform =
-                labelGO.transform;
-
-            capacityLabel =
-                labelGO.AddComponent<TextMesh>();
-
-            capacityLabel.anchor =
-                TextAnchor.MiddleCenter;
-
-            capacityLabel.alignment =
-                TextAlignment.Center;
-
-            capacityLabel.fontSize =
-                labelFontSize;
-
-            capacityLabel.characterSize =
-                labelCharacterSize;
-
-            capacityLabel.color =
-                labelColor;
-
-            PositionLabelAboveStack();
-        }
-
-        private void PositionLabelAboveStack()
-        {
-            if (capacityLabelTransform == null)
-                return;
-
-            float stackTopHeight =
-                config.foodBaseYOffset +
-                Mathf.Max(
-                    0,
-                    currentLayerCount - 1
-                ) *
-                config.pieceHeightSpacing;
-
-            capacityLabelTransform.localPosition =
-                new Vector3(
-                    0,
-                    stackTopHeight +
-                    labelMarginAboveStack,
-                    0
-                );
-        }
-
-        private void UpdateCapacityLabel()
-        {
-            if (capacityLabel != null)
-                capacityLabel.text =
-                    capacity > 0
-                        ? capacity.ToString()
-                        : "";
         }
     }
 }
