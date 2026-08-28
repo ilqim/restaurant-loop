@@ -41,6 +41,16 @@ namespace RestaurantLoop
 
         [Tooltip("Dönüş ekseni (lokal). Sıfır bırakılırsa otomatik Vector3.up kullanılır.")]
         public Vector3 deliverySpinAxis;
+
+        [Header("Delivery Fırlatma Scale Ayarları")]
+        [Tooltip("Fırlatılan yemeğin başlangıç ölçeği (1 = normal boyut), (0.2 = küçük başlayıp büyür)")]
+        public float deliveryStartScale;
+
+        [Tooltip("Yemeğin müşteriye varırken ulaşacağı hedef ölçek.")]
+        public float deliveryEndScale;
+
+        [Tooltip("Uçuş sırasında scale animasyon eğrisi.")]
+        public AnimationCurve deliveryScaleCurve;
     }
 
     public class TrayManager : MonoBehaviour
@@ -425,7 +435,9 @@ namespace RestaurantLoop
                 conveyorSpeed = 3f,
                 deliverySpeed = 4f,
                 deliverySpinSpeed = 360f,
-                deliverySpinAxis = Vector3.up
+                deliverySpinAxis = Vector3.up,
+                deliveryStartScale = 0.35f,
+                deliveryEndScale = 1f
             };
         }
 
