@@ -34,7 +34,7 @@ namespace RestaurantLoop
         [SerializeField] private float foodYOffset = 0.3f;
 
         [Header("Görsel")]
-        [Tooltip("Slot doluyken gösterilecek TEK sprite — food'a göre değişmez, tüm food'lar için aynı sprite kullanılır. Food'lar arası fark sadece renk (Food.SlotColor / hex) ile sağlanır.")]
+        [Tooltip("Slot doluyken gösterilecek TEK sprite — tüm food'lar için aynı sprite/renk kullanılır.")]
         [SerializeField] private Sprite occupiedSprite;
 
         [Header("Debug")]
@@ -47,14 +47,18 @@ namespace RestaurantLoop
         [Header("Uyarı Yanıp Sönme (tüm slotlar dolu olunca)")]
         [Tooltip("Yanıp sönecek 2D obje — sen bir child olarak ekleyip buraya sürükleyeceksin (SpriteRenderer taşımalı).")]
         [SerializeField] private SpriteRenderer warningFlashRenderer;
+
         [Tooltip("Kaç kez yanıp sönsün (min->max->min bir kez sayılır).")]
         [SerializeField] private int warningFlashCount = 3;
+
         [Tooltip("Alfa'nın ineceği minimum değer (0-1). Örn. 0 = tamamen görünmez.")]
         [Range(0f, 1f)]
         [SerializeField] private float warningFlashMinAlpha = 0f;
+
         [Tooltip("Alfa'nın çıkacağı maksimum değer (0-1). Örn. 0.6 = %60 opak.")]
         [Range(0f, 1f)]
         [SerializeField] private float warningFlashMaxAlpha = 0.6f;
+
         [Tooltip("Min'den max'a (ya da tersi) geçişin süresi (saniye) — küçültürsen hızlanır, büyütürsen yavaşlar. Bir tam yanıp-sönme (min->max->min) bunun 2 katı sürer.")]
         [SerializeField] private float warningFlashHalfCycleDuration = 0.15f;
 
@@ -97,9 +101,7 @@ namespace RestaurantLoop
             // (örn. Tray/pool tarafında beklenmedik bir Destroy, ya da event
             // zincirinin atlandığı bir edge-case) bu akışı hiç tetiklemeden
             // yok olursa, slot bunu fark edemez ve Occupied/eski sprite'ta
-            // takılı kalır. Bu kontrol, her frame currentFood'un hâlâ var
-            // olup olmadığına bakıp (Unity'de destroy edilmiş obje == null
-            // döner) kendini otomatik olarak boşaltıyor.
+            // takılı kalır.
             if (currentState == SlotState.Occupied && currentFood == null)
             {
                 RemoveFood();
@@ -122,21 +124,20 @@ namespace RestaurantLoop
             food.transform.position = pos;
 
             // Food'un "slottan çıkmak istiyorum" isteğine ABONE OLUYORUZ.
-            // Bu, food'un elle çağırdığı, garanti sıralı bir istek —
-            // eski "state değişti, umarım biri yakalar" mantığından farklı.
             food.ReenterConveyorRequested += OnReenterRequested;
 
             food.SetInFoodSlot();
 
-            // ÖNCE sprite'ı "dolu" görünümüne çeviriyoruz (defaultSprite hâlâ
-            // saklı duruyor, RemoveFood'da tekrar kullanılacak). SONRA bu
-            // food'a özel rengi (hex'ten çevrilmiş) uyguluyoruz.
-            spriteRenderer.sprite = occupiedSprite != null ? occupiedSprite : defaultSprite;
-            spriteRenderer.color = food.SlotColor;
+            // FOOD VARKEN SLOT'UN KENDİ SPRITE'INI GİZLE.
+            spriteRenderer.enabled = false;
 
-            // Capacity 0 (ya da altı) ise içinde gösterilecek bir sayı yok
-            // demektir — countLabel'ı SetVisible(false) ile tamamen kapatıyoruz.
-            // Pozitifse aktif edip sayıyı yazıyoruz.
+            // Sprite yine atanıyor, fakat renderer kapalı olduğu için
+            // ekranda görünmüyor. Food çıktığında default sprite'a dönüyor.
+            spriteRenderer.sprite = occupiedSprite != null
+                ? occupiedSprite
+                : defaultSprite;
+
+            // Capacity 0 (ya da altı) ise içinde gösterilecek bir sayı yok.
             if (food.Capacity <= 0)
             {
                 countLabel?.SetVisible(false);
@@ -153,12 +154,11 @@ namespace RestaurantLoop
         /// <summary>
         /// Food (slottayken) tıklanıp konveyöre dönmek istediğinde tetiklenir.
         /// SIRALAMA KESİN: slot ancak food GERÇEKTEN konveyöre çıkabildiyse
-        /// boşalır — aksi halde (konveyör doluysa) food slotta kalmaya
-        /// devam eder ve slot Occupied kalır.
+        /// boşalır.
         /// </summary>
         private void OnReenterRequested(Food food)
         {
-            food.ReenterConveyorRequested -= OnReenterRequested; // tek seferlik, tekrar abone kalmasın
+            food.ReenterConveyorRequested -= OnReenterRequested;
 
             bool left = food.EnterConveyorFromSlot();
 
@@ -169,7 +169,12 @@ namespace RestaurantLoop
             else
             {
                 if (verboseFallbackLog)
-                    Debug.Log("Slot: Konveyöre çıkış başarısız, food slotta kaldı. Tekrar tıklanabilir olması için yeniden abone olunuyor.");
+                {
+                    Debug.Log(
+                        "Slot: Konveyöre çıkış başarısız, food slotta kaldı. " +
+                        "Tekrar tıklanabilir olması için yeniden abone olunuyor."
+                    );
+                }
 
                 // Tekrar tıklanabilsin diye event'e yeniden abone ol.
                 food.ReenterConveyorRequested += OnReenterRequested;
@@ -179,10 +184,13 @@ namespace RestaurantLoop
         public void RemoveFood()
         {
             if (currentFood != null)
-                currentFood.ReenterConveyorRequested -= OnReenterRequested; // güvenlik: her ihtimalde aboneliği temizle
+                currentFood.ReenterConveyorRequested -= OnReenterRequested;
 
             currentFood = null;
             currentState = SlotState.Empty;
+
+            // FOOD GİTTİ → SLOT'UN SPRITE'INI TEKRAR GÖSTER.
+            spriteRenderer.enabled = true;
 
             // Slot boşaldı, default sprite/renge dön.
             spriteRenderer.sprite = defaultSprite;
@@ -197,7 +205,9 @@ namespace RestaurantLoop
         /// </summary>
         public void HandleClick()
         {
-            if (IsEmpty) return;
+            if (IsEmpty)
+                return;
+
             CurrentFood?.ActivateFromTap();
         }
 
@@ -209,7 +219,7 @@ namespace RestaurantLoop
         /// <summary>
         /// warningFlashRenderer'ın alfasını warningFlashMinAlpha ile
         /// warningFlashMaxAlpha arasında warningFlashCount kez yanıp
-        /// söndürür. Zaten oynuyorsa baştan başlatır (üst üste binmez).
+        /// söndürür.
         /// </summary>
         public void PlayWarningFlash()
         {
@@ -222,7 +232,9 @@ namespace RestaurantLoop
             warningFlashRoutine = StartCoroutine(WarningFlashRoutine());
         }
 
-        /// <summary>Halihazırda oynayan bir yanıp-sönmeyi hemen durdurup min alfaya sıfırlar.</summary>
+        /// <summary>
+        /// Halihazırda oynayan yanıp-sönmeyi durdurup min alfaya sıfırlar.
+        /// </summary>
         public void StopWarningFlash()
         {
             if (warningFlashRoutine != null)
@@ -245,11 +257,22 @@ namespace RestaurantLoop
 
             for (int i = 0; i < Mathf.Max(1, warningFlashCount); i++)
             {
-                yield return FlashLerp(warningFlashMinAlpha, warningFlashMaxAlpha, warningFlashHalfCycleDuration, baseColor);
-                yield return FlashLerp(warningFlashMaxAlpha, warningFlashMinAlpha, warningFlashHalfCycleDuration, baseColor);
+                yield return FlashLerp(
+                    warningFlashMinAlpha,
+                    warningFlashMaxAlpha,
+                    warningFlashHalfCycleDuration,
+                    baseColor
+                );
+
+                yield return FlashLerp(
+                    warningFlashMaxAlpha,
+                    warningFlashMinAlpha,
+                    warningFlashHalfCycleDuration,
+                    baseColor
+                );
             }
 
-            // Bitince min alfada (genelde görünmez) bırak.
+            // Bitince min alfada bırak.
             Color finalColor = baseColor;
             finalColor.a = warningFlashMinAlpha;
             warningFlashRenderer.color = finalColor;
@@ -257,18 +280,25 @@ namespace RestaurantLoop
             warningFlashRoutine = null;
         }
 
-        private IEnumerator FlashLerp(float fromAlpha, float toAlpha, float duration, Color baseColor)
+        private IEnumerator FlashLerp(
+            float fromAlpha,
+            float toAlpha,
+            float duration,
+            Color baseColor)
         {
             duration = Mathf.Max(0.01f, duration);
+
             float elapsed = 0f;
 
             while (elapsed < duration)
             {
                 elapsed += Time.deltaTime;
+
                 float t = Mathf.Clamp01(elapsed / duration);
 
                 Color c = baseColor;
                 c.a = Mathf.Lerp(fromAlpha, toAlpha, t);
+
                 warningFlashRenderer.color = c;
 
                 yield return null;

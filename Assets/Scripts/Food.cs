@@ -48,29 +48,6 @@ namespace RestaurantLoop
         [Header("Debug")]
         [SerializeField] private bool verboseLogging = true;
 
-        [Header("Görseller — Queue ve Food-Slot ayrı renk/sprite kullanır")]
-        [Tooltip("Bu food QUEUE hücresindeyken uygulanacak sprite. Boş bırakılırsa QueueSlot kendi default sprite'ını korur (sadece renk değişir).")]
-        [SerializeField] private Sprite queueSprite;
-        public Sprite QueueSprite => queueSprite;
-        [Tooltip("Bu food QUEUE hücresindeyken tepsinin rengi.")]
-        [SerializeField] private Color queueColor = Color.white;
-        public Color QueueColor => queueColor;
-
-        [Header("Food-Slot Rengi (Hex)")]
-        [Tooltip("Bu food FOOD-SLOT'a (konveyör sonu, Slot.cs) yerleştiğinde, slotun 'dolu' sprite'ına uygulanacak renk. Hex formatında gir, örn: #FF5733 veya #FF5733FF.")]
-        [SerializeField] private string slotColorHex = "#FFFFFF";
-        public Color SlotColor
-        {
-            get
-            {
-                if (ColorUtility.TryParseHtmlString(slotColorHex, out Color c))
-                    return c;
-
-                Debug.LogWarning($"Food [{name}]: slotColorHex ('{slotColorHex}') geçersiz bir hex değeri, beyaz kullanılıyor. Format: #RRGGBB veya #RRGGBBAA.");
-                return Color.white;
-            }
-        }
-
         private static readonly int BlockedBaseColorId = Shader.PropertyToID("_BaseColor");
         private MaterialPropertyBlock mpb;
 

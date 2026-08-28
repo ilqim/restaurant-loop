@@ -97,59 +97,59 @@ namespace RestaurantLoop
         }
 
         [ContextMenu("Rebuild Track Now")]
-public void BuildTrack()
-{
-    if (gridManager == null)
-        gridManager = FindFirstObjectByType<GridManager>();
+        public void BuildTrack()
+        {
+            if (gridManager == null)
+                gridManager = FindFirstObjectByType<GridManager>();
 
-    if (gridManager == null || gridManager.WaypointWorldPositions == null || gridManager.WaypointWorldPositions.Count < 2)
-        return;
+            if (gridManager == null || gridManager.WaypointWorldPositions == null || gridManager.WaypointWorldPositions.Count < 2)
+                return;
 
-    cachedWaypoints = new List<Vector3>(gridManager.WaypointWorldPositions);
+            cachedWaypoints = new List<Vector3>(gridManager.WaypointWorldPositions);
 
-    // Compute cumulative distances along the path
-    cumulativeDistances = new float[cachedWaypoints.Count];
-    cumulativeDistances[0] = 0f;
-    for (int i = 1; i < cachedWaypoints.Count; i++)
-    {
-        cumulativeDistances[i] = cumulativeDistances[i - 1] + Vector3.Distance(cachedWaypoints[i - 1], cachedWaypoints[i]);
-    }
+            // Compute cumulative distances along the path
+            cumulativeDistances = new float[cachedWaypoints.Count];
+            cumulativeDistances[0] = 0f;
+            for (int i = 1; i < cachedWaypoints.Count; i++)
+            {
+                cumulativeDistances[i] = cumulativeDistances[i - 1] + Vector3.Distance(cachedWaypoints[i - 1], cachedWaypoints[i]);
+            }
 
-    totalTrackLength = cumulativeDistances[^1];
-    activeStartDist = Mathf.Clamp(startOffsetDistance, 0f, totalTrackLength);
-    activeEndDist = Mathf.Clamp(totalTrackLength - endOffsetDistance, activeStartDist + 0.1f, totalTrackLength);
+            totalTrackLength = cumulativeDistances[^1];
+            activeStartDist = Mathf.Clamp(startOffsetDistance, 0f, totalTrackLength);
+            activeEndDist = Mathf.Clamp(totalTrackLength - endOffsetDistance, activeStartDist + 0.1f, totalTrackLength);
 
-    float playableLength = activeEndDist - activeStartDist;
-    if (playableLength <= 0.1f || arrowSpacing <= 0.05f) return;
+            float playableLength = activeEndDist - activeStartDist;
+            if (playableLength <= 0.1f || arrowSpacing <= 0.05f) return;
 
-    // 1. Calculate an exact count of arrows so the loop has zero remainder
-    int countNeeded = Mathf.Max(1, Mathf.RoundToInt(playableLength / arrowSpacing));
-    
-    // 2. Adjust spacing to precisely divide the track length evenly
-    float effectiveSpacing = playableLength / countNeeded;
+            // 1. Calculate an exact count of arrows so the loop has zero remainder
+            int countNeeded = Mathf.Max(1, Mathf.RoundToInt(playableLength / arrowSpacing));
 
-    // 3. Resize object pool
-    while (arrows.Count < countNeeded)
-    {
-        arrows.Add(CreateArrowObject(arrows.Count));
-    }
+            // 2. Adjust spacing to precisely divide the track length evenly
+            float effectiveSpacing = playableLength / countNeeded;
 
-    while (arrows.Count > countNeeded)
-    {
-        int last = arrows.Count - 1;
-        if (arrows[last].go != null) Destroy(arrows[last].go);
-        arrows.RemoveAt(last);
-    }
+            // 3. Resize object pool
+            while (arrows.Count < countNeeded)
+            {
+                arrows.Add(CreateArrowObject(arrows.Count));
+            }
 
-    // 4. Distribute arrows at exact, seamless intervals
-    for (int i = 0; i < arrows.Count; i++)
-    {
-        arrows[i].currentDistance = activeStartDist + (i * effectiveSpacing);
-        UpdateArrowTransform(arrows[i]);
-    }
+            while (arrows.Count > countNeeded)
+            {
+                int last = arrows.Count - 1;
+                if (arrows[last].go != null) Destroy(arrows[last].go);
+                arrows.RemoveAt(last);
+            }
 
-    isInitialized = true;
-}
+            // 4. Distribute arrows at exact, seamless intervals
+            for (int i = 0; i < arrows.Count; i++)
+            {
+                arrows[i].currentDistance = activeStartDist + (i * effectiveSpacing);
+                UpdateArrowTransform(arrows[i]);
+            }
+
+            isInitialized = true;
+        }
 
         private ArrowInstance CreateArrowObject(int index)
         {
@@ -174,32 +174,32 @@ public void BuildTrack()
         }
 
         private void Update()
-{
-    if (!isInitialized) return;
-
-    float playableLength = activeEndDist - activeStartDist;
-    if (playableLength <= 0.01f) return;
-
-    float deltaMove = scrollSpeed * Time.deltaTime;
-
-    for (int i = 0; i < arrows.Count; i++)
-    {
-        var arrow = arrows[i];
-        arrow.currentDistance += deltaMove;
-
-        // Clean circular wrap without clustering
-        while (arrow.currentDistance >= activeEndDist)
         {
-            arrow.currentDistance -= playableLength;
-        }
-        while (arrow.currentDistance < activeStartDist)
-        {
-            arrow.currentDistance += playableLength;
-        }
+            if (!isInitialized) return;
 
-        UpdateArrowTransform(arrow);
-    }
-}
+            float playableLength = activeEndDist - activeStartDist;
+            if (playableLength <= 0.01f) return;
+
+            float deltaMove = scrollSpeed * Time.deltaTime;
+
+            for (int i = 0; i < arrows.Count; i++)
+            {
+                var arrow = arrows[i];
+                arrow.currentDistance += deltaMove;
+
+                // Clean circular wrap without clustering
+                while (arrow.currentDistance >= activeEndDist)
+                {
+                    arrow.currentDistance -= playableLength;
+                }
+                while (arrow.currentDistance < activeStartDist)
+                {
+                    arrow.currentDistance += playableLength;
+                }
+
+                UpdateArrowTransform(arrow);
+            }
+        }
 
         private void UpdateArrowTransform(ArrowInstance arrow)
         {
@@ -208,9 +208,23 @@ public void BuildTrack()
             point.y += yOffset;
             arrow.transform.position = point;
 
-            // Orient sprite flat on the ground plane facing tangent direction
-            Quaternion lookRot = Quaternion.LookRotation(tangent, Vector3.up);
-            arrow.transform.rotation = lookRot * Quaternion.Euler(90f, spriteRotationOffset, 0f);
+            // ÖNEMLİ — ROTASYON DEĞİŞTİ: Eskiden Quaternion.LookRotation(tangent, Vector3.up)
+            // ile ek bir Quaternion.Euler(90, offset, 0) ÇARPILIYORDU. Bu iki
+            // rotasyonun birleşimi, bazı tangent yönlerinde (özellikle
+            // köşelerde ani yön değişimi olduğunda) beklenmedik/garip
+            // dönüşlere yol açabiliyordu (LookRotation'ın kendi iç "roll"
+            // belirsizliği + üstüne binen sabit rotasyon çakışması —
+            // sağ-alt köşedeki "çentik" gibi görünen okun sebebi buydu).
+            //
+            // Bunun yerine tangent'ten DOĞRUDAN dünya-Y ekseni etrafındaki
+            // açıyı (yaw) hesaplayıp, sprite'ı sadece bu TEK, öngörülebilir
+            // açıyla döndürüyoruz. X=90 sprite'ı yere yatık tutmak için sabit;
+            // Y=hesaplanan açı+offset yatay yönü belirliyor. Artık HERHANGİ
+            // bir tangent yönünde (düz segment ya da en keskin köşe fark
+            // etmeksizin) ok her zaman GERÇEK hareket yönünü gösteriyor.
+            float yawDegrees = Mathf.Atan2(tangent.x, tangent.z) * Mathf.Rad2Deg;
+            arrow.transform.rotation = Quaternion.Euler(90f, yawDegrees + spriteRotationOffset, 0f);
+
             arrow.transform.localScale = new Vector3(arrowScale.x, arrowScale.y, 1f);
 
             // Smooth alpha fade at entry and exit
