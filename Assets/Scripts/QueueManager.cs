@@ -1,5 +1,4 @@
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using DG.Tweening;
@@ -55,20 +54,30 @@ namespace RestaurantLoop
         [Range(0f, 1f)]
         [SerializeField] private float lockedAlpha = 0.35f;
 
+        [Header("Sıra İlerleme Animasyonu")]
+        [Tooltip("Öndeki food banda çıkınca, arkadaki food/slot'ların bir üst satıra kayma süresi. Artık anlık 'ışınlanma' YOK.")]
+        [SerializeField] private float shiftDuration = 0.25f;
+        [SerializeField] private Ease shiftEase = Ease.OutQuad;
+
         [Header("Select Booster Camera Settings")]
         [SerializeField] private Camera targetCamera;
         [SerializeField] private float cameraTransitionDuration = 0.5f;
         [SerializeField] private Ease cameraEase = Ease.InOutQuad;
         [SerializeField] private float queueCameraMargin = 1.5f;
-        [SerializeField] private float cameraOffset = 12f; 
+        [SerializeField] private float cameraOffset = 12f;
 
+        private class ColumnItem
+        {
+            public GameObject foodGo;
+            public GameObject slotGo;
+            public Food food;
+        }
+
+        private readonly Dictionary<int, List<ColumnItem>> columnItems = new();
         private readonly Dictionary<int, List<QueueEntry>> columnData = new();
-        private readonly Dictionary<int, List<GameObject>> columnVisuals = new();
-        private readonly Dictionary<int, List<GameObject>> columnSlotVisuals = new();
         private readonly Dictionary<Food, int> availableFoodColumn = new();
         private readonly Dictionary<Food, (int col, int indexInCol)> activeSelectableFoods = new();
 
-        private Coroutine pendingRebuild;
         private bool started;
         private bool isSelectModeActive;
 
@@ -170,52 +179,35 @@ namespace RestaurantLoop
                         continue;
 
                     QueueEntry entry = list[r];
-
-                    float xOffset = (col - (levelData.queueColumns - 1) / 2f) * cellSpacingX;
-                    float zOffset = -r * cellSpacingZ;
-
-                    Vector3 basePos = originPoint.position + originPoint.right * xOffset + originPoint.forward * zOffset;
-                    Vector3 foodPos = basePos;
-                    foodPos.y += foodYOffset;
-
-                    SpawnSelectableItem(col, r, entry, basePos, foodPos);
+                    SpawnSelectableItem(col, r, entry);
                 }
             }
         }
 
-        private void SpawnSelectableItem(int col, int indexInCol, QueueEntry entry, Vector3 slotPos, Vector3 foodPos)
+        private void SpawnSelectableItem(int col, int indexInCol, QueueEntry entry)
         {
             GameObject prefab = GetPrefab(entry.food);
             if (prefab == null) return;
 
+            Vector3 slotPos = ComputeSlotPosition(col, indexInCol);
+            Vector3 foodPos = slotPos;
+            foodPos.y += foodYOffset;
+
             var foodGo = Instantiate(prefab, foodPos, prefab.transform.rotation);
-            if (!columnVisuals.TryGetValue(col, out var visuals))
-            {
-                visuals = new List<GameObject>();
-                columnVisuals[col] = visuals;
-            }
-            visuals.Add(foodGo);
 
             var food = foodGo.GetComponent<Food>();
             food.PresetCapacity(entry.capacity);
-            food.PresetQueueState(FoodState.AvailableInQueue); // All fully active & bright
-            // Select modunda TÜM item'lar tam parlak/aktif görünmeli — burada
-            // locked görünümü hiç uygulanmıyor, garanti için resetliyoruz.
+            food.PresetQueueState(FoodState.AvailableInQueue);
             food.ApplyBlockedVisual(false);
 
             activeSelectableFoods[food] = (col, indexInCol);
             food.StateChanged += OnSelectModeFoodStateChanged;
 
             var slotGo = Instantiate(queueSlotPrefab, slotPos, queueSlotPrefab.transform.rotation);
-            if (!columnSlotVisuals.TryGetValue(col, out var slotVisuals))
-            {
-                slotVisuals = new List<GameObject>();
-                columnSlotVisuals[col] = slotVisuals;
-            }
-            slotVisuals.Add(slotGo);
-
             var queueSlot = slotGo.GetComponent<QueueSlot>();
             if (queueSlot != null) queueSlot.AssignFood(food);
+
+            AddColumnItem(col, foodGo, slotGo, food);
         }
 
         private void OnSelectModeFoodStateChanged(Food food, FoodState newState)
@@ -282,12 +274,6 @@ namespace RestaurantLoop
             });
         }
 
-        /// <summary>
-        /// SHUFFLE BOOSTER: Tüm kolonlardaki kalan yemekleri (sadece görünen
-        /// 3 satır değil, sıradaki TÜM gizli yemekler dahil) tek bir listede
-        /// toplayıp karıştırır, sonra her kolonun eleman SAYISINI koruyarak
-        /// geri dağıtır.
-        /// </summary>
         public void ShuffleQueue()
         {
             if (levelData == null)
@@ -357,21 +343,19 @@ namespace RestaurantLoop
                     if (!columnData.TryGetValue(col, out var list) || visualRow >= list.Count)
                         continue;
 
-                    QueueEntry entry = list[visualRow];
-
-                    float xOffset = (col - (levelData.queueColumns - 1) / 2f) * cellSpacingX;
-                    float zOffset = -visualRow * cellSpacingZ;
-
-                    Vector3 basePos = originPoint.position + originPoint.right * xOffset + originPoint.forward * zOffset;
-                    Vector3 foodPos = basePos;
-                    foodPos.y += foodYOffset;
-
-                    SpawnAt(col, visualRow, entry, basePos, foodPos);
+                    SpawnAt(col, visualRow, list[visualRow]);
                 }
             }
         }
 
-        private void SpawnAt(int col, int visualRow, QueueEntry entry, Vector3 slotPos, Vector3 foodPos)
+        private Vector3 ComputeSlotPosition(int col, int row)
+        {
+            float xOffset = (col - (levelData.queueColumns - 1) / 2f) * cellSpacingX;
+            float zOffset = -row * cellSpacingZ;
+            return originPoint.position + originPoint.right * xOffset + originPoint.forward * zOffset;
+        }
+
+        private void SpawnAt(int col, int visualRow, QueueEntry entry)
         {
             GameObject prefab = GetPrefab(entry.food);
             if (prefab == null)
@@ -380,31 +364,23 @@ namespace RestaurantLoop
                 return;
             }
 
-            var foodGo = Instantiate(prefab, foodPos, prefab.transform.rotation);
+            Vector3 slotPos = ComputeSlotPosition(col, visualRow);
+            Vector3 foodPos = slotPos;
+            foodPos.y += foodYOffset;
 
-            if (!columnVisuals.TryGetValue(col, out var visuals))
-            {
-                visuals = new List<GameObject>();
-                columnVisuals[col] = visuals;
-            }
-            visuals.Add(foodGo);
+            var foodGo = Instantiate(prefab, foodPos, prefab.transform.rotation);
 
             var food = foodGo.GetComponent<Food>();
             if (food == null)
             {
                 Debug.LogWarning($"'{prefab.name}' prefabında Food component'i yok.");
+                Destroy(foodGo);
                 return;
             }
 
             food.PresetCapacity(entry.capacity);
 
             var slotGo = Instantiate(queueSlotPrefab, slotPos, queueSlotPrefab.transform.rotation);
-            if (!columnSlotVisuals.TryGetValue(col, out var slotVisuals))
-            {
-                slotVisuals = new List<GameObject>();
-                columnSlotVisuals[col] = slotVisuals;
-            }
-            slotVisuals.Add(slotGo);
 
             var queueSlot = slotGo.GetComponent<QueueSlot>();
             if (queueSlot == null)
@@ -416,41 +392,47 @@ namespace RestaurantLoop
                 queueSlot.AssignFood(food);
             }
 
+            AddColumnItem(col, foodGo, slotGo, food);
+
             if (visualRow == 0)
             {
                 food.PresetQueueState(FoodState.AvailableInQueue);
                 availableFoodColumn[food] = col;
                 food.StateChanged += OnAvailableFoodStateChanged;
-                // Görünür/available satır — orijinal renge dön (rebuild sonrası
-                // eski locked haliyle kalmasın).
                 food.ApplyBlockedVisual(false);
             }
             else
             {
                 food.PresetQueueState(FoodState.LockedInQueue);
-                // ÖNEMLİ: Saydamlık (alpha) DEĞİL, RGB karartma — Food.cs
-                // içindeki ApplyBlockedVisual bunu garantiliyor, materyal
-                // Opaque kalmaya devam ediyor, altındaki 2D queue slot
-                // sprite'ıyla derinlik/sıralama çakışması olmuyor.
                 food.ApplyBlockedVisual(true, lockedAlpha);
             }
         }
 
+        private void AddColumnItem(int col, GameObject foodGo, GameObject slotGo, Food food)
+        {
+            if (!columnItems.TryGetValue(col, out var items))
+            {
+                items = new List<ColumnItem>();
+                columnItems[col] = items;
+            }
+            items.Add(new ColumnItem { foodGo = foodGo, slotGo = slotGo, food = food });
+        }
+
         private void ClearAllVisuals()
         {
-            foreach (var visuals in columnVisuals.Values)
+            foreach (var items in columnItems.Values)
             {
-                foreach (var go in visuals)
+                foreach (var item in items)
                 {
-                    if (go == null) continue;
+                    var food = item.food;
 
-                    var food = go.GetComponent<Food>();
                     if (food != null)
                     {
                         if (food.CurrentState == FoodState.OnConveyor ||
                             food.CurrentState == FoodState.InFoodSlot ||
                             food.CurrentState == FoodState.Launching)
                         {
+                            if (item.slotGo != null) Destroy(item.slotGo);
                             continue;
                         }
 
@@ -460,24 +442,24 @@ namespace RestaurantLoop
                             food.StateChanged -= OnSelectModeFoodStateChanged;
                             availableFoodColumn.Remove(food);
                         }
+
+                        food.transform.DOKill();
                     }
 
-                    Destroy(go);
+                    if (item.slotGo != null)
+                    {
+                        item.slotGo.transform.DOKill();
+                        Destroy(item.slotGo);
+                    }
+
+                    if (item.foodGo != null)
+                        Destroy(item.foodGo);
                 }
             }
-            columnVisuals.Clear();
+
+            columnItems.Clear();
             activeSelectableFoods.Clear();
             availableFoodColumn.Clear();
-
-            foreach (var slotVisuals in columnSlotVisuals.Values)
-            {
-                foreach (var slotGo in slotVisuals)
-                {
-                    if (slotGo == null) continue;
-                    Destroy(slotGo);
-                }
-            }
-            columnSlotVisuals.Clear();
         }
 
         private void OnAvailableFoodStateChanged(Food food, FoodState newState)
@@ -491,15 +473,50 @@ namespace RestaurantLoop
             if (columnData.TryGetValue(col, out var list) && list.Count > 0)
                 list.RemoveAt(0);
 
-            if (pendingRebuild != null) StopCoroutine(pendingRebuild);
-            pendingRebuild = StartCoroutine(RebuildNextFrame());
+            ShiftColumnForward(col);
         }
 
-        private IEnumerator RebuildNextFrame()
+        private void ShiftColumnForward(int col)
         {
-            yield return null;
-            pendingRebuild = null;
-            RebuildAllVisibleRows();
+            if (!columnItems.TryGetValue(col, out var items) || items.Count == 0)
+                return;
+
+            var frontItem = items[0];
+            items.RemoveAt(0);
+
+            if (frontItem.slotGo != null)
+                Destroy(frontItem.slotGo);
+
+            for (int row = 0; row < items.Count; row++)
+            {
+                var item = items[row];
+
+                Vector3 slotPos = ComputeSlotPosition(col, row);
+                Vector3 foodPos = slotPos;
+                foodPos.y += foodYOffset;
+
+                if (item.slotGo != null)
+                    item.slotGo.transform.DOMove(slotPos, shiftDuration).SetEase(shiftEase);
+
+                if (item.foodGo != null)
+                    item.foodGo.transform.DOMove(foodPos, shiftDuration).SetEase(shiftEase);
+
+                if (row == 0 && item.food != null)
+                {
+                    item.food.PresetQueueState(FoodState.AvailableInQueue);
+                    item.food.ApplyBlockedVisual(false);
+                    availableFoodColumn[item.food] = col;
+                    item.food.StateChanged += OnAvailableFoodStateChanged;
+                }
+            }
+
+            if (columnData.TryGetValue(col, out var dataList) &&
+                items.Count < visibleRows &&
+                items.Count < dataList.Count)
+            {
+                int newRow = items.Count;
+                SpawnAt(col, newRow, dataList[newRow]);
+            }
         }
 
         private GameObject GetPrefab(FoodType food)
