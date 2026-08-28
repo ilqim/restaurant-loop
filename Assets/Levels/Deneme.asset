@@ -10,7 +10,7 @@ MonoBehaviour:
   m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 399b019a300ca6a4a9127047d8015ce3, type: 3}
-  m_Name: Level_01
+  m_Name: Deneme
   m_EditorClassIdentifier: 
   rows: 16
   columns: 14
@@ -70,7 +70,7 @@ MonoBehaviour:
   queue:
   - row: 1
     col: 2
-    food: 0
+    food: 1
     capacity: 10
   - row: 2
     col: 2
@@ -78,7 +78,7 @@ MonoBehaviour:
     capacity: 10
   - row: 0
     col: 2
-    food: 0
+    food: 1
     capacity: 10
   - row: 0
     col: 1
@@ -86,11 +86,11 @@ MonoBehaviour:
     capacity: 10
   - row: 0
     col: 0
-    food: 0
+    food: 1
     capacity: 10
   - row: 1
     col: 0
-    food: 0
+    food: 1
     capacity: 10
   - row: 1
     col: 1
