@@ -60,11 +60,15 @@ namespace RestaurantLoop
         [SerializeField] private Ease shiftEase = Ease.OutQuad;
 
         [Header("Select Booster Camera Settings")]
+        [Tooltip("Kamera POZİSYONU HİÇ DEĞİŞMEZ — sadece aşağıdaki açıya döner, sonra eski açısına geri döner.")]
         [SerializeField] private Camera targetCamera;
         [SerializeField] private float cameraTransitionDuration = 0.5f;
         [SerializeField] private Ease cameraEase = Ease.InOutQuad;
         [SerializeField] private float queueCameraMargin = 1.5f;
-        [SerializeField] private float cameraOffset = 12f;
+        [Tooltip("Select modundayken kameranın döneceği HEDEF açı (world Euler X/Y/Z). Kamera bu açıya döner, mod bitince kendi orijinal açısına geri döner. Pozisyona hiç dokunulmaz.")]
+        [SerializeField] private Vector3 selectModeRotationEuler = new Vector3(60f, 0f, 0f);
+        [Tooltip("Select modundayken kamera dünya Y ekseninde ne kadar AŞAĞI insin (dünya birimi). 0 = hiç inmez. X/Z pozisyonuna dokunulmaz.")]
+        [SerializeField] private float selectModeYOffset = 0f;
 
         private class ColumnItem
         {
@@ -82,6 +86,7 @@ namespace RestaurantLoop
         private bool isSelectModeActive;
 
         private Vector3 defaultCamPos;
+        private Quaternion defaultCamRot;
         private float defaultCamOrthoSize;
         private bool camDefaultsCached;
 
@@ -106,13 +111,7 @@ namespace RestaurantLoop
             if (levelData == null) gridManager = FindFirstObjectByType<GridManager>();
             if (levelData == null && gridManager != null) levelData = gridManager.LevelDataRef;
 
-            if(targetCamera == null) targetCamera = Camera.main;
-            if(targetCamera != null && !camDefaultsCached)
-            {
-                defaultCamPos = targetCamera.transform.position;
-                defaultCamOrthoSize = targetCamera.orthographicSize;
-                camDefaultsCached = true;
-            }
+            CacheCameraDefaults();
 
             if (levelData == null)
             {
@@ -232,11 +231,17 @@ namespace RestaurantLoop
             if (targetCamera != null && !camDefaultsCached)
             {
                 defaultCamPos = targetCamera.transform.position;
+                defaultCamRot = targetCamera.transform.rotation;
                 defaultCamOrthoSize = targetCamera.orthographicSize;
                 camDefaultsCached = true;
             }
         }
 
+        /// <summary>
+        /// POZİSYONA HİÇ DOKUNMUYORUZ — kamera sadece selectModeRotationEuler'a
+        /// döner. Orthographic size hesabı, queue'nun (aynı pozisyondan, farklı
+        /// açıyla bakıldığında) ekrana sığması için hâlâ gerekli.
+        /// </summary>
         private void FocusCameraOnQueue()
         {
             if (targetCamera == null) return;
@@ -245,16 +250,17 @@ namespace RestaurantLoop
             float queueWidth = levelData.queueColumns * cellSpacingX;
             float queueHeight = maxRowsInAnyCol * cellSpacingZ;
 
-            Vector3 centerPos = originPoint.position + (originPoint.forward * (-queueHeight * 0.5f));
-
-            Vector3 targetCamPos = new Vector3(centerPos.x, defaultCamPos.y - cameraOffset, centerPos.z);
-
             float targetOrthoSize = Mathf.Max(defaultCamOrthoSize, (queueHeight * 0.5f) + queueCameraMargin);
             float horizontalRequirement = ((queueWidth * 0.5f) + queueCameraMargin) / targetCamera.aspect;
             targetOrthoSize = Mathf.Max(targetOrthoSize, horizontalRequirement);
 
             targetCamera.DOKill();
-            targetCamera.transform.DOMove(targetCamPos, cameraTransitionDuration).SetEase(cameraEase);
+            // ÖNEMLİ: X/Z pozisyonuna hiç dokunulmuyor — sadece Y ekseninde
+            // (selectModeYOffset kadar aşağı) ve rotasyonda değişiklik var.
+            Vector3 targetPos = defaultCamPos;
+            targetPos.y -= selectModeYOffset;
+            targetCamera.transform.DOMove(targetPos, cameraTransitionDuration).SetEase(cameraEase);
+            targetCamera.transform.DORotate(selectModeRotationEuler, cameraTransitionDuration).SetEase(cameraEase);
             targetCamera.DOOrthoSize(targetOrthoSize, cameraTransitionDuration).SetEase(cameraEase);
         }
 
@@ -268,6 +274,9 @@ namespace RestaurantLoop
 
             targetCamera.DOKill();
             targetCamera.transform.DOMove(defaultCamPos, cameraTransitionDuration).SetEase(cameraEase);
+            // Orijinal açıya (Quaternion olarak, Euler gimbal belirsizliği
+            // olmadan) kesin geri dönüş.
+            targetCamera.transform.DORotateQuaternion(defaultCamRot, cameraTransitionDuration).SetEase(cameraEase);
             targetCamera.DOOrthoSize(defaultCamOrthoSize, cameraTransitionDuration).SetEase(cameraEase).OnComplete(() =>
             {
                 onComplete?.Invoke();

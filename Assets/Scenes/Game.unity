@@ -1786,6 +1786,70 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
+--- !u!1 &210706721
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 210706723}
+  - component: {fileID: 210706722}
+  m_Layer: 0
+  m_Name: LevelDifficultyVisualSetter
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &210706722
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 210706721}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 2b481b37c4560e244a7986d98cc1677b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  groundRenderer: {fileID: 1778418245}
+  levelIndicatorImage: {fileID: 1713233405}
+  bottomBarImage: {fileID: 934538701}
+  settingsImage: {fileID: 1094573029}
+  visualSets:
+  - difficulty: 0
+    groundSprite: {fileID: 21300000, guid: c3e7412eaba55f446945bcc88a844dee, type: 3}
+    levelIndicatorSprite: {fileID: 21300000, guid: 458f4f9bb63f5c24eafe140204e1527d, type: 3}
+    topBarSprite: {fileID: 21300000, guid: 1b2de4f27dbc1514e87d2f74226d7f39, type: 3}
+    settingsSprite: {fileID: 21300000, guid: 8b37ede7ec88ac54a91c1a3c9140705c, type: 3}
+  - difficulty: 1
+    groundSprite: {fileID: 21300000, guid: 00e5713339a24b34583e64cdbbd7c0e2, type: 3}
+    levelIndicatorSprite: {fileID: 21300000, guid: c72fab7ae5539a543adfc9e143130807, type: 3}
+    topBarSprite: {fileID: 21300000, guid: 6dd76d56d1b6fb446a7184d476066f70, type: 3}
+    settingsSprite: {fileID: 21300000, guid: 8a3365919198aa04d8bc7c973b1e12e6, type: 3}
+  - difficulty: 2
+    groundSprite: {fileID: 21300000, guid: a54e0915ba70fb84e971318b0daaed61, type: 3}
+    levelIndicatorSprite: {fileID: 21300000, guid: 42e462e062a80cd4cab886a84d298992, type: 3}
+    topBarSprite: {fileID: 21300000, guid: 8661d35db17308b4d84a80af0921964f, type: 3}
+    settingsSprite: {fileID: 21300000, guid: e8345ac457fd217449f83f6b02e4f484, type: 3}
+--- !u!4 &210706723
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 210706721}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 5.3884764, y: 0.3238603, z: -7.6702347}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &232282158
 GameObject:
   m_ObjectHideFlags: 0
@@ -7287,6 +7351,7 @@ GameObject:
   - component: {fileID: 330585544}
   - component: {fileID: 330585547}
   - component: {fileID: 330585548}
+  - component: {fileID: 330585549}
   m_Layer: 0
   m_Name: Main Camera
   m_TagString: MainCamera
@@ -7362,7 +7427,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: 0.5693341, y: -0, z: -0, w: 0.8221063}
-  m_LocalPosition: {x: 5.47, y: 23.73, z: -16.45}
+  m_LocalPosition: {x: 5.459968, y: 22.992193, z: -17.101217}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -7419,14 +7484,32 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 330585543}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 3d564e4a9ec65484d9d69fbc3897f2b5, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  referenceWidth: 1170
-  referenceHeight: 2532
-  referencePosition: {x: 5.47, y: 23.73, z: -16.45}
+  targetWidth: 10.7
+  bottomAnchor: {fileID: 1739483604}
+--- !u!114 &330585549
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 330585543}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9de1e1e4ae8f7234b964b75cdc78c9e5, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  presets:
+  - aspect: 0.4615
+    position: {x: 5.459968, y: 22.99448, z: -17.1}
+  - aspect: 0.45
+    position: {x: 5.460011, y: 23.4, z: -17}
+  - aspect: 0.5625
+    position: {x: 5.459968, y: 22.6, z: -17.31}
 --- !u!1 &368813330
 GameObject:
   m_ObjectHideFlags: 0
@@ -7530,6 +7613,7 @@ GameObject:
   - component: {fileID: 376574643}
   - component: {fileID: 376574642}
   - component: {fileID: 376574641}
+  - component: {fileID: 376574644}
   m_Layer: 5
   m_Name: LeaveButton
   m_TagString: Untagged
@@ -7613,6 +7697,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+      - m_Target: {fileID: 376574644}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonSfx, Assembly-CSharp
+        m_MethodName: PlayNegativeClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &376574642
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -7651,6 +7747,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 376574639}
   m_CullTransparentMesh: 1
+--- !u!114 &376574644
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 376574639}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &376755507
 GameObject:
   m_ObjectHideFlags: 0
@@ -8139,6 +8247,7 @@ GameObject:
   - component: {fileID: 414392853}
   - component: {fileID: 414392852}
   - component: {fileID: 414392851}
+  - component: {fileID: 414392854}
   m_Layer: 5
   m_Name: Settings_Close_X
   m_TagString: Untagged
@@ -8221,6 +8330,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+      - m_Target: {fileID: 414392854}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &414392852
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8259,6 +8380,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 414392849}
   m_CullTransparentMesh: 1
+--- !u!114 &414392854
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 414392849}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &417013054
 GameObject:
   m_ObjectHideFlags: 0
@@ -8533,6 +8666,7 @@ GameObject:
   - component: {fileID: 445720247}
   - component: {fileID: 445720246}
   - component: {fileID: 445720249}
+  - component: {fileID: 445720250}
   m_Layer: 5
   m_Name: ClawButton
   m_TagString: Untagged
@@ -8615,6 +8749,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+      - m_Target: {fileID: 445720250}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &445720247
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -8669,6 +8815,18 @@ MonoBehaviour:
   button: {fileID: 0}
   countText: {fileID: 49502941}
   unlockIndicator: {fileID: 1722222810}
+--- !u!114 &445720250
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 445720244}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &458400191
 GameObject:
   m_ObjectHideFlags: 0
@@ -21388,6 +21546,7 @@ GameObject:
   - component: {fileID: 969016014}
   - component: {fileID: 969016013}
   - component: {fileID: 969016016}
+  - component: {fileID: 969016017}
   m_Layer: 5
   m_Name: AddTrayButton
   m_TagString: Untagged
@@ -21470,6 +21629,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+      - m_Target: {fileID: 969016017}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &969016014
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -21525,6 +21696,18 @@ MonoBehaviour:
   countText: {fileID: 976981151}
   maxUsesPerLevel: 99
   unlockIndicator: {fileID: 1135361100}
+--- !u!114 &969016017
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 969016011}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &976981149
 GameObject:
   m_ObjectHideFlags: 0
@@ -27477,6 +27660,7 @@ GameObject:
   - component: {fileID: 1094573030}
   - component: {fileID: 1094573029}
   - component: {fileID: 1094573028}
+  - component: {fileID: 1094573031}
   m_Layer: 5
   m_Name: Setings
   m_TagString: Untagged
@@ -27559,6 +27743,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 1
         m_CallState: 2
+      - m_Target: {fileID: 1094573031}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 1
+        m_CallState: 2
 --- !u!114 &1094573029
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -27597,6 +27793,18 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1094573026}
   m_CullTransparentMesh: 1
+--- !u!114 &1094573031
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1094573026}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1118285825
 GameObject:
   m_ObjectHideFlags: 0
@@ -28826,6 +29034,7 @@ GameObject:
   - component: {fileID: 1339267316}
   - component: {fileID: 1339267315}
   - component: {fileID: 1339267318}
+  - component: {fileID: 1339267319}
   m_Layer: 5
   m_Name: ShuffleButton
   m_TagString: Untagged
@@ -28908,6 +29117,18 @@ MonoBehaviour:
           m_StringArgument: 
           m_BoolArgument: 0
         m_CallState: 2
+      - m_Target: {fileID: 1339267319}
+        m_TargetAssemblyTypeName: RestaurantLoop.ButtonSfx, Assembly-CSharp
+        m_MethodName: PlayClickSfx
+        m_Mode: 1
+        m_Arguments:
+          m_ObjectArgument: {fileID: 0}
+          m_ObjectArgumentAssemblyTypeName: UnityEngine.Object, UnityEngine
+          m_IntArgument: 0
+          m_FloatArgument: 0
+          m_StringArgument: 
+          m_BoolArgument: 0
+        m_CallState: 2
 --- !u!114 &1339267316
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -28962,6 +29183,18 @@ MonoBehaviour:
   button: {fileID: 0}
   countText: {fileID: 39557128}
   unlockIndicator: {fileID: 1550098767}
+--- !u!114 &1339267319
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1339267313}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 1af477a6e21600748b26cb3307e7625b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
 --- !u!1 &1397939571
 GameObject:
   m_ObjectHideFlags: 0
@@ -30939,6 +31172,37 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1727029594}
   m_CullTransparentMesh: 1
+--- !u!1 &1739483603
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1739483604}
+  m_Layer: 0
+  m_Name: CameraBottomAnchor
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &1739483604
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1739483603}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 5.46, y: 0.15, z: -20.07}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1746911081
 GameObject:
   m_ObjectHideFlags: 0
@@ -31471,7 +31735,7 @@ GameObject:
   - component: {fileID: 1778418246}
   - component: {fileID: 1778418245}
   m_Layer: 0
-  m_Name: Ground2
+  m_Name: Ground
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
@@ -33302,7 +33566,8 @@ MonoBehaviour:
   cameraTransitionDuration: 0.5
   cameraEase: 7
   queueCameraMargin: 1.5
-  cameraOffset: 8
+  selectModeRotationEuler: {x: 85, y: 0, z: 0}
+  selectModeYOffset: 7
 --- !u!1 &2010069643
 GameObject:
   m_ObjectHideFlags: 0
@@ -34071,3 +34336,5 @@ SceneRoots:
   - {fileID: 1775254907}
   - {fileID: 829524286}
   - {fileID: 984665449}
+  - {fileID: 210706723}
+  - {fileID: 1739483604}

@@ -205,16 +205,10 @@ namespace RestaurantLoop
             if (levelTopBar != null)
                 levelTopBar.SetActive(false);
 
-            if (currencyBar != null)
-            {
-                currencyBar.gameObject.SetActive(true);
-                currencyBar.AddCoinsAnimated(coinsPerWin);
-            }
-            else
-            {
-                Debug.LogWarning("GameManager: CurrencyBar bulunamadı — coin animasyonsuz eklendi.");
-                PlayerData.AddCoins(coinsPerWin);
-            }
+            // ÖNEMLİ: Coin ekleme (ve buna bağlı para sesi) ARTIK BURADA
+            // ÇAĞRILMIYOR — oyun kazanıldığı anda değil, para GERÇEKTEN
+            // verilirken (LevelCompleteUI'nin coin uçuşma animasyonuyla
+            // AYNI anda, ShowLevelCompleteUIAfterDelay() içinde) çağrılıyor.
 
             if (LevelManager.Instance != null)
             {
@@ -226,8 +220,6 @@ namespace RestaurantLoop
                 Debug.LogWarning("GameManager: LevelManager.Instance bulunamadı — level ilerlemesi atlandı " +
                                   "(muhtemelen Main Menu'den geçmeden direkt bu sahneden test ediliyorsun).");
             }
-
-            Debug.Log($"WIN! Awarded {coinsPerWin} coins. Total: {PlayerData.Coins}");
 
             Debug.Log("=================================");
             Debug.Log("WIN!");
@@ -245,6 +237,22 @@ namespace RestaurantLoop
         private IEnumerator ShowLevelCompleteUIAfterDelay()
         {
             yield return new WaitForSecondsRealtime(winScreenDelayAfterParticles);
+
+            // İSTEK: Para (coin) TAM BURADA, ekran/animasyon görünürken
+            // veriliyor — PlayerData.AddCoins içindeki para sesi de bu
+            // yüzden artık kazanma anında değil, TAM BU ANDA çalıyor.
+            if (currencyBar != null)
+            {
+                currencyBar.gameObject.SetActive(true);
+                currencyBar.AddCoinsAnimated(coinsPerWin);
+            }
+            else
+            {
+                Debug.LogWarning("GameManager: CurrencyBar bulunamadı — coin animasyonsuz eklendi.");
+                PlayerData.AddCoins(coinsPerWin);
+            }
+
+            Debug.Log($"WIN! Awarded {coinsPerWin} coins. Total: {PlayerData.Coins}");
 
             if (levelCompleteUI != null)
             {

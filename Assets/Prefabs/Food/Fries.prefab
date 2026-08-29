@@ -139,15 +139,16 @@ MonoBehaviour:
   spriteVisual: {fileID: 5490925641550601485}
   modelVisual: {fileID: 6003473645927824423}
   blockedSpriteRenderer: {fileID: 3172319607059328304}
-  jumpDuration: 0.35
-  jumpPower: 1.2
+  pieceJumpDuration: 0.35
+  pieceJumpPower: 1.2
+  pieceStaggerDelay: 0.035
   showCapacityLabel: 1
   labelHeight: 0.6
   labelFontSize: 48
   labelCharacterSize: 0.12
   labelColor: {r: 1, g: 1, b: 1, a: 1}
   currentState: 1
-  verboseLogging: 1
+  verboseLogging: 0
 --- !u!1 &2165531453432303332
 GameObject:
   m_ObjectHideFlags: 0
