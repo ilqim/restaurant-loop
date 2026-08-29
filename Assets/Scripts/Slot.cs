@@ -1,4 +1,5 @@
 using System.Collections;
+using DG.Tweening;
 using UnityEngine;
 
 namespace RestaurantLoop
@@ -28,6 +29,20 @@ namespace RestaurantLoop
         [Header("Sayı Etiketi")]
         [Tooltip("İçindeki food'un kapasitesini gösteren 3D etiket (Canvas değil, normal derinlik testine tabi).")]
         [SerializeField] private WorldSpaceCountLabel countLabel;
+
+        [Header("Tıklama Animasyonu (Click Punch) — Food ile SENKRON")]
+        [Tooltip("Food'un önünde/üstünde durduğu, bu slot'a ait ARKA görsel (SpriteRenderer'ın olduğu obje). Boş bırakılırsa bu objenin kendi transform'u ölçeklenir.")]
+        [SerializeField] private Transform slotVisualTransform;
+        [Tooltip("Tıklanınca ölçeğin ineceği çarpan — Food.cs'teki değerle AYNI olmalı ki ikisi birebir senkron görünsün.")]
+        [SerializeField] private float clickScaleDownFactor = 0.85f;
+        [Tooltip("Küçülme VE büyüme adımlarının HER BİRİNİN süresi — Food.cs'teki değerle AYNI olmalı.")]
+        [SerializeField] private float clickScaleDuration = 0.08f;
+
+        private Sequence clickPunchSequence;
+
+        [Header("Kapasite Etiketi Davranışı")]
+        [Tooltip("KAPALI (varsayılan): Slota tıklanır tıklanmaz kapasite etiketi HEMEN kaybolur, konveyöre binme animasyonunun bitmesini beklemez. AÇIK: Etiket hemen kaybolmaz — parça bazlı uçuş animasyonu sürerken HER parça konveyöre binişte 1 azalır, son parça binince kaybolur.")]
+        [SerializeField] private bool decrementLabelDuringAnimation = false;
 
         [Header("Uyarı Yanıp Sönme (tüm slotlar dolu olunca)")]
         [Tooltip("Yanıp sönecek 2D obje — sen bir child olarak ekleyip buraya sürükleyeceksin (SpriteRenderer taşımalı).")]
@@ -109,27 +124,58 @@ namespace RestaurantLoop
         /// <summary>
         /// Food (slottayken) tıklanıp konveyöre dönmek istediğinde tetiklenir.
         ///
-        /// ÖNEMLİ: countLabel artık food'un GERÇEKTEN konveyöre gidip
-        /// gitmediğini (animasyonun bitmesini) BEKLEMİYOR — tıklanır
-        /// tıklanmaz HEMEN kapanıyor. Food.EnterConveyorFromSlot() zaten
-        /// SENKRON olarak true/false döner (asıl uçuş animasyonu arka
-        /// planda ayrı devam eder). Sonuç başarısızsa (konveyör doluysa)
-        /// aynı frame içinde countLabel geri açılıyor.
+        /// İKİ MOD (decrementLabelDuringAnimation ile seçilir):
+        /// - KAPALI (varsayılan): countLabel food'un GERÇEKTEN konveyöre
+        ///   gidip gitmediğini (animasyonun bitmesini) BEKLEMİYOR — tıklanır
+        ///   tıklanmaz HEMEN kapanıyor.
+        /// - AÇIK: countLabel hemen kapanmıyor — Food.PieceLaunched
+        ///   event'ine abone olup, her parça konveyöre binişte etiketi 1
+        ///   azaltıyoruz; kalan 0'a ulaşınca etiket kendiliğinden kapanıp
+        ///   abonelik bırakılıyor.
+        ///
+        /// Food.EnterConveyorFromSlot() zaten SENKRON olarak true/false
+        /// döner (asıl uçuş animasyonu arka planda ayrı devam eder).
+        /// Sonuç başarısızsa (konveyör doluysa) aynı frame içinde countLabel
+        /// (ve varsa PieceLaunched aboneliği) geri eski haline dönüyor.
         /// </summary>
         private void OnReenterRequested(Food food)
         {
             food.ReenterConveyorRequested -= OnReenterRequested;
 
-            countLabel?.SetVisible(false);
+            if (decrementLabelDuringAnimation)
+            {
+                food.PieceLaunched += OnFoodPieceLaunched;
+            }
+            else
+            {
+                countLabel?.SetVisible(false);
+            }
 
             bool left = food.EnterConveyorFromSlot();
 
             if (left)
             {
-                RemoveFood();
+                if (decrementLabelDuringAnimation)
+                {
+                    // Slot state'ini HEMEN boşaltıyoruz (yeni bir food kabul
+                    // edebilsin diye) — ama countLabel'ı, animasyon süresince
+                    // OnFoodPieceLaunched üzerinden azalta azalta canlı
+                    // tutuyoruz. O metod, kalan 0'a ulaşınca etiketi kendisi
+                    // temizleyip aboneliği bırakacak.
+                    ClearFoodStateOnly();
+                }
+                else
+                {
+                    RemoveFood();
+                }
             }
             else
             {
+                if (decrementLabelDuringAnimation)
+                {
+                    food.PieceLaunched -= OnFoodPieceLaunched;
+                }
+
                 if (food.Capacity > 0)
                 {
                     countLabel?.SetVisible(true);
@@ -148,14 +194,43 @@ namespace RestaurantLoop
             }
         }
 
-        public void RemoveFood()
+        /// <summary>
+        /// decrementLabelDuringAnimation AÇIKKEN, Food.PieceLaunched
+        /// event'inden gelen "kalan miktar" bilgisiyle etiketi canlı
+        /// günceller. remaining=0 olduğunda etiketi temizleyip
+        /// aboneliği kendi kendine bırakır.
+        /// </summary>
+        private void OnFoodPieceLaunched(Food food, int remaining)
+        {
+            if (remaining > 0)
+            {
+                countLabel?.SetVisible(true);
+                countLabel?.SetCount(remaining);
+            }
+            else
+            {
+                countLabel?.Clear();
+                food.PieceLaunched -= OnFoodPieceLaunched;
+            }
+        }
+
+        /// <summary>
+        /// RemoveFood()'un YAPTIĞI HER ŞEYİ yapar, SADECE countLabel'ı
+        /// temizlemez — decrementLabelDuringAnimation modunda, etiketin
+        /// temizlenmesi işini OnFoodPieceLaunched'e bırakmak için kullanılır.
+        /// </summary>
+        private void ClearFoodStateOnly()
         {
             if (currentFood != null)
                 currentFood.ReenterConveyorRequested -= OnReenterRequested;
 
             currentFood = null;
             currentState = SlotState.Empty;
+        }
 
+        public void RemoveFood()
+        {
+            ClearFoodStateOnly();
             countLabel?.Clear();
         }
 
@@ -164,7 +239,31 @@ namespace RestaurantLoop
             if (IsEmpty)
                 return;
 
+            PlaySlotClickPunch();
             CurrentFood?.ActivateFromTap();
+        }
+
+        /// <summary>
+        /// Food.cs'teki PlayClickPunch ile BİREBİR AYNI mantık — sadece
+        /// hedef bu slot'un kendi (arkadaki) görsel transform'u. Aynı anda
+        /// tetiklenip aynı süre/oranla çalıştığı için Food ile senkron
+        /// (birlikte küçülüp büyür) görünür.
+        /// </summary>
+        private void PlaySlotClickPunch()
+        {
+            Transform target = slotVisualTransform != null ? slotVisualTransform : transform;
+
+            if (clickPunchSequence != null && clickPunchSequence.IsActive())
+                clickPunchSequence.Kill();
+
+            Vector3 originalScale = target.localScale;
+
+            clickPunchSequence = DOTween.Sequence();
+            clickPunchSequence.SetLink(target.gameObject);
+            clickPunchSequence.Append(
+                target.DOScale(originalScale * clickScaleDownFactor, clickScaleDuration).SetEase(Ease.OutQuad));
+            clickPunchSequence.Append(
+                target.DOScale(originalScale, clickScaleDuration).SetEase(Ease.OutBack));
         }
 
         // ============================================================

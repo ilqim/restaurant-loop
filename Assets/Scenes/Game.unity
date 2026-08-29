@@ -533,7 +533,7 @@ MonoBehaviour:
   - {fileID: 594656520}
   - {fileID: 1904745222}
   - {fileID: 467102093}
-  warningSlotCount: 4
+  warningSlotCount: 5
 --- !u!1 &70158790
 GameObject:
   m_ObjectHideFlags: 0
@@ -9074,6 +9074,9 @@ MonoBehaviour:
   foodYOffset: 0
   verboseFallbackLog: 1
   countLabel: {fileID: 1397939573}
+  slotVisualTransform: {fileID: 0}
+  clickScaleDownFactor: 0.85
+  clickScaleDuration: 0.08
   decrementLabelDuringAnimation: 0
   warningFlashRenderer: {fileID: 117850124}
   warningFlashCount: 3
@@ -10010,6 +10013,9 @@ MonoBehaviour:
   foodYOffset: 0
   verboseFallbackLog: 1
   countLabel: {fileID: 1700108848}
+  slotVisualTransform: {fileID: 0}
+  clickScaleDownFactor: 0.85
+  clickScaleDuration: 0.08
   decrementLabelDuringAnimation: 0
   warningFlashRenderer: {fileID: 633178640}
   warningFlashCount: 3
@@ -21438,6 +21444,9 @@ MonoBehaviour:
   foodYOffset: 0
   verboseFallbackLog: 1
   countLabel: {fileID: 1572812836}
+  slotVisualTransform: {fileID: 0}
+  clickScaleDownFactor: 0.85
+  clickScaleDuration: 0.08
   decrementLabelDuringAnimation: 0
   warningFlashRenderer: {fileID: 845769578}
   warningFlashCount: 3
@@ -26778,8 +26787,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: -175.75}
-  m_SizeDelta: {x: 0, y: 351.5}
+  m_AnchoredPosition: {x: 0, y: -133.08582}
+  m_SizeDelta: {x: 0, y: 266.1715}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &996264889
 GameObject:
@@ -27687,14 +27696,14 @@ RectTransform:
   m_GameObject: {fileID: 1094573026}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.0098706, y: 1.0098706, z: 1.0098755}
+  m_LocalScale: {x: 0.9980442, y: 0.9980442, z: 0.9992266}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1880419556}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 1, y: 0}
-  m_AnchorMax: {x: 1, y: 0}
-  m_AnchoredPosition: {x: -112, y: 84}
+  m_AnchorMin: {x: 1, y: 1}
+  m_AnchorMax: {x: 1, y: 1}
+  m_AnchoredPosition: {x: -108.47262, y: -212.73766}
   m_SizeDelta: {x: 138, y: 138}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1094573028
@@ -28452,7 +28461,10 @@ MonoBehaviour:
   foodYOffset: 0
   verboseFallbackLog: 1
   countLabel: {fileID: 178282022}
-  decrementLabelDuringAnimation: 1
+  slotVisualTransform: {fileID: 0}
+  clickScaleDownFactor: 0.85
+  clickScaleDuration: 0.08
+  decrementLabelDuringAnimation: 0
   warningFlashRenderer: {fileID: 1310871100}
   warningFlashCount: 3
   warningFlashMinAlpha: 0
@@ -30069,7 +30081,7 @@ MonoBehaviour:
     pieceHeightSpacing: 0.38
     maxVisualPieces: 20
     removeFromTopFirst: 1
-    conveyorSpeed: 3.5
+    conveyorSpeed: 4.5
     deliverySpeed: 10
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
@@ -30106,7 +30118,7 @@ MonoBehaviour:
     pieceHeightSpacing: 0.38
     maxVisualPieces: 20
     removeFromTopFirst: 1
-    conveyorSpeed: 3.5
+    conveyorSpeed: 4.5
     deliverySpeed: 10
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
@@ -30143,7 +30155,7 @@ MonoBehaviour:
     pieceHeightSpacing: 0.4
     maxVisualPieces: 20
     removeFromTopFirst: 1
-    conveyorSpeed: 3.5
+    conveyorSpeed: 4.5
     deliverySpeed: 10
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
@@ -30180,7 +30192,7 @@ MonoBehaviour:
     pieceHeightSpacing: 0.4
     maxVisualPieces: 20
     removeFromTopFirst: 1
-    conveyorSpeed: 3.5
+    conveyorSpeed: 4.5
     deliverySpeed: 10
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
@@ -30217,7 +30229,7 @@ MonoBehaviour:
     pieceHeightSpacing: 0.4
     maxVisualPieces: 20
     removeFromTopFirst: 1
-    conveyorSpeed: 3.5
+    conveyorSpeed: 4.5
     deliverySpeed: 10
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
@@ -30254,7 +30266,7 @@ MonoBehaviour:
     pieceHeightSpacing: 0.4
     maxVisualPieces: 20
     removeFromTopFirst: 1
-    conveyorSpeed: 3.5
+    conveyorSpeed: 4.5
     deliverySpeed: 10
     deliverySpinSpeed: 360
     deliverySpinAxis: {x: 0, y: 1, z: 0}
@@ -31046,9 +31058,9 @@ RectTransform:
   - {fileID: 188354731}
   m_Father: {fileID: 1880419556}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 160.5, y: 88.5}
+  m_AnchorMin: {x: 0, y: 1}
+  m_AnchorMax: {x: 0, y: 1}
+  m_AnchoredPosition: {x: 160.5, y: -208.2}
   m_SizeDelta: {x: 321, y: 177}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1713233405
@@ -32757,8 +32769,8 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 1}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: -3.5336914, y: -176}
-  m_SizeDelta: {x: 7.0675, y: 352}
+  m_AnchoredPosition: {x: -3.5336914, y: -133.09}
+  m_SizeDelta: {x: 7.0675, y: 266.17}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1880419557
 MonoBehaviour:
@@ -33035,6 +33047,9 @@ MonoBehaviour:
   foodYOffset: 0
   verboseFallbackLog: 1
   countLabel: {fileID: 1432485603}
+  slotVisualTransform: {fileID: 0}
+  clickScaleDownFactor: 0.85
+  clickScaleDuration: 0.08
   decrementLabelDuringAnimation: 0
   warningFlashRenderer: {fileID: 1511803424}
   warningFlashCount: 3
