@@ -2108,7 +2108,7 @@ MonoBehaviour:
     clip: {fileID: 8300000, guid: bbb7e725751675b4fb15f37b815be8e7, type: 3}
     volume: 1
   - id: 7
-    clip: {fileID: 8300000, guid: dc6dd93009b14c94cafd11c5f76fc308, type: 3}
+    clip: {fileID: 8300000, guid: 29dec8cf896f0174c8ccb8bc551003de, type: 3}
     volume: 1
   - id: 8
     clip: {fileID: 8300000, guid: bbb7e725751675b4fb15f37b815be8e7, type: 3}
@@ -10119,7 +10119,7 @@ RectTransform:
   m_GameObject: {fileID: 1445076499}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.21875, y: 1.21875, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1855307946}
@@ -10146,7 +10146,7 @@ MonoBehaviour:
   scaleStrength: 1
   minScale: 1
   maxScale: 1.6
-  currentAppliedScale: 1
+  currentAppliedScale: 1.21875
 --- !u!1 &1474709829
 GameObject:
   m_ObjectHideFlags: 0
