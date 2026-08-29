@@ -42,13 +42,6 @@ namespace RestaurantLoop
         [SerializeField] private float pieceJumpPower = 1.2f;
         [SerializeField] private float pieceStaggerDelay = 0.035f;
 
-        [Header("Kapasite Debug Etiketi")]
-        [SerializeField] private bool showCapacityLabel = true;
-        [SerializeField] private float labelHeight = 0.6f;
-        [SerializeField] private int labelFontSize = 48;
-        [SerializeField] private float labelCharacterSize = 0.12f;
-        [SerializeField] private Color labelColor = Color.white;
-
         [Header("State")]
         [SerializeField] private FoodState currentState = FoodState.AvailableInQueue;
 
@@ -67,8 +60,6 @@ namespace RestaurantLoop
         private bool blockedRenderersCached;
 
         private bool queueStatePreset;
-        private TextMesh capacityLabel;
-        private Camera labelFacingCamera;
 
         public FoodState CurrentState => currentState;
         public FoodType FoodTypeValue => foodType;
@@ -87,7 +78,6 @@ namespace RestaurantLoop
         public void PresetCapacity(int value)
         {
             capacity = Mathf.Max(0, value);
-            UpdateCapacityLabel();
         }
 
         private void Awake()
@@ -116,21 +106,10 @@ namespace RestaurantLoop
             if (trayManager == null) trayManager = FindFirstObjectByType<TrayManager>();
             if (trayManager == null) Debug.LogError("Food: Sahnede bir TrayManager bulunamadı.");
 
-            if (labelFacingCamera == null) labelFacingCamera = Camera.main;
-
             if (!queueStatePreset)
                 ChangeState(FoodState.AvailableInQueue);
 
             UpdateVisualMode();
-            CreateCapacityLabel();
-        }
-
-        private void LateUpdate()
-        {
-            if (capacityLabel == null) return;
-            if (labelFacingCamera == null) labelFacingCamera = Camera.main;
-            if (labelFacingCamera == null) return;
-            capacityLabel.transform.rotation = Quaternion.LookRotation(capacityLabel.transform.position - labelFacingCamera.transform.position);
         }
 
         public void ActivateFromTap()
@@ -243,10 +222,6 @@ namespace RestaurantLoop
         {
             EnsureBlockedRenderersCached();
 
-            // TEŞHİS — sorun bulununca bu satırı sil.
-            Debug.Log($"[TEŞHİS] {gameObject.name} SetBlockedCrossfade(isBlocked={isBlocked}, duration={duration}) — " +
-                      $"twoDVisualRenderer null mu={twoDVisualRenderer == null}, blockedChildRenderer null mu={blockedChildRenderer == null}", this);
-
             if (duration <= 0f)
             {
                 ApplyCrossfadeInstant(isBlocked);
@@ -259,19 +234,13 @@ namespace RestaurantLoop
             if (twoDVisualRenderer != null)
             {
                 twoDVisualRenderer.DOKill();
-                twoDVisualRenderer.DOFade(targetVisualAlpha, duration).OnUpdate(() =>
-                {
-                    Debug.Log($"[TEŞHİS] {gameObject.name} twoDVisualRenderer.color.a ŞU AN = {twoDVisualRenderer.color.a}", this);
-                });
+                twoDVisualRenderer.DOFade(targetVisualAlpha, duration);
             }
 
             if (blockedChildRenderer != null)
             {
                 blockedChildRenderer.DOKill();
-                blockedChildRenderer.DOFade(targetBlockedAlpha, duration).OnUpdate(() =>
-                {
-                    Debug.Log($"[TEŞHİS] {gameObject.name} blockedChildRenderer.color.a ŞU AN = {blockedChildRenderer.color.a}", this);
-                });
+                blockedChildRenderer.DOFade(targetBlockedAlpha, duration);
             }
         }
 
@@ -291,9 +260,6 @@ namespace RestaurantLoop
                 Color c = twoDVisualRenderer.color; // RGB'ye dokunulmuyor
                 c.a = targetVisualAlpha;
                 twoDVisualRenderer.color = c;
-
-                // TEŞHİS — sorun bulununca bu satırı sil.
-                Debug.Log($"[TEŞHİS] {gameObject.name} ApplyCrossfadeInstant: twoDVisualRenderer.color SONRASI = {twoDVisualRenderer.color}", this);
             }
 
             if (blockedChildRenderer != null)
@@ -301,9 +267,6 @@ namespace RestaurantLoop
                 Color c = blockedChildRenderer.color; // RGB'ye dokunulmuyor
                 c.a = targetBlockedAlpha;
                 blockedChildRenderer.color = c;
-
-                // TEŞHİS — sorun bulununca bu satırı sil.
-                Debug.Log($"[TEŞHİS] {gameObject.name} ApplyCrossfadeInstant: blockedChildRenderer.color SONRASI = {blockedChildRenderer.color}", this);
             }
         }
 
@@ -446,30 +409,6 @@ namespace RestaurantLoop
             UpdateVisualMode();
             if (verboseLogging) Debug.Log($"Food [{gameObject.name}] State: {currentState}");
             StateChanged?.Invoke(this, newState);
-        }
-
-        private void CreateCapacityLabel()
-        {
-            if (!showCapacityLabel) return;
-            if (capacityLabel != null) return;
-
-            var labelGO = new GameObject("CapacityLabel");
-            labelGO.transform.SetParent(transform, false);
-            labelGO.transform.localPosition = new Vector3(0, labelHeight, 0);
-
-            capacityLabel = labelGO.AddComponent<TextMesh>();
-            capacityLabel.anchor = TextAnchor.MiddleCenter;
-            capacityLabel.alignment = TextAlignment.Center;
-            capacityLabel.fontSize = labelFontSize;
-            capacityLabel.characterSize = labelCharacterSize;
-            capacityLabel.color = labelColor;
-
-            UpdateCapacityLabel();
-        }
-
-        private void UpdateCapacityLabel()
-        {
-            if (capacityLabel != null) capacityLabel.text = capacity.ToString();
         }
     }
 }

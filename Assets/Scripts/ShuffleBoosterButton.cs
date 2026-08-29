@@ -1,3 +1,4 @@
+using DG.Tweening;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
@@ -10,14 +11,9 @@ namespace RestaurantLoop
     /// Hak 0'a inince VEYA level'a göre henüz açılmamışsa buton otomatik
     /// olarak interactable=false olur.
     ///
-    /// ÖNEMLİ: Sayaç artık burada TUTULMUYOR — tek doğruluk kaynağı
-    /// PlayerData.ShuffleBoosterCount (PlayerPrefs'e kalıcı, coin/can ile
-    /// aynı sistem, ilk hiç kaydedilmemişse varsayılan 99). Başka bir UI
-    /// (örn. üstteki booster çubuğu) da aynı sayıyı gösteriyorsa,
-    /// PlayerData.BoosterCountChanged event'ine abone olup senkron kalabilir.
-    ///
-    /// Butonun kendi Inspector'ındaki OnClick()'e bu component'in
-    /// OnShuffleButtonPressed() metodunu bağla.
+    /// GLOW EFEKTİ: Basılır basılmaz glowImage anında tam opak (alfa=1)
+    /// olur, glowHoldDuration kadar öyle kalır, sonra glowFadeDuration
+    /// süresinde yumuşakça sönümlenip (alfa 1->0) normal görünüme döner.
     /// </summary>
     [RequireComponent(typeof(Button))]
     public class ShuffleBoosterButton : MonoBehaviour, IBoosterLevelGate
@@ -34,6 +30,14 @@ namespace RestaurantLoop
         [Tooltip("Buton unlocked (kullanılabilir) ise SetActive(true), kilitliyse SetActive(false) olacak obje.")]
         [SerializeField] private GameObject unlockIndicator;
 
+        [Header("Basıldığında Glow Efekti")]
+        [Tooltip("Basılınca anında tam opak olacak, sonra sönümlenecek glow görseli.")]
+        [SerializeField] private Image glowImage;
+        [Tooltip("Glow tam opaklıkta (alfa=1) ne kadar süre kalsın, sonra sönmeye başlasın.")]
+        [SerializeField] private float glowHoldDuration = 0.2f;
+        [Tooltip("Glow'un sönümlenme (alfa 1->0) süresi.")]
+        [SerializeField] private float glowFadeDuration = 0.3f;
+
         // LevelManager'dan gelen "bu level'de açık mı" bilgisi — RefreshLevelGate
         // ile güncellenir, RefreshUI bunu hak sayısıyla BİRLİKTE değerlendirir.
         private bool unlockedByLevel = true;
@@ -42,6 +46,14 @@ namespace RestaurantLoop
         {
             if (button == null) button = GetComponent<Button>();
             if (queueManager == null) queueManager = FindFirstObjectByType<QueueManager>();
+
+            // Glow başlangıçta görünmez (alfa=0).
+            if (glowImage != null)
+            {
+                Color c = glowImage.color;
+                c.a = 0f;
+                glowImage.color = c;
+            }
         }
 
         private void OnEnable()
@@ -95,10 +107,33 @@ namespace RestaurantLoop
             AudioEvents.PlayButtonClick();
             queueManager.ShuffleQueue();
 
+            PlayGlowPulse();
+
             // RefreshUI zaten OnBoosterCountChanged üzerinden otomatik
             // tetiklenecek (TrySpendBooster -> SetBoosterCount -> event),
             // ama tek satır ekstra maliyeti yok, garanti olsun diye burada da çağırıyoruz.
             RefreshUI();
+        }
+
+        /// <summary>
+        /// Glow'u anında tam opak yapar, glowHoldDuration kadar bekletir,
+        /// sonra glowFadeDuration'da yumuşakça 0'a söndürür.
+        /// </summary>
+        private void PlayGlowPulse()
+        {
+            if (glowImage == null) return;
+
+            glowImage.DOKill();
+
+            Color c = glowImage.color;
+            c.a = 1f;
+            glowImage.color = c;
+
+            DOVirtual.DelayedCall(glowHoldDuration, () =>
+            {
+                if (glowImage != null)
+                    glowImage.DOFade(0f, glowFadeDuration);
+            });
         }
 
         private void RefreshUI()
