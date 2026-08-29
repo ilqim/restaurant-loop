@@ -187,7 +187,13 @@ namespace RestaurantLoop
             }
 
             // Stop Loading text animation
-            StopLoadingTextAnimation();
+            // ÖNEMLİ: Artık BURADA durdurmuyoruz — animasyon fade-out
+            // BİTENE kadar devam edecek. Eskiden tam burada durdurulunca,
+            // minimumLoadingScreenTime (0.8sn) ile loadingTextInterval*3
+            // (0.75sn) arasındaki ufak fark yüzünden animasyon HER ZAMAN
+            // aynı noktada ("Loading...", üç nokta) donup kalıyordu, sonra
+            // bu donmuş hal fade-out süresince de öylece görünüyordu —
+            // "üç nokta hep uzun kalıyor" hissi buradan geliyordu.
 
             // Ensure startup screen remains disabled
             HideStartupScreenImmediately();
@@ -205,6 +211,11 @@ namespace RestaurantLoop
                     fadeDuration
                 )
             );
+
+            // Metin animasyonu ARTIK burada, ekran tamamen kaybolduktan
+            // sonra durduruluyor — bu sayede döngü hiçbir zaman "donmuş"
+            // görünmüyor, ekran kaybolana kadar sürekli akıyor.
+            StopLoadingTextAnimation();
         }
 
         // ==========================================
