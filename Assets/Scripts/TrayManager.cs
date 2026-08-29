@@ -207,13 +207,6 @@ namespace RestaurantLoop
             {
                 Vector3 spawnPos = GetBaseStackPosition(i);
 
-                // ÖNEMLİ: Kök obje HER ZAMAN Quaternion.identity ile spawn
-                // edilir — BaseStackRotation ARTIK KÖKE DEĞİL, hemen aşağıda
-                // çağrılan ParkAtBase() içinde Tray'in kendi ModelPivot'una
-                // uygulanıyor. Kökü burada BaseStackRotation ile spawn edip
-                // sonra ParkAtBase'in ModelPivot'u AYRICA döndürmesi, kökün
-                // gereksiz yere kalıcı bir rotasyon taşımasına (ve buna bağlı
-                // CountLabel gibi child'ların tutarsız davranmasına) yol açardı.
                 GameObject trayGo = Instantiate(
                     trayPrefab,
                     spawnPos,
@@ -246,8 +239,6 @@ namespace RestaurantLoop
         }
 
         // Giriş her zaman SABİT bir fiziksel noktadır.
-        // Kuyruk uzunluğuna (Count) ve initialBaseTrays'e ASLA bağlı değildir.
-        // Referans noktası GridManager'dan gelen trayBaseWorldCenter'dır.
         public Vector3 GetEntryGateWorldPosition()
         {
             Vector3 pos = trayBaseWorldCenter + trayEntryOffset;
@@ -344,10 +335,6 @@ namespace RestaurantLoop
             if (trayBaseQueue.Contains(tray))
                 return;
 
-            // Havada uçuşma efektini engellemek için:
-            // Tepsiyi önce GİZLE, konumunu sessizce (görünmeden) hedef base
-            // slotuna taşı, sonra tekrar görünür yap. Entry-gate üzerinden
-            // görünür bir geçiş animasyonu ARTIK YOK.
             tray.gameObject.SetActive(false);
 
             int targetIndex = trayBaseQueue.Count;
@@ -356,14 +343,6 @@ namespace RestaurantLoop
             Vector3 finalSlotPos = GetBaseStackPosition(targetIndex);
 
             tray.transform.position = finalSlotPos;
-
-            // ÖNEMLİ: Kökün rotasyonuna DOKUNMUYORUZ artık — her zaman
-            // Quaternion.identity'de sabit kalması gerekiyor. BaseStackRotation
-            // (Z=90 vb.), az aşağıda çağrılan ParkAtBase() içinde Tray'in kendi
-            // ModelPivot'una uygulanıyor. Burada eskiden "tray.transform.rotation
-            // = BaseStackRotation" satırı vardı — kökü gereksiz yere döndürüp
-            // CountLabel gibi kökün child'larının tutarsız görünmesine sebep
-            // oluyordu. O satır kaldırıldı.
             tray.transform.rotation = Quaternion.identity;
 
             tray.ParkAtBase(this, finalSlotPos);
@@ -420,12 +399,6 @@ namespace RestaurantLoop
                                 targetPositions[i],
                                 t
                             );
-
-                        // ÖNEMLİ: Kökün rotasyonuna artık dokunmuyoruz —
-                        // her zaman identity kalması gerekiyor. Base'de
-                        // beklerken görsel yönelim zaten ParkAtBase()
-                        // üzerinden ModelPivot'a uygulanmış durumda,
-                        // kaydırma sırasında tekrar ayarlamaya gerek yok.
                     }
                 }
 
@@ -520,8 +493,6 @@ namespace RestaurantLoop
             int newIndex = trayBaseQueue.Count;
             Vector3 spawnPos = GetBaseStackPosition(newIndex);
 
-            // ÖNEMLİ: Kök yine identity ile spawn edilir, ParkAtBase
-            // ModelPivot'u doğru döndürür.
             GameObject trayGo = Instantiate(
                 trayPrefab,
                 spawnPos,
@@ -537,64 +508,74 @@ namespace RestaurantLoop
             }
         }
 
-    public Tray PrepareUpcomingTray()
-{
-    if (currentActiveTrays >= maxActiveTrays)
-        return null;
+        /// <summary>
+        /// Food.cs'in parça-bazlı uçuş animasyonu için kullandığı fırlatma
+        /// yolu. TryLaunchTray()'in ALTERNATİFİ, ondan BAĞIMSIZ ÇALIŞIR —
+        /// bu yüzden currentActiveTrays'i artıran her yerde sayaç
+        /// güncellemesi AYRI AYRI yapılmak zorunda (birinde olması diğerinde
+        /// otomatik olmuyor). Daha önce burada UpdateTrayCountText() çağrısı
+        /// EKSİKTİ — currentActiveTrays doğru artıyordu ama "müsait/toplam"
+        /// yazısı hiç yenilenmiyordu. Şimdi düzeltildi.
+        /// </summary>
+        public Tray PrepareUpcomingTray()
+        {
+            if (currentActiveTrays >= maxActiveTrays)
+                return null;
 
-    if (gridManager == null ||
-        gridManager.WaypointWorldPositions == null ||
-        gridManager.WaypointWorldPositions.Count == 0)
-    {
-        return null;
+            if (gridManager == null ||
+                gridManager.WaypointWorldPositions == null ||
+                gridManager.WaypointWorldPositions.Count == 0)
+            {
+                return null;
+            }
+
+            Tray trayToLaunch = null;
+
+            if (trayBaseQueue.Count > 0)
+            {
+                trayToLaunch = trayBaseQueue[0];
+                trayBaseQueue.RemoveAt(0);
+                ShiftTraysForward();
+            }
+            else
+            {
+                Vector3 spawnPos = GetWaypointPosition(0);
+                GameObject trayGo = Instantiate(
+                    trayPrefab,
+                    spawnPos,
+                    Quaternion.identity,
+                    transform
+                );
+                trayToLaunch = trayGo.GetComponent<Tray>();
+            }
+
+            if (trayToLaunch == null)
+                return null;
+
+            currentActiveTrays++;
+            trayToLaunch.gameObject.SetActive(true);
+
+            // FIX: Sayaç güncellemesi eksikti, eklendi.
+            UpdateTrayCountText();
+
+            Vector3 startPos = GetWaypointPosition(0);
+            trayToLaunch.transform.position = startPos;
+
+            var facings = gridManager.WaypointFacingDirections;
+            if (facings != null && facings.Count > 0 && facings[0].sqrMagnitude > 0.0001f)
+            {
+                trayToLaunch.ModelTransform.rotation = Quaternion.LookRotation(facings[0], Vector3.up);
+            }
+
+            return trayToLaunch;
+        }
+
+        public void FinalizeTrayLaunch(Tray tray, FoodType foodType, int capacity, List<GameObject> spawnedPieces)
+        {
+            if (tray != null)
+            {
+                tray.Init(this, foodType, capacity, spawnedPieces);
+            }
+        }
     }
-
-    Tray trayToLaunch = null;
-
-    if (trayBaseQueue.Count > 0)
-    {
-        trayToLaunch = trayBaseQueue[0];
-        trayBaseQueue.RemoveAt(0);
-        ShiftTraysForward();
-    }
-    else
-    {
-        Vector3 spawnPos = GetWaypointPosition(0);
-        GameObject trayGo = Instantiate(
-            trayPrefab,
-            spawnPos,
-            Quaternion.identity,
-            transform
-        );
-        trayToLaunch = trayGo.GetComponent<Tray>();
-    }
-
-    if (trayToLaunch == null)
-        return null;
-
-    currentActiveTrays++;
-    trayToLaunch.gameObject.SetActive(true);
-
-    Vector3 startPos = GetWaypointPosition(0);
-    trayToLaunch.transform.position = startPos;
-
-    var facings = gridManager.WaypointFacingDirections;
-    if (facings != null && facings.Count > 0 && facings[0].sqrMagnitude > 0.0001f)
-    {
-        trayToLaunch.ModelTransform.rotation = Quaternion.LookRotation(facings[0], Vector3.up);
-    }
-
-    return trayToLaunch;
-}
-
-public void FinalizeTrayLaunch(Tray tray, FoodType foodType, int capacity, List<GameObject> spawnedPieces)
-{
-    if (tray != null)
-    {
-        tray.Init(this, foodType, capacity, spawnedPieces);
-    }
-}
-    }
-
-    
 }
