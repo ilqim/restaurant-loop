@@ -28,6 +28,10 @@ namespace RestaurantLoop
         [SerializeField] private float randomOffsetRange = 75f;
         [SerializeField] private Ease moveEase = Ease.InBack;
 
+        [Header("Sayaç Başlangıç Gecikmesi")]
+        [Tooltip("Panel tam göründükten (fade-in bitince) sonra, coin doğması VE sayının sayması BİRLİKTE başlamadan önce ne kadar beklensin. 0 = panel görünür görünmez ikisi de anında başlar.")]
+        [SerializeField] private float countStartDelay = 0f;
+
         [Header("Animation Settings")]
         [SerializeField] private float fadeDuration = 0.35f;
 
@@ -51,6 +55,12 @@ namespace RestaurantLoop
             if (popupContent != null)
                 popupContent.SetActive(true);
 
+            // ÖNEMLİ: Text'i HEMEN "+0"a sıfırlıyoruz — Editor'de bırakılmış
+            // eski bir değer (örn. "+40") panel açılır açılmaz bir an için
+            // yanlışlıkla görünmesin diye. Coin animasyonu başlamadan önce
+            // metin her zaman "+0"dan başlayacak.
+            SetCoinText("+0");
+
             StartCoroutine(ShowSequenceRoutine(earnedAmount));
         }
 
@@ -69,6 +79,13 @@ namespace RestaurantLoop
                 yield return new WaitForSecondsRealtime(fadeDuration);
                 panelCanvasGroup.interactable = true;
             }
+
+            // İSTEK: Panel tam göründükten sonra, coin doğması ile sayının
+            // sayması AYNI ANDA başlasın — aralarında istersen (countStartDelay
+            // ile) bir bekleme de ekleyebilirsin. Bu bekleme sırasında metin
+            // hâlâ "+0" olarak duruyor (yukarıda Show()'da zaten ayarlandı).
+            if (countStartDelay > 0f)
+                yield return new WaitForSecondsRealtime(countStartDelay);
 
             // 2. Play Coin Fly Animation
             if (coinPrefab != null && coinStartPoint != null && coinTargetPoint != null)

@@ -1,9 +1,15 @@
+using DG.Tweening;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace RestaurantLoop
 {
+    /// <summary>
+    /// GLOW EFEKTİ: Basılır basılmaz glowImage anında tam opak (alfa=1)
+    /// olur, glowHoldDuration kadar öyle kalır, sonra glowFadeDuration
+    /// süresinde yumuşakça sönümlenip (alfa 1->0) normal görünüme döner.
+    /// </summary>
     [RequireComponent(typeof(Button))]
     public class AddTrayBoosterButton : MonoBehaviour, IBoosterLevelGate
     {
@@ -23,6 +29,14 @@ namespace RestaurantLoop
         [Tooltip("Buton unlocked (kullanılabilir) ise SetActive(true), kilitliyse SetActive(false) olacak obje.")]
         [SerializeField] private GameObject unlockIndicator;
 
+        [Header("Basıldığında Glow Efekti")]
+        [Tooltip("Basılınca anında tam opak olacak, sonra sönümlenecek glow görseli.")]
+        [SerializeField] private Image glowImage;
+        [Tooltip("Glow tam opaklıkta (alfa=1) ne kadar süre kalsın, sonra sönmeye başlasın.")]
+        [SerializeField] private float glowHoldDuration = 0.2f;
+        [Tooltip("Glow'un sönümlenme (alfa 1->0) süresi.")]
+        [SerializeField] private float glowFadeDuration = 0.3f;
+
         private int usesThisLevel = 0;
 
         // LevelManager'dan gelen "bu level'de açık mı" bilgisi.
@@ -32,6 +46,14 @@ namespace RestaurantLoop
         {
             if (button == null) button = GetComponent<Button>();
             if (trayManager == null) trayManager = FindFirstObjectByType<TrayManager>();
+
+            // Glow başlangıçta görünmez (alfa=0).
+            if (glowImage != null)
+            {
+                Color c = glowImage.color;
+                c.a = 0f;
+                glowImage.color = c;
+            }
         }
 
         private void OnEnable()
@@ -87,7 +109,30 @@ namespace RestaurantLoop
 
             trayManager.AddExtraTray();
 
+            PlayGlowPulse();
+
             RefreshUI();
+        }
+
+        /// <summary>
+        /// Glow'u anında tam opak yapar, glowHoldDuration kadar bekletir,
+        /// sonra glowFadeDuration'da yumuşakça 0'a söndürür.
+        /// </summary>
+        private void PlayGlowPulse()
+        {
+            if (glowImage == null) return;
+
+            glowImage.DOKill();
+
+            Color c = glowImage.color;
+            c.a = 1f;
+            glowImage.color = c;
+
+            DOVirtual.DelayedCall(glowHoldDuration, () =>
+            {
+                if (glowImage != null)
+                    glowImage.DOFade(0f, glowFadeDuration);
+            });
         }
 
         private void RefreshUI()

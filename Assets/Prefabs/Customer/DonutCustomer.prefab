@@ -50,8 +50,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   renderersToFade: []
   blockedAlpha: 0.75
-  orderBubble: {fileID: 0}
-  blockedOrderBubble: {fileID: 0}
+  orderBubble: {fileID: 3479417007000431325}
+  blockedOrderBubble: {fileID: 81839895850202743}
   bubblePunchScale: 0.15
   bubblePunchDuration: 0.4
   bubblePunchVibrato: 8
