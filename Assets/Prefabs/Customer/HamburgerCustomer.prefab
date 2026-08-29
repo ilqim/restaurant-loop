@@ -469,6 +469,10 @@ MonoBehaviour:
   blockedAlpha: 0.75
   orderBubble: {fileID: 6528228638749375913}
   blockedOrderBubble: {fileID: 7078826549853988201}
+  bubblePunchScale: 0.15
+  bubblePunchDuration: 0.4
+  bubblePunchVibrato: 8
+  bubblePunchElasticity: 0.7
   currentState: 0
   verboseLogging: 1
 --- !u!114 &8568139297018928414
