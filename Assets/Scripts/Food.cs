@@ -1,6 +1,8 @@
 using System;
 using UnityEngine;
 using DG.Tweening;
+using System.Collections;
+using System.Collections.Generic;
 
 namespace RestaurantLoop
 {
@@ -35,9 +37,10 @@ namespace RestaurantLoop
         [Tooltip("Blocked (kilitli) durumdayken görünecek SpriteRenderer — artık '2D Visual'ın child'ı OLMAK ZORUNDA DEĞİL, buraya elle sürükle.")]
         [SerializeField] private SpriteRenderer blockedSpriteRenderer;
 
-        [Header("Zıplama Animasyonu")]
-        [SerializeField] private float jumpDuration = 0.35f;
-        [SerializeField] private float jumpPower = 1.2f;
+        [Header("Parça Bazlı Uçuş Animasyonu")]
+        [SerializeField] private float pieceJumpDuration = 0.35f;
+        [SerializeField] private float pieceJumpPower = 1.2f;
+        [SerializeField] private float pieceStaggerDelay = 0.035f;
 
         [Header("Kapasite Debug Etiketi")]
         [SerializeField] private bool showCapacityLabel = true;
@@ -140,7 +143,7 @@ namespace RestaurantLoop
                 // Queue'deki food'u banda göndermek için tıklama. Ses SADECE
                 // konveyörde gerçekten yer varsa (yemek fiilen çıkabildiyse)
                 // çalar — her tıklamada değil.
-                bool launched = TryLaunchWithAnimation();
+                bool launched = TryLaunchPiecesToConveyor();
                 if (launched)
                     AudioEvents.PlayFoodClick();
             }
@@ -159,7 +162,7 @@ namespace RestaurantLoop
         /// </summary>
         public bool EnterConveyorFromSlot()
         {
-            return TryLaunchWithAnimation();
+            return TryLaunchPiecesToConveyor();
         }
 
         public void SetInFoodSlot()
@@ -178,7 +181,7 @@ namespace RestaurantLoop
                 spriteVisual.SetActive(isStaticInSlotOrQueue);
 
             if (modelVisual != null)
-                modelVisual.SetActive(!isStaticInSlotOrQueue);
+                modelVisual.SetActive(!isStaticInSlotOrQueue && currentState != FoodState.Launching);
         }
 
         /// <summary>
@@ -347,7 +350,7 @@ namespace RestaurantLoop
         /// Konveyöre (tray olarak) çıkışı dener. Başarılıysa food'u despawn eder
         /// ve true döner. Konveyör doluysa hiçbir şey değiştirmeden false döner.
         /// </summary>
-        private bool TryLaunchWithAnimation()
+        private bool TryLaunchPiecesToConveyor()
         {
             if (trayManager == null)
             {
@@ -361,30 +364,71 @@ namespace RestaurantLoop
                 return false;
             }
 
-            Vector3 targetPos = trayManager.GetWaypointPosition(0);
+            Tray upcomingTray = trayManager.PrepareUpcomingTray();
+            if(upcomingTray == null) return false;
+
+
+            //Vector3 targetPos = trayManager.GetWaypointPosition(0);
 
             ChangeState(FoodState.Launching);
 
-            UpdateVisualMode();
+            if(spriteVisual != null) spriteVisual.SetActive(false);
+            if(modelVisual != null) modelVisual.SetActive(false);
 
-            // Smooth DOTween jump to the conveyor starting position
-            transform.DOJump(targetPos, jumpPower, 1, jumpDuration)
-                .SetEase(Ease.OutQuad)
-                .OnComplete(() =>
-                {
-                    bool launched = trayManager.TryLaunchTray(foodType, capacity);
-                    if (launched)
-                    {
-                        ChangeState(FoodState.OnConveyor);
-                        DespawnSelf();
-                    }
-                    else
-                    {
-                        ChangeState(FoodState.AvailableInQueue);
-                    }
-                });
+            StartCoroutine(AnimatePiecesToTrayRoutine(upcomingTray));
 
             return true;
+        }
+
+        private IEnumerator AnimatePiecesToTrayRoutine(Tray tray)
+        {
+            var config = trayManager.GetVisualConfig(foodType);
+            GameObject piecePrefab = config.stackPiecePrefab;
+
+            int totalCount = capacity;
+            int visualCount = Mathf.Min(capacity, Mathf.Max(0, config.maxVisualPieces));
+            int piecesPerLayer = 4;
+            float half = config.pieceSpacing * 0.5f;
+
+            Vector3 spawnOrigin = transform.position;
+            Transform trayModelTransform = tray.ModelTransform;
+
+            List<GameObject> spawnedPieces = new();
+
+            for (int i = 0; i < visualCount; i++)
+            {
+                int layer = i / piecesPerLayer;
+                int posInLayer = i % piecesPerLayer;
+
+                float xOffset = (posInLayer == 0 || posInLayer == 2) ? -half : half;
+                float zOffset = (posInLayer == 0 || posInLayer == 1) ? half : -half;
+                float yOffset = config.foodBaseYOffset + layer * config.pieceHeightSpacing;
+
+                Vector3 targetLocalPos = new Vector3(xOffset, yOffset, zOffset);
+
+                GameObject piece = (ObjectPool.Instance != null && piecePrefab != null)
+                    ? ObjectPool.Instance.Get(piecePrefab, spawnOrigin, piecePrefab.transform.rotation, trayModelTransform)
+                    : (piecePrefab != null ? Instantiate(piecePrefab, spawnOrigin, piecePrefab.transform.rotation, trayModelTransform) : new GameObject("Piece"));
+
+                piece.transform.position = spawnOrigin;
+                spawnedPieces.Add(piece);
+
+                // DOJump directly to the target local point relative to the tray model
+                piece.transform.DOLocalJump(targetLocalPos, pieceJumpPower, 1, pieceJumpDuration)
+                    .SetEase(Ease.OutQuad);
+
+                if (pieceStaggerDelay > 0f)
+                    yield return new WaitForSeconds(pieceStaggerDelay);
+            }
+
+            // Wait for the final piece to complete its jump
+            yield return new WaitForSeconds(pieceJumpDuration);
+
+            // Finalize Tray launch
+            trayManager.FinalizeTrayLaunch(tray, foodType, totalCount, spawnedPieces);
+
+            ChangeState(FoodState.OnConveyor);
+            DespawnSelf();
         }
 
         private void DespawnSelf()

@@ -109,7 +109,7 @@ namespace RestaurantLoop
         /// Path takibi / yönelim için kullanılacak GERÇEK transform.
         /// visualModel atanmışsa o, atanmamışsa (geri uyumluluk) kökün kendisi.
         /// </summary>
-        private Transform ModelTransform => visualModel != null ? visualModel : transform;
+        public Transform ModelTransform => visualModel != null ? visualModel : transform;
 
         private void Awake()
         {
@@ -163,7 +163,8 @@ namespace RestaurantLoop
         public void Init(
             TrayManager manager,
             FoodType type,
-            int startCapacity)
+            int startCapacity,
+            List<GameObject> preSpawnedPieces = null)
         {
             if (moveRoutine != null)
             {
@@ -245,7 +246,15 @@ namespace RestaurantLoop
             deliveryCheckpoints = gridManager.DeliveryCheckpoints;
             nextCheckpointIndex = 1;
 
-            BuildStackVisuals();
+            if(preSpawnedPieces != null && preSpawnedPieces.Count > 0)
+            {
+                AdoptPreSpawnedPieces(preSpawnedPieces);
+            }
+            else
+            {
+                BuildStackVisuals();
+            }
+
             countLabel?.SetCount(capacity);
 
             if (deliveryCheckpoints != null &&
@@ -259,6 +268,30 @@ namespace RestaurantLoop
             moveRoutine = StartCoroutine(
                 MoveOnConveyor()
             );
+        }
+
+        private void AdoptPreSpawnedPieces(List<GameObject> pieces)
+        {
+            ClearStackVisuals();
+
+            currentLayerCount = Mathf.CeilToInt(pieces.Count / (float)PiecesPerLayer);
+
+            for (int i = 0; i < pieces.Count; i++)
+            {
+                int layer = i / PiecesPerLayer;
+                int posInLayer = i % PiecesPerLayer;
+
+                float half = config.pieceSpacing * 0.5f;
+                float xOffset = (posInLayer == 0 || posInLayer == 2) ? -half : half;
+                float zOffset = (posInLayer == 0 || posInLayer == 1) ? half : -half;
+
+                stackPieceInfos.Add(new StackPieceInfo
+                {
+                    go = pieces[i],
+                    layerIndex = layer,
+                    offsetXZ = new Vector2(xOffset, zOffset)
+                });
+            }
         }
 
         private void OnDisable()
