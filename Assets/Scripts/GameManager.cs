@@ -35,6 +35,20 @@ namespace RestaurantLoop
         [Tooltip("Bu SAHNEYE (Game) ait, bağımsız CurrencyBar instance'ı. Boş bırakılırsa Start()'ta otomatik aranır.")]
         [SerializeField] private CurrencyBar currencyBar;
 
+        [Header("Yeni Booster Duyuru Ekranları")]
+        [Tooltip("Level başladıktan kaç saniye sonra (varsa) 'yeni booster açıldı' ekranı gösterilsin.")]
+        [SerializeField] private float newBoosterScreenDelay = 2f;
+        [Tooltip("Bu ekranın fade-in süresi.")]
+        [SerializeField] private float newBoosterFadeDuration = 0.35f;
+        [Tooltip("Select booster'ın 'yeni açıldı' ekranı — LevelManager'daki Select unlock level'ına TAM olarak eşitse gösterilir.")]
+        [SerializeField] private CanvasGroup selectBoosterNewScreen;
+        [Tooltip("Add Tray booster'ın 'yeni açıldı' ekranı.")]
+        [SerializeField] private CanvasGroup addTrayBoosterNewScreen;
+        [Tooltip("Shuffle booster'ın 'yeni açıldı' ekranı.")]
+        [SerializeField] private CanvasGroup shuffleBoosterNewScreen;
+
+        private CanvasGroup activeNewBoosterScreen;
+
         private CustomerManager customerManager;
 
         public GameState CurrentState => currentState;
@@ -85,6 +99,12 @@ namespace RestaurantLoop
             // temizliyoruz — bu sahne her yüklendiğinde oyun GARANTİ olarak
             // normal hızda başlasın.
             Time.timeScale = 1f;
+
+            // Bu level'de yeni açılan bir booster varsa (LevelManager'daki
+            // unlock level'lardan biri TAM OLARAK şu anki level'e eşitse),
+            // birkaç saniye sonra ilgili "yeni booster" ekranını göster.
+            EnsureNewBoosterScreensHidden();
+            StartCoroutine(ShowNewBoosterScreenAfterDelay());
 
             Debug.Log("===== GAME START =====");
         }
@@ -227,6 +247,98 @@ namespace RestaurantLoop
         {
             yield return new WaitForSecondsRealtime(pauseDelayAfterGameEnd);
             Time.timeScale = 0f;
+        }
+
+        // ============================================================
+        // YENİ BOOSTER DUYURU EKRANLARI
+        // ============================================================
+
+        /// <summary>
+        /// Sahne her yüklendiğinde (Retry/level geçişi dahil) 3 ekran da
+        /// baştan görünmez olsun diye garanti altına alınıyor — bir
+        /// önceki oturumdan kalma açık bir ekran olmasın.
+        /// </summary>
+        private void EnsureNewBoosterScreensHidden()
+        {
+            HideCanvasGroupInstant(selectBoosterNewScreen);
+            HideCanvasGroupInstant(addTrayBoosterNewScreen);
+            HideCanvasGroupInstant(shuffleBoosterNewScreen);
+        }
+
+        private static void HideCanvasGroupInstant(CanvasGroup group)
+        {
+            if (group == null) return;
+
+            group.alpha = 0f;
+            group.interactable = false;
+            group.blocksRaycasts = false;
+            group.gameObject.SetActive(false);
+        }
+
+        /// <summary>
+        /// Level başladıktan newBoosterScreenDelay saniye sonra, LevelManager'daki
+        /// booster unlock level'larından HERHANGİ BİRİ şu anki level'e TAM
+        /// olarak eşitse, ilgili "yeni booster açıldı" ekranını gösterir.
+        /// WaitForSecondsRealtime kullanılıyor — pause-güvenli, PauseGameplayAfterDelay
+        /// ile aynı mantık.
+        /// </summary>
+        private IEnumerator ShowNewBoosterScreenAfterDelay()
+        {
+            yield return new WaitForSecondsRealtime(newBoosterScreenDelay);
+
+            if (LevelManager.Instance == null)
+                yield break;
+
+            int currentLevel = LevelManager.Instance.CurrentLevel;
+
+            CanvasGroup screenToShow = null;
+
+            if (currentLevel == LevelManager.Instance.GetBoosterUnlockLevel(BoosterType.Select))
+                screenToShow = selectBoosterNewScreen;
+            else if (currentLevel == LevelManager.Instance.GetBoosterUnlockLevel(BoosterType.AddTray))
+                screenToShow = addTrayBoosterNewScreen;
+            else if (currentLevel == LevelManager.Instance.GetBoosterUnlockLevel(BoosterType.Shuffle))
+                screenToShow = shuffleBoosterNewScreen;
+
+            if (screenToShow == null)
+                yield break;
+
+            activeNewBoosterScreen = screenToShow;
+            yield return FadeInCanvasGroup(screenToShow, newBoosterFadeDuration);
+        }
+
+        private IEnumerator FadeInCanvasGroup(CanvasGroup group, float duration)
+        {
+            group.gameObject.SetActive(true);
+            group.alpha = 0f;
+            group.blocksRaycasts = true;
+            group.interactable = true;
+
+            duration = Mathf.Max(0.01f, duration);
+            float elapsed = 0f;
+
+            while (elapsed < duration)
+            {
+                elapsed += Time.unscaledDeltaTime; // pause-güvenli
+                group.alpha = Mathf.Lerp(0f, 1f, elapsed / duration);
+                yield return null;
+            }
+
+            group.alpha = 1f;
+        }
+
+        /// <summary>
+        /// "Yeni booster" ekranındaki kapatma/OK butonuna bağla — hangi
+        /// ekran açıksa onu kapatır.
+        /// </summary>
+        public void CloseNewBoosterScreen()
+        {
+            if (activeNewBoosterScreen == null)
+                return;
+
+            AudioEvents.PlayButtonClick();
+            HideCanvasGroupInstant(activeNewBoosterScreen);
+            activeNewBoosterScreen = null;
         }
 
         /// <summary>

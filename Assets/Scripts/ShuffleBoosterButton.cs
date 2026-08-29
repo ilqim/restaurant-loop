@@ -30,6 +30,10 @@ namespace RestaurantLoop
         [Tooltip("Opsiyonel — kalan hak sayısını gösteren text (örn. '99').")]
         [SerializeField] private TMP_Text countText;
 
+        [Header("Kilitli/Açık Göstergesi (gri gösterim yerine)")]
+        [Tooltip("Buton unlocked (kullanılabilir) ise SetActive(true), kilitliyse SetActive(false) olacak obje.")]
+        [SerializeField] private GameObject unlockIndicator;
+
         // LevelManager'dan gelen "bu level'de açık mı" bilgisi — RefreshLevelGate
         // ile güncellenir, RefreshUI bunu hak sayısıyla BİRLİKTE değerlendirir.
         private bool unlockedByLevel = true;
@@ -100,12 +104,16 @@ namespace RestaurantLoop
         private void RefreshUI()
         {
             int remaining = PlayerData.ShuffleBoosterCount;
+            bool isUnlocked = unlockedByLevel && remaining > 0;
 
             if (countText != null)
                 countText.text = remaining.ToString();
 
             if (button != null)
-                button.interactable = unlockedByLevel && remaining > 0;
+                button.interactable = isUnlocked;
+
+            if (unlockIndicator != null)
+                unlockIndicator.SetActive(isUnlocked);
         }
     }
 }
