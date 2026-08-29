@@ -83,10 +83,6 @@ namespace RestaurantLoop
 
         private void PlayCoinFlyAnimation(int earnedAmount)
         {
-            // Coin sesi artık HER coin uçuşu bittiğinde değil, animasyon
-            // başında BİR KEZ çalıyor.
-            AudioEvents.PlayCoinEarn();
-
             float delayPerCoin = totalDelay / Mathf.Max(1, animatedCoinCount);
             int displayedCoins = 0;
             int stepAmount = Mathf.Max(1, earnedAmount / animatedCoinCount);
