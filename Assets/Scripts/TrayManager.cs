@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
 
 namespace RestaurantLoop
@@ -67,6 +68,10 @@ namespace RestaurantLoop
         [Header("Konveyör Kapasitesi")]
         [Tooltip("Aynı anda konveyörde en fazla kaç Tray olabilir.")]
         [SerializeField] private int maxActiveTrays = 5;
+
+        [Header("Tray Sayısı Etiketi")]
+        [Tooltip("'müsait tray / toplam tray' formatında canlı sayaç gösteren 3D TextMeshPro (UI değil, dünya uzayında). Boş bırakılırsa hiçbir şey yapılmaz.")]
+        [SerializeField] private TextMeshPro trayCountText;
 
         [Header("Tray Base Queue Settings")]
         [Tooltip("Başlangıçta Tray Base alanında yan yana duracak boş tepsi sayısı.")]
@@ -148,6 +153,10 @@ namespace RestaurantLoop
         {
             InitializeBaseTrayQueue();
 
+            // Başlangıçta (henüz hiç tray konveyöre çıkmamışken) sayaç
+            // "maxActiveTrays / maxActiveTrays" göstersin.
+            UpdateTrayCountText();
+
 #if UNITY_EDITOR
             float dist = Vector3.Distance(
                 GetBaseStackPosition(0),
@@ -168,6 +177,23 @@ namespace RestaurantLoop
         private void LateUpdate()
         {
             TrayDeliveryQueue.ProcessAllQueuesOncePerFrame();
+        }
+
+        /// <summary>
+        /// "müsait tray / toplam tray" metnini günceller. Müsait tray =
+        /// maxActiveTrays - currentActiveTrays (konveyörde OLMAYAN, base'de
+        /// bekleyen/kullanılabilir tray sayısı). Toplam = maxActiveTrays
+        /// (Add Tray booster ile arttıkça bu da büyür). Tray konveyöre her
+        /// girdiğinde/çıktığında VE AddExtraTray çağrıldığında otomatik
+        /// çağrılıyor — elle güncellemene gerek yok.
+        /// </summary>
+        private void UpdateTrayCountText()
+        {
+            if (trayCountText == null)
+                return;
+
+            int available = Mathf.Max(0, maxActiveTrays - currentActiveTrays);
+            trayCountText.text = $"{available}/{maxActiveTrays}";
         }
 
         private void InitializeBaseTrayQueue()
@@ -298,6 +324,9 @@ namespace RestaurantLoop
                 capacity
             );
 
+            // Tray konveyöre GİRDİ — müsait tray sayısı azaldı, sayacı güncelle.
+            UpdateTrayCountText();
+
             return true;
         }
 
@@ -307,6 +336,10 @@ namespace RestaurantLoop
                 return;
 
             currentActiveTrays = Mathf.Max(0, currentActiveTrays - 1);
+
+            // Tray konveyörden ÇIKTI (base'e döndü) — müsait tray sayısı
+            // arttı, sayacı güncelle.
+            UpdateTrayCountText();
 
             if (trayBaseQueue.Contains(tray))
                 return;
@@ -413,6 +446,7 @@ namespace RestaurantLoop
         public void ReleaseTraySlot()
         {
             currentActiveTrays = Mathf.Max(0, currentActiveTrays - 1);
+            UpdateTrayCountText();
         }
 
         public TrayVisualConfig GetVisualConfig(FoodType food)
@@ -476,6 +510,9 @@ namespace RestaurantLoop
         public void AddExtraTray()
         {
             maxActiveTrays++;
+
+            // Toplam tray sayısı arttı (örn. 5/5 -> 6/6) — sayacı güncelle.
+            UpdateTrayCountText();
 
             if (trayPrefab == null)
                 return;

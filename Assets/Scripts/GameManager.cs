@@ -20,6 +20,14 @@ namespace RestaurantLoop
         [Header("Economy Rewards & Penalties")]
         [SerializeField] private int coinsPerWin = 40;
 
+        [Header("Kazanma Particle Efektleri")]
+        [Tooltip("Kazanınca HEMEN oynatılacak 1. particle efekti.")]
+        [SerializeField] private ParticleSystem winParticle1;
+        [Tooltip("Kazanınca HEMEN oynatılacak 2. particle efekti.")]
+        [SerializeField] private ParticleSystem winParticle2;
+        [Tooltip("Particle'lar oynamaya başladıktan kaç saniye sonra Win ekranı (LevelCompleteUI) gösterilsin.")]
+        [SerializeField] private float winScreenDelayAfterParticles = 2f;
+
         [Header("Win/Fail Sonrası Durdurma")]
         [Tooltip("Win/Fail olduktan kaç saniye sonra oyunun TAMAMEN durdurulacağı (Time.timeScale = 0). " +
                  "Panelin fade-in animasyonunun tamamlanmasına yetecek kadar süre bırak — aksi halde fade " +
@@ -189,6 +197,11 @@ namespace RestaurantLoop
             //SFX
             AudioEvents.PlayLevelComplete();
 
+            // İSTEK: Particle'lar HEMEN oynasın — win ekranını (LevelCompleteUI)
+            // beklemesinler.
+            if (winParticle1 != null) winParticle1.Play();
+            if (winParticle2 != null) winParticle2.Play();
+
             if (levelTopBar != null)
                 levelTopBar.SetActive(false);
 
@@ -214,11 +227,6 @@ namespace RestaurantLoop
                                   "(muhtemelen Main Menu'den geçmeden direkt bu sahneden test ediliyorsun).");
             }
 
-            if(levelCompleteUI != null)
-            {
-                levelCompleteUI.Show(coinsPerWin);
-            }
-
             Debug.Log($"WIN! Awarded {coinsPerWin} coins. Total: {PlayerData.Coins}");
 
             Debug.Log("=================================");
@@ -226,8 +234,25 @@ namespace RestaurantLoop
             Debug.Log("Tüm müşterilerin siparişleri karşılandı.");
             Debug.Log("=================================");
 
-            // Panel fade-in'i tamamlansın diye 1sn (parametrik) bekleyip
-            // oyunu tamamen durduruyoruz.
+            // İSTEK: Win ekranı (LevelCompleteUI), particle'lar oynamaya
+            // başladıktan winScreenDelayAfterParticles saniye sonra gelsin.
+            // Oyunu durdurma (PauseGameplayAfterDelay) da ARTIK ekran
+            // GERÇEKTEN gösterildiği andan itibaren sayılıyor — aksi halde
+            // ekran daha görünmeden oyun donabilirdi.
+            StartCoroutine(ShowLevelCompleteUIAfterDelay());
+        }
+
+        private IEnumerator ShowLevelCompleteUIAfterDelay()
+        {
+            yield return new WaitForSecondsRealtime(winScreenDelayAfterParticles);
+
+            if (levelCompleteUI != null)
+            {
+                levelCompleteUI.Show(coinsPerWin);
+            }
+
+            // Panel fade-in'i tamamlansın diye pauseDelayAfterGameEnd kadar
+            // bekleyip oyunu tamamen durduruyoruz.
             PauseGameplayAfterDelay();
         }
 
