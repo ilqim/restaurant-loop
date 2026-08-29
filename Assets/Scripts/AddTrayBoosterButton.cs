@@ -19,6 +19,10 @@ namespace RestaurantLoop
         [Tooltip("Bir level içerisinde bu booster en fazla kaç kez kullanılabilir.")]
         [SerializeField] private int maxUsesPerLevel = 1;
 
+        [Header("Kilitli/Açık Göstergesi (gri gösterim yerine)")]
+        [Tooltip("Buton unlocked (kullanılabilir) ise SetActive(true), kilitliyse SetActive(false) olacak obje.")]
+        [SerializeField] private GameObject unlockIndicator;
+
         private int usesThisLevel = 0;
 
         // LevelManager'dan gelen "bu level'de açık mı" bilgisi.
@@ -89,12 +93,16 @@ namespace RestaurantLoop
         private void RefreshUI()
         {
             int remaining = PlayerData.AddTrayBoosterCount;
+            bool isUnlocked = unlockedByLevel && remaining > 0 && usesThisLevel < maxUsesPerLevel;
 
             if (countText != null)
                 countText.text = remaining.ToString();
 
             if (button != null)
-                button.interactable = unlockedByLevel && remaining > 0 && usesThisLevel < maxUsesPerLevel;
+                button.interactable = isUnlocked;
+
+            if (unlockIndicator != null)
+                unlockIndicator.SetActive(isUnlocked);
         }
     }
 }
