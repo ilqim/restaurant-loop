@@ -348,11 +348,8 @@ MonoBehaviour:
   pieceJumpDuration: 0.35
   pieceJumpPower: 1.2
   pieceStaggerDelay: 0.035
-  showCapacityLabel: 1
-  labelHeight: 3
-  labelFontSize: 48
-  labelCharacterSize: 0.12
-  labelColor: {r: 1, g: 1, b: 1, a: 1}
+  clickScaleDownFactor: 0.7
+  clickScaleDuration: 0.1
   currentState: 1
   verboseLogging: 0
 --- !u!1 &8059607643161225655

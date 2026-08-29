@@ -1,3 +1,4 @@
+using DG.Tweening;
 using UnityEngine;
 
 namespace RestaurantLoop
@@ -20,9 +21,11 @@ namespace RestaurantLoop
     /// "ışınladığında" AssignFood ile hangi food'un burada durduğunu
     /// bildiriyor.
     ///
-    /// GÖRSEL: Artık SpriteRenderer/renk YÖNETMİYOR — sadece tıklanabilir
-    /// collider'ı ve sayı etiketini (countLabel) yönetiyor. Food'un kendi
-    /// görseli (prefab'ı) zaten ayrı bir obje olarak duruyor.
+    /// GÖRSEL: Arkada ayrı bir slot sprite'ı YOK (o Slot.cs'te var, burada
+    /// değil) — ama bu QueueSlot'un kendi child'ı olan sayı etiketi
+    /// (countLabel) var. Food tıklanınca küçülüp büyürken, üzerindeki bu
+    /// sayı da AYNI ANDA senkron küçülüp büyüsün diye punch-scale burada
+    /// SADECE countLabel'a uygulanıyor.
     /// </summary>
     [RequireComponent(typeof(Collider))]
     public class QueueSlot : MonoBehaviour, IQueueClickable
@@ -32,6 +35,14 @@ namespace RestaurantLoop
         [Header("Sayı Etiketi")]
         [Tooltip("İçindeki food'un kapasitesini gösteren 3D etiket (Canvas değil, normal derinlik testine tabi).")]
         [SerializeField] private WorldSpaceCountLabel countLabel;
+
+        [Header("Tıklama Animasyonu (Click Punch) — Food ile SENKRON")]
+        [Tooltip("Tıklanınca ölçeğin ineceği çarpan — Food.cs'teki değerle AYNI olmalı ki ikisi birebir senkron görünsün.")]
+        [SerializeField] private float clickScaleDownFactor = 0.85f;
+        [Tooltip("Küçülme VE büyüme adımlarının HER BİRİNİN süresi — Food.cs'teki değerle AYNI olmalı.")]
+        [SerializeField] private float clickScaleDuration = 0.08f;
+
+        private Sequence clickPunchSequence;
 
         public Food AssignedFood => assignedFood;
 
@@ -58,7 +69,34 @@ namespace RestaurantLoop
         public void HandleClick()
         {
             if (assignedFood == null) return;
+
+            PlayCountLabelClickPunch();
             assignedFood.ActivateFromTap();
+        }
+
+        /// <summary>
+        /// Food.cs'teki PlayClickPunch ile BİREBİR AYNI mantık — sadece
+        /// hedef bu slot'un countLabel'ının transform'u. Aynı anda
+        /// tetiklenip aynı süre/oranla çalıştığı için Food ile senkron
+        /// (birlikte küçülüp büyür) görünür.
+        /// </summary>
+        private void PlayCountLabelClickPunch()
+        {
+            if (countLabel == null) return;
+
+            Transform target = countLabel.transform;
+
+            if (clickPunchSequence != null && clickPunchSequence.IsActive())
+                clickPunchSequence.Kill();
+
+            Vector3 originalScale = target.localScale;
+
+            clickPunchSequence = DOTween.Sequence();
+            clickPunchSequence.SetLink(target.gameObject);
+            clickPunchSequence.Append(
+                target.DOScale(originalScale * clickScaleDownFactor, clickScaleDuration).SetEase(Ease.OutQuad));
+            clickPunchSequence.Append(
+                target.DOScale(originalScale, clickScaleDuration).SetEase(Ease.OutBack));
         }
     }
 }

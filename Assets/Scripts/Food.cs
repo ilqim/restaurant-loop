@@ -42,6 +42,14 @@ namespace RestaurantLoop
         [SerializeField] private float pieceJumpPower = 1.2f;
         [SerializeField] private float pieceStaggerDelay = 0.035f;
 
+        [Header("Tıklama Animasyonu (Click Punch)")]
+        [Tooltip("Tıklanınca ölçeğin ineceği çarpan (1 = değişmez, 0.85 = %15 küçülür).")]
+        [SerializeField] private float clickScaleDownFactor = 0.85f;
+        [Tooltip("Küçülme VE büyüme adımlarının HER BİRİNİN süresi (toplam animasyon bunun 2 katı kadar sürer).")]
+        [SerializeField] private float clickScaleDuration = 0.08f;
+
+        private Sequence clickPunchSequence;
+
         [Header("State")]
         [SerializeField] private FoodState currentState = FoodState.AvailableInQueue;
 
@@ -67,6 +75,16 @@ namespace RestaurantLoop
 
         public event Action<Food, FoodState> StateChanged;
         public event Action<Food> ReenterConveyorRequested;
+
+        /// <summary>
+        /// Parça bazlı uçuş animasyonu sırasında HER parça konveyöre
+        /// (tray'e) fırlatıldığında tetiklenir. İkinci parametre, o parça
+        /// fırlatıldıktan SONRA kalan kapasiteyi verir (ör. capacity=10,
+        /// ilk parça fırlayınca 9 gelir). Slot.cs gibi dinleyiciler bunu
+        /// kullanarak, animasyon sürerken kapasite etiketini canlı olarak
+        /// azaltabilir.
+        /// </summary>
+        public event Action<Food, int> PieceLaunched;
 
         public void PresetQueueState(FoodState state)
         {
@@ -121,7 +139,9 @@ namespace RestaurantLoop
             {
                 // Queue'deki food'u banda göndermek için tıklama. Ses SADECE
                 // konveyörde gerçekten yer varsa (yemek fiilen çıkabildiyse)
-                // çalar — her tıklamada değil.
+                // çalar — her tıklamada değil. Punch animasyonu ARTIK BURADA
+                // DEĞİL, TryLaunchPiecesToConveyor() içinde — çünkü orada
+                // parça uçuş animasyonuyla TAM SENKRON başlatılması gerekiyor.
                 bool launched = TryLaunchPiecesToConveyor();
                 if (launched)
                     AudioEvents.PlayFoodClick();
@@ -131,6 +151,32 @@ namespace RestaurantLoop
                 if (verboseLogging) Debug.Log($"Food [{gameObject.name}]: Slottan çıkış isteniyor.");
                 ReenterConveyorRequested?.Invoke(this);
             }
+        }
+
+        /// <summary>
+        /// Tıklanınca çalan "buton hissi" animasyonu — ölçek anında küçülüp
+        /// hemen ardından yumuşakça (hafif zıplayarak) orijinal boyutuna
+        /// döner. onComplete verilirse, animasyon TAM BİTTİĞİ anda çağrılır
+        /// (ör. food'un görselini o an gizlemek için).
+        /// </summary>
+        private void PlayClickPunch(System.Action onComplete = null)
+        {
+            // Sadece KENDİ önceki punch sekansımızı öldürüyoruz — transform
+            // üzerindeki başka (pozisyon vb.) tween'lere dokunmuyoruz.
+            if (clickPunchSequence != null && clickPunchSequence.IsActive())
+                clickPunchSequence.Kill();
+
+            Vector3 originalScale = transform.localScale;
+
+            clickPunchSequence = DOTween.Sequence();
+            clickPunchSequence.SetLink(gameObject);
+            clickPunchSequence.Append(
+                transform.DOScale(originalScale * clickScaleDownFactor, clickScaleDuration).SetEase(Ease.OutQuad));
+            clickPunchSequence.Append(
+                transform.DOScale(originalScale, clickScaleDuration).SetEase(Ease.OutBack));
+
+            if (onComplete != null)
+                clickPunchSequence.OnComplete(() => onComplete());
         }
 
         /// <summary>
@@ -324,19 +370,39 @@ namespace RestaurantLoop
             if (!trayManager.CanLaunchTray())
             {
                 if (verboseLogging) Debug.Log($"Food [{gameObject.name}]: Konveyör dolu, tray başlatılamadı.");
+                // Launch başarısız olsa bile tıklamanın "hissedilmesi" için
+                // punch animasyonu yine de oynasın (food görselini gizlemeden
+                // — hiçbir şey gerçekten olmadı, olduğu yerde kalıyor).
+                PlayClickPunch();
                 return false;
             }
 
             Tray upcomingTray = trayManager.PrepareUpcomingTray();
-            if(upcomingTray == null) return false;
-
-
-            //Vector3 targetPos = trayManager.GetWaypointPosition(0);
+            if (upcomingTray == null)
+            {
+                PlayClickPunch();
+                return false;
+            }
 
             ChangeState(FoodState.Launching);
 
-            if(spriteVisual != null) spriteVisual.SetActive(false);
-            if(modelVisual != null) modelVisual.SetActive(false);
+            // ÖNEMLİ FIX: ChangeState() kendi içinde UpdateVisualMode()'u
+            // çağırıyor ve bu, Launching state'i için spriteVisual'ı HEMEN
+            // (punch animasyonu daha başlamadan) kapatıyordu — bu yüzden
+            // Queue'da punch hiç GÖRÜNMÜYORDU, food anında kayboluyormuş
+            // gibi görünüyordu. Burada spriteVisual'ı ELLE tekrar açıyoruz;
+            // gerçek gizleme işini aşağıdaki PlayClickPunch'ın OnComplete'i
+            // yapacak — böylece Slot'takiyle birebir aynı davranış.
+            if (spriteVisual != null) spriteVisual.SetActive(true);
+
+            // Punch animasyonu (küçülüp büyüme) İLE parça uçuş animasyonu
+            // AYNI ANDA başlıyor. Food'un kendi görseli punch TAM BİTENE
+            // kadar görünür kalıyor, sonra (OnComplete) gizleniyor.
+            PlayClickPunch(() =>
+            {
+                if (spriteVisual != null) spriteVisual.SetActive(false);
+                if (modelVisual != null) modelVisual.SetActive(false);
+            });
 
             StartCoroutine(AnimatePiecesToTrayRoutine(upcomingTray));
 
@@ -380,9 +446,20 @@ namespace RestaurantLoop
                 piece.transform.DOLocalJump(targetLocalPos, pieceJumpPower, 1, pieceJumpDuration)
                     .SetEase(Ease.OutQuad);
 
+                // Bu parça "fırlatıldı" — dinleyicilere (ör. Slot.cs'in
+                // kapasite etiketi) kalan miktarı bildiriyoruz.
+                int remainingAfterThisPiece = Mathf.Max(0, totalCount - (i + 1));
+                PieceLaunched?.Invoke(this, remainingAfterThisPiece);
+
                 if (pieceStaggerDelay > 0f)
                     yield return new WaitForSeconds(pieceStaggerDelay);
             }
+
+            // Eğer visualCount, totalCount'tan azsa (maxVisualPieces sınırı
+            // yüzünden), kalan miktarı en sonda 0'a tamamlayarak son bir
+            // bildirim daha yapıyoruz — dinleyici kesin olarak 0'da bitsin.
+            if (visualCount < totalCount)
+                PieceLaunched?.Invoke(this, 0);
 
             // Wait for the final piece to complete its jump
             yield return new WaitForSeconds(pieceJumpDuration);
