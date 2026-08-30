@@ -234,12 +234,26 @@ namespace RestaurantLoop
             countLabel?.Clear();
         }
 
+        /// <summary>
+        /// İSTEK: Slota basıldığı AN, içindeki yemek GERÇEKTEN gitmeye
+        /// müsaitse (konveyörde yer varsa) countLabel HEMEN (senkron,
+        /// tıklama anında) gizlenir. Müsait DEĞİLSE hiç dokunulmaz —
+        /// "önce gizle, olmazsa tekrar göster" titremesi hiç yaşanmaz.
+        /// Bunun DIŞINDA hiçbir şey değiştirilmedi — punch animasyonu,
+        /// ActivateFromTap çağrısı vs. birebir aynı kaldı.
+        /// </summary>
         public void HandleClick()
         {
             if (IsEmpty)
                 return;
 
             PlaySlotClickPunch();
+
+            if (CurrentFood != null && CurrentFood.CanEnterConveyorFromSlot())
+            {
+                countLabel?.SetVisible(false);
+            }
+
             CurrentFood?.ActivateFromTap();
         }
 

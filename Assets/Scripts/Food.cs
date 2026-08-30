@@ -180,6 +180,19 @@ namespace RestaurantLoop
         }
 
         /// <summary>
+        /// Konveyöre GERÇEKTEN çıkmadan, sadece "şu an çıkabilir mi" diye
+        /// kontrol eder (hiçbir state değiştirmez, hiçbir animasyon
+        /// başlatmaz). Slot.cs, tıklama anında (HandleClick içinde)
+        /// countLabel'ı gizleyip gizlememeye bu kontrolle karar veriyor —
+        /// böylece "önce gizle, olmazsa tekrar göster" titremesi hiç
+        /// yaşanmıyor; sadece GERÇEKTEN gidebilecekse gizleniyor.
+        /// </summary>
+        public bool CanEnterConveyorFromSlot()
+        {
+            return trayManager != null && trayManager.CanLaunchTray();
+        }
+
+        /// <summary>
         /// Slot, food'u konveyöre geri göndermek istediğinde çağırır.
         /// Dönüş değeri: food GERÇEKTEN konveyöre çıkabildi mi (true) yoksa
         /// konveyör dolu olduğu için olduğu yerde mi kaldı (false).
