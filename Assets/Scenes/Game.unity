@@ -7427,7 +7427,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: 0.5693341, y: -0, z: -0, w: 0.8221063}
-  m_LocalPosition: {x: 5.460011, y: 23.4, z: -17}
+  m_LocalPosition: {x: 5.459968, y: 22.992193, z: -17.101217}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -30067,8 +30067,8 @@ MonoBehaviour:
   gridManager: {fileID: 368813331}
   customerManager: {fileID: 1989108643}
   slotManager: {fileID: 61013483}
-  minTraySpacing: 0.8
-  launchCooldown: 0.2
+  minTraySpacing: 0.5
+  launchCooldown: 0.1
   trayPrefab: {fileID: 7222614405959504423, guid: 4e834b1e5c9354e45b92d8e5dc230a2d, type: 3}
   maxActiveTrays: 5
   trayCountText: {fileID: 1543550308}
@@ -30712,7 +30712,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Sprite: {fileID: 21300000, guid: 4bf2f887674ec134dacc79e8077bb74a, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 16223448a5b268b4481be1850ff525c7, type: 3}
   m_Type: 0
   m_PreserveAspect: 0
   m_FillCenter: 1
@@ -34297,7 +34297,7 @@ RectTransform:
   m_GameObject: {fileID: 2135350543}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.0011848, y: 1.0011848, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 934538700}
@@ -34327,7 +34327,7 @@ MonoBehaviour:
   scaleStrength: 1
   minScale: 1
   maxScale: 1.6
-  currentAppliedScale: 1
+  currentAppliedScale: 1.0011848
 --- !u!1 &2135948226
 GameObject:
   m_ObjectHideFlags: 0
