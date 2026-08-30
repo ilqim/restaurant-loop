@@ -66,6 +66,15 @@ namespace RestaurantLoop
         public static void PlayCoinEarn() => Play(SfxId.CoinEarn);
         public static void PlayTimedCustomerFail() => Play(SfxId.TimedCustomerFail);
 
+        // ---- Coin Sesi — Ardışık Çalma (üst üste binmeden) ----
+        public static event Action<int> CoinEarnSequenceRequested;
+
+        /// <summary>
+        /// Coin sesini ARDIŞIK olarak (üst üste binmeden — biri bitince
+        /// diğeri başlayarak) 'times' kez çalar. Varsayılan 3.
+        /// </summary>
+        public static void PlayCoinEarnSequence(int times = 3) => CoinEarnSequenceRequested?.Invoke(times);
+
         /// <summary>Süreli müşteri aktif olduğunda çağır — geri sayım/saat sesi loop olarak başlar.</summary>
         public static void StartTimedCustomerCountdown() => TimedCustomerCountdownStartRequested?.Invoke();
 

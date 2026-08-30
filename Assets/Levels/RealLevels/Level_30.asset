@@ -409,7 +409,7 @@ MonoBehaviour:
   - row: 1
     col: 2
     food: 2
-    capacity: 9
+    capacity: 10
   - row: 2
     col: 0
     food: 5
