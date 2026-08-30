@@ -2120,7 +2120,9 @@ MonoBehaviour:
   easyMusicClip: {fileID: 8300000, guid: 1233e800fc91ec341a2fd3140d2d9573, type: 3}
   hardMusicClip: {fileID: 8300000, guid: bc303075f5455224bb113ddaa694c75f, type: 3}
   superHardMusicClip: {fileID: 8300000, guid: 8eb7e3d701402cf449195162793028f4, type: 3}
-  levelMusicVolume: 1
+  easyMusicVolume: 1
+  hardMusicVolume: 0.7
+  superHardMusicVolume: 1
   failMusicClip: {fileID: 0}
   failMusicVolume: 1
   oneShotSourceCount: 5

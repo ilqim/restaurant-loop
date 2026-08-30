@@ -94,7 +94,10 @@ namespace RestaurantLoop
         {
             if (amount <= 0) return;
             Coins += amount;
-            AudioEvents.PlayCoinEarn();
+            // İSTEK: Coin sesi 3 kez ARDIŞIK çalsın (üst üste binmeden) —
+            // gerçek "biri bitince diğeri başlar" mantığı AudioManager'da
+            // (coroutine ile) yönetiliyor, buradan sadece istek gönderiliyor.
+            AudioEvents.PlayCoinEarnSequence(3);
         }
 
         public static bool TrySpendCoins(int amount)

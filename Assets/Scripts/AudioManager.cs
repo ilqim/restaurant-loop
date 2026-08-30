@@ -1,3 +1,4 @@
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Audio;
@@ -34,25 +35,35 @@ namespace RestaurantLoop
 
         [Header("Süreli Müşteri Geri Sayım Sesi (loop — Start/Stop ile kontrol edilir, SFX kanalı sayılır)")]
         [SerializeField] private AudioClip timedCustomerCountdownClip;
-        [Range(0f, 1f)] [SerializeField] private float timedCustomerCountdownVolume = 1f;
+        [Range(0f, 1f)][SerializeField] private float timedCustomerCountdownVolume = 1f;
 
         [Header("Müzik — Ana Menü (loop)")]
         [SerializeField] private AudioClip menuMusicClip;
-        [Range(0f, 1f)] [SerializeField] private float menuMusicVolume = 1f;
+        [Range(0f, 1f)][SerializeField] private float menuMusicVolume = 1f;
 
-        [Header("Level Müzikleri — Zorluğa Göre (Game sahnesinde çalar)")]
+        [Header("Level Müzikleri — Zorluğa Göre (Game sahnesinde çalar")]
         [Tooltip("Level zorluğu Easy ise bu müzik çalar.")]
         [SerializeField] private AudioClip easyMusicClip;
+
         [Tooltip("Level zorluğu Hard ise bu müzik çalar.")]
         [SerializeField] private AudioClip hardMusicClip;
+
         [Tooltip("Level zorluğu SuperHard ise bu müzik çalar.")]
         [SerializeField] private AudioClip superHardMusicClip;
-        [Range(0f, 1f)] [SerializeField] private float levelMusicVolume = 1f;
+
+        [Range(0f, 1f)]
+        [SerializeField] private float easyMusicVolume = 1f;
+
+        [Range(0f, 1f)]
+        [SerializeField] private float hardMusicVolume = 1f;
+
+        [Range(0f, 1f)]
+        [SerializeField] private float superHardMusicVolume = 1f;
 
         [Header("Fail Müziği (level kaybedilince)")]
         [Tooltip("Level FAIL olduğunda çalacak, level müziklerinden AYRI bir müzik/jingle.")]
         [SerializeField] private AudioClip failMusicClip;
-        [Range(0f, 1f)] [SerializeField] private float failMusicVolume = 1f;
+        [Range(0f, 1f)][SerializeField] private float failMusicVolume = 1f;
 
         [Header("Kaynaklar")]
         [Tooltip("Aynı anda üst üste binen one-shot sesler için havuz boyutu. 3-4 genelde yeterli.")]
@@ -71,6 +82,7 @@ namespace RestaurantLoop
         private int nextSourceIndex;
         private AudioSource countdownSource;
         private AudioSource musicSource;
+        private Coroutine coinEarnSequenceRoutine;
 
         private void Awake()
         {
@@ -136,6 +148,7 @@ namespace RestaurantLoop
             AudioEvents.MusicStopRequested += HandleMusicStop;
             AudioEvents.MusicForDifficultyRequested += PlayMusicForDifficulty;
             AudioEvents.FailMusicRequested += PlayFailMusic;
+            AudioEvents.CoinEarnSequenceRequested += HandleCoinEarnSequenceRequested;
 
             GameSettings.MusicEnabledChanged += HandleMusicEnabledChanged;
             GameSettings.SfxEnabledChanged += HandleSfxEnabledChanged;
@@ -150,6 +163,7 @@ namespace RestaurantLoop
             AudioEvents.MusicStopRequested -= HandleMusicStop;
             AudioEvents.MusicForDifficultyRequested -= PlayMusicForDifficulty;
             AudioEvents.FailMusicRequested -= PlayFailMusic;
+            AudioEvents.CoinEarnSequenceRequested -= HandleCoinEarnSequenceRequested;
 
             GameSettings.MusicEnabledChanged -= HandleMusicEnabledChanged;
             GameSettings.SfxEnabledChanged -= HandleSfxEnabledChanged;
@@ -233,6 +247,14 @@ namespace RestaurantLoop
                 _ => null
             };
 
+            float volume = difficulty switch
+            {
+                LevelDifficulty.Easy => easyMusicVolume,
+                LevelDifficulty.Hard => hardMusicVolume,
+                LevelDifficulty.SuperHard => superHardMusicVolume,
+                _ => 1f
+            };
+
             if (clip == null)
             {
                 Debug.LogWarning($"AudioManager: '{difficulty}' zorluğu için müzik clip'i atanmamış (Inspector'dan sürükle).");
@@ -243,7 +265,7 @@ namespace RestaurantLoop
                 return;
 
             musicSource.clip = clip;
-            musicSource.volume = levelMusicVolume;
+            musicSource.volume = volume;
             musicSource.mute = !GameSettings.MusicEnabled;
             musicSource.Play();
         }
@@ -281,6 +303,51 @@ namespace RestaurantLoop
         private void HandleSfxEnabledChanged(bool enabled)
         {
             countdownSource.mute = !enabled;
+        }
+
+        // ---- Coin Sesi — Ardışık Çalma (üst üste binmeden) ----
+
+        private void HandleCoinEarnSequenceRequested(int times) => PlayCoinEarnSequence(times);
+
+        /// <summary>
+        /// Coin sesini 'times' kez ARDIŞIK çalar — biri TAM bitmeden
+        /// diğeri başlamaz (aralarında clip uzunluğu kadar bekleniyor).
+        /// Zaten çalışan bir dizi varsa onu durdurup baştan başlatır.
+        /// </summary>
+        public void PlayCoinEarnSequence(int times)
+        {
+            if (times <= 0)
+                return;
+
+            if (coinEarnSequenceRoutine != null)
+                StopCoroutine(coinEarnSequenceRoutine);
+
+            coinEarnSequenceRoutine = StartCoroutine(PlayCoinEarnSequenceRoutine(times));
+        }
+
+        private IEnumerator PlayCoinEarnSequenceRoutine(int times)
+        {
+            if (!clipLookup.TryGetValue(SfxId.CoinEarn, out var entry) || entry.clip == null)
+            {
+                Debug.LogWarning("AudioManager: 'CoinEarn' için AudioClip atanmamış (Inspector'dan sürükle).");
+                coinEarnSequenceRoutine = null;
+                yield break;
+            }
+
+            for (int i = 0; i < times; i++)
+            {
+                PlaySfx(SfxId.CoinEarn);
+
+                // PAUSE-GÜVENLİ: WaitForSecondsRealtime — GameManager, Win'den
+                // ~1sn sonra Time.timeScale = 0 yapıyor. Normal WaitForSeconds
+                // kullansaydık, bu duraklama TAM aralardan birine denk
+                // geldiğinde coroutine sonsuza kadar donup kalır, bu da
+                // "3 kez çalması gerekirken 2'de takılı kalma" sorununa
+                // yol açardı (tam olarak yaşanan buydu).
+                yield return new WaitForSecondsRealtime(entry.clip.length);
+            }
+
+            coinEarnSequenceRoutine = null;
         }
     }
 }
