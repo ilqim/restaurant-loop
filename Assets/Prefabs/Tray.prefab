@@ -394,6 +394,10 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   visualModel: {fileID: 6757042467617862641}
+  shootPunchScale: 0.3
+  shootPunchDuration: 0.2
+  shootPunchVibrato: 5
+  shootPunchElasticity: 0.86
   countLabel: {fileID: 8615966494281220122}
   rotationSmoothing: 15
   debugMoveAxis: 0
