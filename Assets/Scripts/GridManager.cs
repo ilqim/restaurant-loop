@@ -34,6 +34,10 @@ namespace RestaurantLoop
         [SerializeField] private GameObject baseOpeningPrefab;
         [SerializeField] private GameObject baseCoverPrefab;
 
+        [Header("Customer Ground (Yol İçi Zemin)")]
+        [Tooltip("BaseTray (BaseOpening/BaseCover) DIŞINDAKİ HER hücreye — Conveyor, Empty ve CustomerSlot dahil — bu zemin prefabı otomatik yerleştirilir. Boş bırakılırsa hiçbir şey yerleştirilmez.")]
+        [SerializeField] private GameObject customerGroundPrefab;
+
         [Header("Customer Prefabs — her yemek tipi için ayrı prefab sürükle")]
         [SerializeField]
         private List<FoodCustomerPrefab> customerPrefabs = new()
@@ -102,17 +106,6 @@ namespace RestaurantLoop
             if (levelData != null) BuildFromData(levelData);
         }
 
-        /// <summary>
-        /// ILevelDataReceiver — LevelManager, Game sahnesi yüklendiğinde
-        /// bunu çağırıp o anki level'in LevelData'sını verir.
-        /// Awake ile Start arasında çağrılırsa (LevelManager.sceneLoaded
-        /// akışında olan tam da budur): levelData set edilir, Awake'te
-        /// oluşan geçici/varsayılan boyutlu Grid önemsizdir çünkü Start()
-        /// zaten doğru levelData ile BuildFromData'yı çağırıp Grid'i
-        /// baştan doğru boyutlarla kuracaktır.
-        /// Start()'tan SONRA çağrılırsa (örn. runtime'da level değişimi):
-        /// BuildFromData burada anında tekrar çalıştırılır.
-        /// </summary>
         public void SetLevelData(LevelData data)
         {
             levelData = data;
@@ -149,45 +142,126 @@ namespace RestaurantLoop
             if (customerManager == null)
                 Debug.LogWarning("GridManager: CustomerManager bulunamadı.");
 
+            // ÖNEMLİ: "Konveyörün İÇİNDE kalan" alanları basit hücre tipiyle
+            // ayırt edemeyiz — iç bükey (concave) bir köşede, konveyörün
+            // DIŞINDA kalan "çentik" bölgesi de teknik olarak Empty hücreler
+            // içerebilir. Bu yüzden CustomerSlot hücrelerinden başlayıp
+            // SADECE Empty/CustomerSlot üzerinden yayılan (Conveyor'ı duvar
+            // gibi kullanan) bir flood-fill ile GERÇEKTEN içeride olan
+            // hücreleri buluyoruz — dışarıdaki çentik hücreleri bu yayılıma
+            // hiç dahil olmuyor.
+            var insideLoopCells = ComputeInsideLoopCells(data);
+
             for (int r = 0; r < data.rows; r++)
             {
                 for (int c = 0; c < data.columns; c++)
                 {
                     CellType type = data.GetCell(r, c);
-                    if (type == CellType.Empty || type == CellType.BaseTray) continue;
+
+                    // BaseTray hücreleri burada HİÇ ele alınmıyor — onlar
+                    // SpawnTrayBaseTiles() içinde ayrıca BaseOpening/BaseCover
+                    // olarak sınıflandırılıp kendi prefablarıyla döşeniyor.
+                    if (type == CellType.BaseTray) continue;
 
                     Vector3 pos = Grid.GetCellCenterWorld(r, c);
 
                     if (type == CellType.Conveyor)
                     {
-                        if (type == CellType.Conveyor)
-                        {
-                            SpawnConveyorTile(r, c);
-                        }
+                        // Konveyörün KENDİSİ zaten "içeride" sayılır — hiç
+                        // filtrelemeye gerek yok, altına her zaman zemin konur.
+                        SpawnCustomerGroundTile(r, c);
+                        SpawnConveyorTile(r, c);
                     }
-                    else if (type == CellType.CustomerSlot)
+                    else if (type == CellType.Empty || type == CellType.CustomerSlot)
                     {
-                        if (!data.TryGetCustomerFood(r, c, out FoodType food)) continue;
-
-                        GameObject prefab = GetCustomerPrefab(food);
-                        if (prefab == null)
+                        // Empty/CustomerSlot hücreler İSE SADECE flood-fill'in
+                        // "içeride" işaretlediği hücrelere zemin konuyor —
+                        // iç bükey köşenin dışındaki çentik hücreleri (Empty
+                        // olsalar bile) bu testi GEÇEMEZ, zemin almazlar.
+                        if (insideLoopCells.Contains(new Vector2Int(r, c)))
                         {
-                            Debug.LogWarning($"'{food}' için customer prefab atanmamış.");
-                            continue;
+                            SpawnCustomerGroundTile(r, c);
                         }
 
-                        var instance = SpawnFromPool(prefab, pos, prefab.transform.rotation, $"Customer_{food}_{r}_{c}");
-                        spawnedCustomers[new Vector2Int(r, c)] = instance;
+                        if (type == CellType.CustomerSlot)
+                        {
+                            if (!data.TryGetCustomerFood(r, c, out FoodType food)) continue;
 
-                        var customerComp = instance.GetComponent<Customer>();
-                        if (customerComp != null)
-                            customerComp.Init(r, c, food, customerManager);
-                        else
-                            Debug.LogWarning($"'{prefab.name}' prefabında Customer component'i yok.");
+                            GameObject prefab = GetCustomerPrefab(food);
+                            if (prefab == null)
+                            {
+                                Debug.LogWarning($"'{food}' için customer prefab atanmamış.");
+                                continue;
+                            }
+
+                            var instance = SpawnFromPool(prefab, pos, prefab.transform.rotation, $"Customer_{food}_{r}_{c}");
+                            spawnedCustomers[new Vector2Int(r, c)] = instance;
+
+                            var customerComp = instance.GetComponent<Customer>();
+                            if (customerComp != null)
+                                customerComp.Init(r, c, food, customerManager);
+                            else
+                                Debug.LogWarning($"'{prefab.name}' prefabında Customer component'i yok.");
+                        }
                     }
                 }
             }
             SpawnTrayBaseTiles(data);
+        }
+
+        /// <summary>
+        /// Tüm CustomerSlot hücrelerinden başlayıp, SADECE Empty ve
+        /// CustomerSlot hücreler üzerinden (Conveyor ve BaseTray'i duvar
+        /// gibi kullanarak) 4 yöne yayılan bir flood-fill (BFS) yapar.
+        /// Sonuç: konveyör halkasının GERÇEKTEN içinde kalan hücreler.
+        /// İç bükey bir köşenin dışındaki "çentik" hücreleri (Conveyor
+        /// duvarının arkasında kaldığı için) bu kümeye hiç giremez.
+        /// </summary>
+        private HashSet<Vector2Int> ComputeInsideLoopCells(LevelData data)
+        {
+            var inside = new HashSet<Vector2Int>();
+            var queue = new Queue<Vector2Int>();
+
+            for (int r = 0; r < data.rows; r++)
+            {
+                for (int c = 0; c < data.columns; c++)
+                {
+                    if (data.GetCell(r, c) == CellType.CustomerSlot)
+                    {
+                        var cell = new Vector2Int(r, c);
+                        if (inside.Add(cell))
+                            queue.Enqueue(cell);
+                    }
+                }
+            }
+
+            Vector2Int[] neighbors = { new(-1, 0), new(1, 0), new(0, -1), new(0, 1) };
+
+            while (queue.Count > 0)
+            {
+                Vector2Int current = queue.Dequeue();
+
+                foreach (var d in neighbors)
+                {
+                    Vector2Int next = current + d;
+
+                    if (next.x < 0 || next.x >= data.rows || next.y < 0 || next.y >= data.columns) continue;
+                    if (inside.Contains(next)) continue;
+
+                    CellType t = data.GetCell(next.x, next.y);
+
+                    // Sadece Empty/CustomerSlot üzerinden yayılıyoruz —
+                    // Conveyor ve BaseTray "duvar" gibi davranıp yayılımı
+                    // orada durduruyor.
+                    if (t == CellType.Empty || t == CellType.CustomerSlot)
+                    {
+                        inside.Add(next);
+                        queue.Enqueue(next);
+                    }
+                }
+            }
+
+            return inside;
         }
 
         private void SpawnConveyorTile(int row, int col)
@@ -202,6 +276,20 @@ namespace RestaurantLoop
                 : prefab.transform.rotation;
 
             SpawnFromPool(prefab, pos, rot, $"Conveyor_{info.Type}_{row}_{col}");
+        }
+
+        /// <summary>
+        /// BaseTray dışındaki (Conveyor, Empty ya da CustomerSlot) bir
+        /// hücreye Customer Ground zemin prefabını yerleştirir.
+        /// customerGroundPrefab Inspector'dan atanmamışsa hiçbir şey
+        /// yapmaz (sessizce atlar).
+        /// </summary>
+        private void SpawnCustomerGroundTile(int row, int col)
+        {
+            if (customerGroundPrefab == null) return;
+
+            Vector3 pos = Grid.GetCellCenterWorld(row, col);
+            SpawnFromPool(customerGroundPrefab, pos, customerGroundPrefab.transform.rotation, $"CustomerGround_{row}_{col}");
         }
 
         private GameObject GetTilePrefab(ConveyorTileType type) => type switch
@@ -225,12 +313,8 @@ namespace RestaurantLoop
             int colDiff = data.baseCol - data.trayBaseCol;
             bool splitByRow = Mathf.Abs(rowDiff) >= Mathf.Abs(colDiff);
 
-            // Start'a yakın taraf hangi index (0 mı 1 mi)? — TİP (BO/BC)
-            // belirleme mantığı DEĞİŞMEDİ, zaten doğru çalışıyordu.
             int nearIndex = splitByRow ? (rowDiff > 0 ? 1 : 0) : (colDiff > 0 ? 1 : 0);
 
-            // Taraf başına TEK bir temel yön — bu, o tarafın (opening ya da
-            // cover) "0°" referans açısı olacak.
             Vector3 axisDir = splitByRow
                 ? Grid.GetCellCenterWorld(data.trayBaseRow + 1, data.trayBaseCol) -
                   Grid.GetCellCenterWorld(data.trayBaseRow, data.trayBaseCol)
@@ -266,11 +350,6 @@ namespace RestaurantLoop
                     Vector3 cellWorld = Grid.GetCellCenterWorld(rr, cc);
                     Quaternion sideBaseRot = isNearSide ? openingBaseRot : coverBaseRot;
 
-                    // ÖNEMLİ: Aynı taraftaki iki hücre (örn. iki BO) 180°
-                    // KARŞILIKLI DEĞİL — biri 0° (temel açı), diğeri buna göre
-                    // -90° dönük olmalı. "widthIndex", split ekseni HARİÇ
-                    // değişen eksendeki index (0 ya da 1) — splitByRow ise dc,
-                    // splitByColumn ise dr. widthIndex=0 -> +0°, widthIndex=1 -> -90°.
                     int widthIndex = splitByRow ? dc : dr;
                     Quaternion rot = sideBaseRot * Quaternion.Euler(0f, widthIndex * -90f, 0f);
 
@@ -379,7 +458,6 @@ namespace RestaurantLoop
             if (corners == null || corners.Count <= 2)
                 return corners != null ? new List<(Vector2Int, Vector2Int)>(corners) : new List<(Vector2Int, Vector2Int)>();
 
-            // 1. Art arda gelen birebir aynı köşe koordinatlarını temizle
             var deduplicated = new List<(Vector2Int cell, Vector2Int corner)> { corners[0] };
             for (int i = 1; i < corners.Count; i++)
             {
@@ -391,14 +469,12 @@ namespace RestaurantLoop
 
             if (deduplicated.Count <= 2) return deduplicated;
 
-            // 2. Collinear (aynı hat üzerindeki) ara noktaları temizle
             var noCollinear = new List<(Vector2Int cell, Vector2Int corner)> { deduplicated[0] };
             for (int i = 1; i < deduplicated.Count - 1; i++)
             {
                 Vector2Int d1 = deduplicated[i].corner - noCollinear[^1].corner;
                 Vector2Int d2 = deduplicated[i + 1].corner - deduplicated[i].corner;
 
-                // İki vektör aynı eksende ve aynı yöne mi bakıyor?
                 bool isCollinear = (d1.x * d2.y - d1.y * d2.x == 0) && (d1.x * d2.x + d1.y * d2.y > 0);
                 if (!isCollinear)
                 {
@@ -407,8 +483,6 @@ namespace RestaurantLoop
             }
             noCollinear.Add(deduplicated[^1]);
 
-            // 3. Çok yakın (1 birimlik merdiven basamağı oluşturan) ara köşe noktalarını birleştir
-            // Bir virajda birden fazla micro-corner oluşmasını engeller
             var result = new List<(Vector2Int cell, Vector2Int corner)> { noCollinear[0] };
             for (int i = 1; i < noCollinear.Count - 1; i++)
             {
@@ -416,14 +490,11 @@ namespace RestaurantLoop
                 Vector2Int curr = noCollinear[i].corner;
                 Vector2Int next = noCollinear[i + 1].corner;
 
-                // Eğer önceki nokta ile şu anki nokta arasındaki mesafe 1 birim veya daha azsa 
-                // ve bir sonraki nokta yön değiştiriyorsa, ara basamağı atla
                 float distToPrev = Vector2.Distance(prev, curr);
                 float distToNext = Vector2.Distance(curr, next);
 
                 if (distToPrev <= 1.05f && distToNext <= 1.05f)
                 {
-                    // Merdiven basamağı: ara noktayı atlayıp doğrudan köşeyi birleştir
                     continue;
                 }
 
@@ -487,13 +558,9 @@ namespace RestaurantLoop
             WaypointAllowedShootDirs.AddRange(smoothedShootDirs);
             WaypointIsConcaveCorner.AddRange(smoothedConcaves);
 
-            // ==========================================
-            // YENİ EKLENEN KISIM: Eksenleri hesaplayıp listeye kaydediyoruz
-            // ==========================================
             WaypointMoveAxes.Clear();
             if (WaypointBlockOrigins.Count > 0)
             {
-                // İlk noktanın kıyaslanacak bir önceki noktası yok, None ile başlar
                 WaypointMoveAxes.Add(WaypointMoveAxis.None);
 
                 for (int i = 1; i < WaypointBlockOrigins.Count; i++)
@@ -504,14 +571,10 @@ namespace RestaurantLoop
 
                     if (delta == Vector2Int.zero)
                     {
-                        // Aynı hücre içindeyiz (köşe yuvarlatmasının ara noktaları).
-                        // None döner, böylece Tray düzlükteki son eksenini korur.
                         WaypointMoveAxes.Add(WaypointMoveAxis.None);
                     }
                     else
                     {
-                        // Hücre değişti, ana ilerleme eksenini belirle
-                        // Y (Col) değişimi daha büyükse Row ekseninde (Yatay) ilerliyoruz demektir.
                         WaypointMoveAxis axis = Mathf.Abs(delta.y) > Mathf.Abs(delta.x)
                             ? WaypointMoveAxis.Row
                             : WaypointMoveAxis.Col;
@@ -520,7 +583,6 @@ namespace RestaurantLoop
                     }
                 }
             }
-            // ==========================================
 
             ExitWaypointIndex = WaypointWorldPositions.Count - 1;
         }
