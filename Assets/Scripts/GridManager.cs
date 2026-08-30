@@ -35,7 +35,7 @@ namespace RestaurantLoop
         [SerializeField] private GameObject baseCoverPrefab;
 
         [Header("Customer Ground (Yol İçi Zemin)")]
-        [Tooltip("BaseTray (BaseOpening/BaseCover) DIŞINDAKİ hücrelere bu zemin prefabı yerleştirilir: Empty/CustomerSlot hücrelerin TAMAMI (gerçek iç alanda kalanlar) + Conveyor'ın SADECE müşteri tarafına yakın (iç) yarısı — dış şeride konmaz. Boş bırakılırsa hiçbir şey yerleştirilmez.")]
+        [Tooltip("BaseTray (BaseOpening/BaseCover) DIŞINDAKİ HER hücreye — Conveyor, Empty ve CustomerSlot dahil — bu zemin prefabı otomatik yerleştirilir. Boş bırakılırsa hiçbir şey yerleştirilmez.")]
         [SerializeField] private GameObject customerGroundPrefab;
 
         [Header("Customer Prefabs — her yemek tipi için ayrı prefab sürükle")]
@@ -75,8 +75,8 @@ namespace RestaurantLoop
         public LevelData LevelDataRef => levelData;
         public Grid UnityGridRef => unityGrid;
 
-        public List<AllowedShootDirections> WaypointAllowedShootDirs { get; private set;} = new();
-        public List<bool> WaypointIsConcaveCorner {get; private set;} = new();
+        public List<AllowedShootDirections> WaypointAllowedShootDirs { get; private set; } = new();
+        public List<bool> WaypointIsConcaveCorner { get; private set; } = new();
 
         public List<Vector3> WaypointWorldPositions { get; private set; } = new();
         public List<Vector2Int> WaypointBlockOrigins { get; private set; } = new();
@@ -167,19 +167,9 @@ namespace RestaurantLoop
 
                     if (type == CellType.Conveyor)
                     {
-                        // GÜNCELLEME: Konveyörün 2 hücre kalınlığındaki
-                        // bandının TAMAMINA değil, SADECE müşteri tarafına
-                        // yakın (iç) yarısına zemin konuyor. Bir konveyör
-                        // hücresi, komşularından EN AZ BİRİ gerçek iç alana
-                        // (insideLoopCells) bitişikse "iç şerit" sayılır ve
-                        // zemin alır — dış şerit (sadece başka conveyor
-                        // hücrelerine ya da grid dışına bitişik olan) zemin
-                        // almaz.
-                        if (IsInnerConveyorCell(r, c, insideLoopCells))
-                        {
-                            SpawnCustomerGroundTile(r, c);
-                        }
-
+                        // Konveyörün KENDİSİ zaten "içeride" sayılır — hiç
+                        // filtrelemeye gerek yok, altına her zaman zemin konur.
+                        SpawnCustomerGroundTile(r, c);
                         SpawnConveyorTile(r, c);
                     }
                     else if (type == CellType.Empty || type == CellType.CustomerSlot)
@@ -217,28 +207,6 @@ namespace RestaurantLoop
                 }
             }
             SpawnTrayBaseTiles(data);
-        }
-
-        /// <summary>
-        /// Bir Conveyor hücresinin, 2 hücre kalınlığındaki bandın MÜŞTERİ
-        /// tarafına yakın (iç) yarısında mı olduğunu kontrol eder — yani
-        /// komşularından (yukarı/aşağı/sol/sağ) EN AZ BİRİ gerçek iç alana
-        /// (insideLoopCells) bitişik mi. Değilse bu hücre bandın DIŞ
-        /// yarısıdır (sadece başka conveyor hücrelerine ve/veya grid
-        /// dışına bitişiktir) ve zemin almamalıdır.
-        /// </summary>
-        private bool IsInnerConveyorCell(int row, int col, HashSet<Vector2Int> insideLoopCells)
-        {
-            Vector2Int[] neighbors = { new(-1, 0), new(1, 0), new(0, -1), new(0, 1) };
-            Vector2Int cell = new Vector2Int(row, col);
-
-            foreach (var d in neighbors)
-            {
-                if (insideLoopCells.Contains(cell + d))
-                    return true;
-            }
-
-            return false;
         }
 
         /// <summary>
@@ -407,54 +375,96 @@ namespace RestaurantLoop
             return origin - rowStep * 0.5f - colStep * 0.5f + rowStep * rowLine + colStep * colLine;
         }
 
+        private static bool IsConveyorCell(LevelData data, Vector2Int pos)
+        {
+            if (pos.x < 0 || pos.x >= data.rows || pos.y < 0 || pos.y >= data.columns) return false;
+            return data.GetCell(pos.x, pos.y) == CellType.Conveyor;
+        }
+
         private static Vector2Int GetCenterlineCorner(LevelData data, List<Vector2Int> path, int index)
         {
             Vector2Int cell = path[index];
             Vector2Int dirIn = Vector2Int.zero;
             Vector2Int dirOut = Vector2Int.zero;
+
             if (index > 0) dirIn = cell - path[index - 1];
             if (index < path.Count - 1) dirOut = path[index + 1] - cell;
-            Vector2Int direction = dirOut != Vector2Int.zero ? dirOut : dirIn;
 
             int rowLine, colLine;
 
-            if (direction.y != 0)
+            bool isTurn = dirIn != Vector2Int.zero && dirOut != Vector2Int.zero && dirIn != dirOut;
+
+            if (isTurn)
             {
-                Vector2Int? widthCell = null;
-                for (int dr = -1; dr <= 1; dr++)
+                bool inIsHoriz = (dirIn.y != 0);
+                Vector2Int dirHoriz = inIsHoriz ? dirIn : dirOut;
+                Vector2Int dirVert = (!inIsHoriz) ? dirIn : dirOut;
+
+                // Gelen yön için geriye, giden yön için ileriye bakarak "gerçek" şeridi buluyoruz
+                Vector2Int checkDirHoriz = inIsHoriz ? -dirIn : dirOut;
+                Vector2Int checkDirVert = (!inIsHoriz) ? -dirIn : dirOut;
+
+                Vector2Int? widthCellHoriz = null;
+                for (int dr = -1; dr <= 1; dr += 2)
                 {
-                    for (int dc = -1; dc <= 1; dc++)
+                    Vector2Int cand = cell + new Vector2Int(dr, 0);
+                    if (IsConveyorCell(data, cand))
                     {
-                        if (Mathf.Abs(dr) + Mathf.Abs(dc) != 1) continue;
-                        Vector2Int candidate = cell + new Vector2Int(dr, dc);
-                        if (candidate == cell || candidate.x == cell.x) continue;
-                        if (candidate.x < 0 || candidate.x >= data.rows || candidate.y < 0 || candidate.y >= data.columns) continue;
-                        if (data.GetCell(candidate.x, candidate.y) != CellType.Conveyor) continue;
-                        widthCell = candidate; break;
+                        // Sadece konveyör olması yetmez, bu şeridin yatayda devam etmesi gerekir
+                        if (IsConveyorCell(data, cand + checkDirHoriz)) { widthCellHoriz = cand; break; }
+                        if (widthCellHoriz == null) widthCellHoriz = cand; // fallback
                     }
-                    if (widthCell.HasValue) break;
                 }
-                rowLine = widthCell.HasValue ? Mathf.Min(cell.x, widthCell.Value.x) + 1 : (direction.x >= 0 ? cell.x + 1 : cell.x);
-                colLine = direction.y >= 0 ? cell.y + 1 : cell.y;
+
+                Vector2Int? widthCellVert = null;
+                for (int dc = -1; dc <= 1; dc += 2)
+                {
+                    Vector2Int cand = cell + new Vector2Int(0, dc);
+                    if (IsConveyorCell(data, cand))
+                    {
+                        // Bu şeridin dikeyde devam etmesi gerekir
+                        if (IsConveyorCell(data, cand + checkDirVert)) { widthCellVert = cand; break; }
+                        if (widthCellVert == null) widthCellVert = cand; // fallback
+                    }
+                }
+
+                rowLine = widthCellHoriz.HasValue ? Mathf.Min(cell.x, widthCellHoriz.Value.x) + 1 : (dirVert.x >= 0 ? cell.x + 1 : cell.x);
+                colLine = widthCellVert.HasValue ? Mathf.Min(cell.y, widthCellVert.Value.y) + 1 : (dirHoriz.y >= 0 ? cell.y + 1 : cell.y);
             }
             else
             {
-                Vector2Int? widthCell = null;
-                for (int dr = -1; dr <= 1; dr++)
+                // Düz çizgi mantığı
+                Vector2Int direction = dirOut != Vector2Int.zero ? dirOut : dirIn;
+                if (direction.y != 0) // Yatay
                 {
-                    for (int dc = -1; dc <= 1; dc++)
+                    Vector2Int? widthCell = null;
+                    for (int dr = -1; dr <= 1; dr += 2)
                     {
-                        if (Mathf.Abs(dr) + Mathf.Abs(dc) != 1) continue;
-                        Vector2Int candidate = cell + new Vector2Int(dr, dc);
-                        if (candidate == cell || candidate.y == cell.y) continue;
-                        if (candidate.x < 0 || candidate.x >= data.rows || candidate.y < 0 || candidate.y >= data.columns) continue;
-                        if (data.GetCell(candidate.x, candidate.y) != CellType.Conveyor) continue;
-                        widthCell = candidate; break;
+                        Vector2Int cand = cell + new Vector2Int(dr, 0);
+                        if (IsConveyorCell(data, cand))
+                        {
+                            if (IsConveyorCell(data, cand + direction) || IsConveyorCell(data, cand - direction)) { widthCell = cand; break; }
+                            if (widthCell == null) widthCell = cand;
+                        }
                     }
-                    if (widthCell.HasValue) break;
+                    rowLine = widthCell.HasValue ? Mathf.Min(cell.x, widthCell.Value.x) + 1 : (direction.x >= 0 ? cell.x + 1 : cell.x);
+                    colLine = direction.y >= 0 ? cell.y + 1 : cell.y;
                 }
-                colLine = widthCell.HasValue ? Mathf.Min(cell.y, widthCell.Value.y) + 1 : (direction.y >= 0 ? cell.y + 1 : cell.y);
-                rowLine = direction.x >= 0 ? cell.x + 1 : cell.x;
+                else // Dikey
+                {
+                    Vector2Int? widthCell = null;
+                    for (int dc = -1; dc <= 1; dc += 2)
+                    {
+                        Vector2Int cand = cell + new Vector2Int(0, dc);
+                        if (IsConveyorCell(data, cand))
+                        {
+                            if (IsConveyorCell(data, cand + direction) || IsConveyorCell(data, cand - direction)) { widthCell = cand; break; }
+                            if (widthCell == null) widthCell = cand;
+                        }
+                    }
+                    colLine = widthCell.HasValue ? Mathf.Min(cell.y, widthCell.Value.y) + 1 : (direction.y >= 0 ? cell.y + 1 : cell.y);
+                    rowLine = direction.x >= 0 ? cell.x + 1 : cell.x;
+                }
             }
 
             return new Vector2Int(rowLine, colLine);
@@ -522,20 +532,14 @@ namespace RestaurantLoop
                 Vector2Int curr = noCollinear[i].corner;
                 Vector2Int next = noCollinear[i + 1].corner;
 
-                float distToPrev = Vector2.Distance(prev, curr);
-                float distToNext = Vector2.Distance(curr, next);
-
-                if (distToPrev <= 1.05f && distToNext <= 1.05f)
-                {
-                    continue;
-                }
-
                 result.Add(noCollinear[i]);
             }
             result.Add(noCollinear[^1]);
 
             return result;
         }
+
+
 
         private void BuildWaypoints(LevelData data)
         {
