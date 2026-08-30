@@ -1,0 +1,440 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 399b019a300ca6a4a9127047d8015ce3, type: 3}
+  m_Name: level_30_1
+  m_EditorClassIdentifier: 
+  rows: 16
+  columns: 14
+  cells: 0100000001000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000010000000200000002000000020000000200000002000000020000000200000002000000020000000200000001000000010000000100000001000000020000000200000002000000020000000200000002000000020000000200000002000000020000000100000001000000010000000100000002000000020000000200000002000000020000000200000002000000020000000200000002000000010000000100000001000000010000000200000002000000020000000200000002000000020000000200000002000000020000000200000001000000010000000100000001000000020000000200000002000000020000000200000002000000020000000200000002000000020000000100000001000000010000000100000002000000020000000200000002000000020000000200000002000000020000000200000002000000010000000100000001000000010000000200000002000000020000000200000002000000020000000200000002000000020000000200000001000000010000000100000001000000020000000200000002000000020000000200000002000000020000000200000002000000020000000100000001000000010000000100000002000000020000000200000002000000020000000200000002000000020000000200000002000000010000000100000001000000010000000200000002000000020000000200000002000000020000000200000002000000020000000200000001000000010000000100000001000000020000000200000002000000020000000200000002000000020000000200000002000000020000000100000001000000010000000100000002000000020000000200000002000000020000000200000002000000020000000200000002000000010000000100000000000000000000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000010000000000000000000000010000000100000001000000010000000100000001000000010000000100000001000000010000000100000001000000
+  lastAppliedRows: 16
+  lastAppliedColumns: 14
+  baseRow: 14
+  baseCol: 2
+  exitRow: 12
+  exitCol: 0
+  trayBaseRow: 14
+  trayBaseCol: 0
+  customers:
+  - row: 3
+    col: 10
+    food: 0
+  - row: 4
+    col: 10
+    food: 0
+  - row: 5
+    col: 10
+    food: 0
+  - row: 6
+    col: 10
+    food: 0
+  - row: 2
+    col: 11
+    food: 2
+  - row: 3
+    col: 11
+    food: 2
+  - row: 4
+    col: 11
+    food: 2
+  - row: 5
+    col: 11
+    food: 2
+  - row: 6
+    col: 11
+    food: 2
+  - row: 2
+    col: 9
+    food: 5
+  - row: 2
+    col: 8
+    food: 5
+  - row: 2
+    col: 7
+    food: 5
+  - row: 2
+    col: 6
+    food: 5
+  - row: 3
+    col: 6
+    food: 4
+  - row: 3
+    col: 7
+    food: 4
+  - row: 3
+    col: 8
+    food: 4
+  - row: 3
+    col: 9
+    food: 4
+  - row: 7
+    col: 11
+    food: 3
+  - row: 7
+    col: 9
+    food: 3
+  - row: 7
+    col: 8
+    food: 3
+  - row: 7
+    col: 7
+    food: 3
+  - row: 8
+    col: 11
+    food: 0
+  - row: 9
+    col: 11
+    food: 0
+  - row: 11
+    col: 11
+    food: 0
+  - row: 10
+    col: 11
+    food: 0
+  - row: 4
+    col: 9
+    food: 1
+  - row: 5
+    col: 9
+    food: 1
+  - row: 6
+    col: 9
+    food: 1
+  - row: 4
+    col: 8
+    food: 1
+  - row: 4
+    col: 7
+    food: 1
+  - row: 4
+    col: 6
+    food: 1
+  - row: 8
+    col: 10
+    food: 1
+  - row: 8
+    col: 9
+    food: 1
+  - row: 8
+    col: 8
+    food: 1
+  - row: 8
+    col: 7
+    food: 1
+  - row: 9
+    col: 10
+    food: 1
+  - row: 10
+    col: 10
+    food: 1
+  - row: 11
+    col: 10
+    food: 1
+  - row: 12
+    col: 9
+    food: 4
+  - row: 12
+    col: 7
+    food: 4
+  - row: 12
+    col: 8
+    food: 4
+  - row: 12
+    col: 6
+    food: 4
+  - row: 12
+    col: 11
+    food: 0
+  - row: 7
+    col: 6
+    food: 3
+  - row: 7
+    col: 5
+    food: 3
+  - row: 7
+    col: 4
+    food: 3
+  - row: 7
+    col: 2
+    food: 3
+  - row: 5
+    col: 7
+    food: 4
+  - row: 5
+    col: 6
+    food: 4
+  - row: 6
+    col: 6
+    food: 4
+  - row: 5
+    col: 8
+    food: 4
+  - row: 6
+    col: 8
+    food: 4
+  - row: 6
+    col: 7
+    food: 4
+  - row: 3
+    col: 5
+    food: 1
+  - row: 4
+    col: 5
+    food: 1
+  - row: 5
+    col: 5
+    food: 1
+  - row: 6
+    col: 5
+    food: 1
+  - row: 13
+    col: 11
+    food: 5
+  - row: 13
+    col: 10
+    food: 5
+  - row: 13
+    col: 9
+    food: 5
+  - row: 13
+    col: 7
+    food: 5
+  - row: 13
+    col: 8
+    food: 5
+  - row: 13
+    col: 6
+    food: 5
+  - row: 13
+    col: 5
+    food: 0
+  - row: 13
+    col: 4
+    food: 0
+  - row: 13
+    col: 3
+    food: 0
+  - row: 13
+    col: 2
+    food: 0
+  - row: 12
+    col: 2
+    food: 0
+  - row: 11
+    col: 2
+    food: 0
+  - row: 10
+    col: 2
+    food: 2
+  - row: 8
+    col: 2
+    food: 2
+  - row: 9
+    col: 2
+    food: 2
+  - row: 6
+    col: 2
+    food: 2
+  - row: 5
+    col: 2
+    food: 2
+  - row: 4
+    col: 2
+    food: 2
+  - row: 3
+    col: 2
+    food: 2
+  - row: 2
+    col: 2
+    food: 2
+  - row: 2
+    col: 5
+    food: 5
+  - row: 2
+    col: 4
+    food: 5
+  - row: 8
+    col: 5
+    food: 0
+  - row: 9
+    col: 7
+    food: 0
+  - row: 9
+    col: 8
+    food: 0
+  - row: 9
+    col: 9
+    food: 0
+  - row: 3
+    col: 4
+    food: 2
+  - row: 4
+    col: 4
+    food: 2
+  - row: 5
+    col: 4
+    food: 2
+  - row: 6
+    col: 4
+    food: 2
+  - row: 3
+    col: 3
+    food: 4
+  - row: 4
+    col: 3
+    food: 4
+  - row: 5
+    col: 3
+    food: 4
+  - row: 6
+    col: 3
+    food: 4
+  - row: 9
+    col: 6
+    food: 4
+  - row: 10
+    col: 6
+    food: 4
+  - row: 10
+    col: 7
+    food: 4
+  - row: 10
+    col: 8
+    food: 4
+  - row: 10
+    col: 9
+    food: 4
+  - row: 11
+    col: 4
+    food: 3
+  - row: 11
+    col: 5
+    food: 3
+  - row: 11
+    col: 7
+    food: 3
+  - row: 11
+    col: 6
+    food: 3
+  - row: 11
+    col: 8
+    food: 3
+  - row: 11
+    col: 9
+    food: 3
+  - row: 10
+    col: 5
+    food: 1
+  - row: 10
+    col: 4
+    food: 1
+  - row: 10
+    col: 3
+    food: 1
+  - row: 9
+    col: 3
+    food: 1
+  - row: 8
+    col: 3
+    food: 1
+  - row: 12
+    col: 5
+    food: 1
+  - row: 12
+    col: 4
+    food: 1
+  - row: 12
+    col: 3
+    food: 1
+  - row: 11
+    col: 3
+    food: 1
+  - row: 2
+    col: 10
+    food: 2
+  - row: 2
+    col: 3
+    food: 2
+  - row: 12
+    col: 10
+    food: 1
+  - row: 8
+    col: 6
+    food: 5
+  - row: 9
+    col: 4
+    food: 0
+  - row: 8
+    col: 4
+    food: 0
+  - row: 9
+    col: 5
+    food: 0
+  - row: 7
+    col: 3
+    food: 1
+  - row: 7
+    col: 10
+    food: 1
+  queueColumns: 3
+  queue:
+  - row: 0
+    col: 0
+    food: 3
+    capacity: 9
+  - row: 0
+    col: 1
+    food: 3
+    capacity: 2
+  - row: 3
+    col: 2
+    food: 1
+    capacity: 17
+  - row: 3
+    col: 0
+    food: 1
+    capacity: 12
+  - row: 1
+    col: 1
+    food: 4
+    capacity: 10
+  - row: 1
+    col: 2
+    food: 4
+    capacity: 13
+  - row: 2
+    col: 1
+    food: 5
+    capacity: 13
+  - row: 1
+    col: 0
+    food: 0
+    capacity: 19
+  - row: 0
+    col: 2
+    food: 2
+    capacity: 1
+  - row: 2
+    col: 2
+    food: 0
+    capacity: 3
+  - row: 2
+    col: 0
+    food: 3
+    capacity: 3
+  - row: 4
+    col: 1
+    food: 2
+    capacity: 4
+  - row: 3
+    col: 1
+    food: 2
+    capacity: 14
