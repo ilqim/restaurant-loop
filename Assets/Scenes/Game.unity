@@ -30066,6 +30066,8 @@ MonoBehaviour:
   gridManager: {fileID: 368813331}
   customerManager: {fileID: 1989108643}
   slotManager: {fileID: 61013483}
+  minTraySpacing: 2.1
+  launchCooldown: 0.4
   trayPrefab: {fileID: 7222614405959504423, guid: 4e834b1e5c9354e45b92d8e5dc230a2d, type: 3}
   maxActiveTrays: 5
   trayCountText: {fileID: 1543550308}
