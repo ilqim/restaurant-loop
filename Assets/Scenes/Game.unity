@@ -30304,6 +30304,11 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   loopIfSlotsFull: 0
+  baseCountLabelTransform: {fileID: 1543550307}
+  boosterScaleMultiplier: 1.5
+  scaleInDuration: 0.25
+  holdDuration: 3
+  scaleOutDuration: 0.35
   foodPrefabsForMerge:
   - food: 0
     prefab: {fileID: 3849605167686110678, guid: 7ff604befbcd3454cb48738d69ebd003, type: 3}

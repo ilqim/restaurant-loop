@@ -83,6 +83,8 @@ namespace RestaurantLoop
 
         private void PlayWarningOnAllSlots()
         {
+            HapticsEvents.Vibrate();
+            
             for (int i = 0; i < slots.Count; i++)
             {
                 if (slots[i] != null)
