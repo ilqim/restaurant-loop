@@ -1,6 +1,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
+using DG.Tweening;
 using UnityEngine;
 
 namespace RestaurantLoop
@@ -25,6 +26,13 @@ namespace RestaurantLoop
                  "Boş bırakılırsa (geri uyumluluk için) kökün kendisi kullanılır — YİNE ESKİ DAVRANIŞ, " +
                  "yani bu alanı MUTLAKA ata.")]
         [SerializeField] private Transform visualModel;
+
+        [Header("Ateşleme Animasyonu")]
+        [SerializeField] private float shootPunchScale = 0.15f;
+        [SerializeField] private float shootPunchDuration = 0.12f;
+        [SerializeField] private int shootPunchVibrato = 5;
+        [Range(0f,1f)]
+        [SerializeField] private float shootPunchElasticity = 0.5f;
 
         [Header("Sayı Etiketi")]
         [Tooltip("Tray'in kalan kapasitesini gösteren 3D etiket (Canvas değil, normal derinlik testine tabi). " +
@@ -157,6 +165,9 @@ namespace RestaurantLoop
             debugMoveAxis = currentMoveAxis;
             debugAxisUnchangedThisSegment = false;
 
+            ModelTransform.DOKill();
+            ModelTransform.localScale = Vector3.one;
+
             enabled = false;
         }
 
@@ -191,6 +202,9 @@ namespace RestaurantLoop
 
             customersReservedByThisTray.Clear();
             pendingCheckCells.Clear();
+
+            ModelTransform.DOKill();
+            ModelTransform.localScale = Vector3.one;
 
             SetState(TrayState.InConveyor);
 
@@ -524,6 +538,8 @@ namespace RestaurantLoop
 
             countLabel?.SetCount(capacity);
 
+            PlayShootPunch();
+
             LaunchDeliveryClone(
                 target,
                 transform.position
@@ -543,6 +559,19 @@ namespace RestaurantLoop
 
                 Despawn();
             }
+        }
+
+        private void PlayShootPunch()
+        {
+            if(ModelTransform == null || shootPunchScale <= 0f) return;
+
+            ModelTransform.DOKill(true);
+            ModelTransform.localScale = Vector3.one;
+
+            ModelTransform.DOPunchScale(Vector3.one * shootPunchScale,
+                                    shootPunchDuration,
+                                    shootPunchVibrato,
+                                    shootPunchElasticity);
         }
 
         private void BuildStackVisuals()
