@@ -301,11 +301,18 @@ namespace RestaurantLoop
             PlayerPrefs.DeleteKey(CoinsKey);
             PlayerPrefs.DeleteKey(HeartsKey);
             PlayerPrefs.DeleteKey(CurrentLevelKey);
+            // ÖNEMLİ EKLEME: Regen zamanlayıcısı da temizleniyor — eskiden
+            // bu satır YOKTU, bu yüzden "Reset ALL" yapsan bile ESKİ
+            // (belki saatler önceki) regen zamanı hayalet gibi kalıyordu.
+            // Can zaten dolu (5) olduğu için ilk okumada otomatik
+            // temizleniyordu ama garantiye almak için burada da siliyoruz.
+            PlayerPrefs.DeleteKey(NextRegenTimeKey);
             PlayerPrefs.Save();
 
             coins = null;
             hearts = null;
             currentLevel = null;
+            nextRegenTime = null;
 
             CoinsChanged?.Invoke(Coins);
             HeartsChanged?.Invoke(Hearts);
