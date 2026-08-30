@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using DG.Tweening;
 using TMPro;
 using UnityEngine;
 
@@ -118,6 +119,16 @@ namespace RestaurantLoop
         [Tooltip("Exit'te slotlar doluysa Tray tekrar conveyor turuna başlasın mı.")]
         [SerializeField] private bool loopIfSlotsFull = false;
 
+        [Header("Base Label Booster Animation")]
+        [SerializeField] private Transform baseCountLabelTransform; // Assign the base text/label Transform in Inspector
+        [SerializeField] private float boosterScaleMultiplier = 1.4f;
+        [SerializeField] private float scaleInDuration = 0.25f;
+        [SerializeField] private float holdDuration = 3.0f;
+        [SerializeField] private float scaleOutDuration = 0.35f;
+
+        private Vector3 originalBaseLabelScale = Vector3.one;
+        private Sequence baseLabelScaleSequence;
+
         [Header("Merge-back")]
         [Tooltip("Tray'de kalan yemek slot'a dönerken kullanılacak Food prefabları.")]
         [SerializeField]
@@ -154,6 +165,9 @@ namespace RestaurantLoop
 
             if (slotManager == null)
                 slotManager = FindFirstObjectByType<SlotManager>();
+            
+            if (baseCountLabelTransform != null)
+                originalBaseLabelScale = baseCountLabelTransform.localScale;
         }
 
         private void Start()
@@ -201,6 +215,33 @@ namespace RestaurantLoop
 
             int available = Mathf.Max(0, maxActiveTrays - currentActiveTrays);
             trayCountText.text = $"{available}/{maxActiveTrays}";
+        }
+
+        public void HighlightBaseCountLabel()
+        {
+            if (baseCountLabelTransform == null) return;
+
+            // Kill any active scale tweens to prevent stacking issues
+            if (baseLabelScaleSequence != null && baseLabelScaleSequence.IsActive())
+                baseLabelScaleSequence.Kill();
+
+            baseLabelScaleSequence = DOTween.Sequence();
+            baseLabelScaleSequence.SetLink(baseCountLabelTransform.gameObject);
+
+            // 1. Scale Up
+            baseLabelScaleSequence.Append(
+                baseCountLabelTransform.DOScale(originalBaseLabelScale * boosterScaleMultiplier, scaleInDuration)
+                    .SetEase(Ease.OutBack)
+            );
+
+            // 2. Hold for 3 seconds
+            baseLabelScaleSequence.AppendInterval(holdDuration);
+
+            // 3. Scale back to default
+            baseLabelScaleSequence.Append(
+                baseCountLabelTransform.DOScale(originalBaseLabelScale, scaleOutDuration)
+                    .SetEase(Ease.InOutQuad)
+            );
         }
 
         private void InitializeBaseTrayQueue()
@@ -536,6 +577,7 @@ namespace RestaurantLoop
                 tray.ParkAtBase(this, spawnPos);
                 trayBaseQueue.Add(tray);
             }
+            HighlightBaseCountLabel();
         }
 
         /// <summary>

@@ -7540,7 +7540,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5cfa1728629d2a944a8847b8d6aa0432, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  levelData: {fileID: 11400000, guid: 556136915a737e24696f42d4827aca52, type: 2}
+  levelData: {fileID: 11400000, guid: d6184af5f4811ec43a77e84557f8240a, type: 2}
   unityGrid: {fileID: 368813332}
   customerManager: {fileID: 1989108643}
   straightConveyorPrefab: {fileID: 7003198807947168408, guid: 51eab3757f73a4540963288817d8a339, type: 3}
@@ -30304,6 +30304,11 @@ MonoBehaviour:
       m_PostInfinity: 2
       m_RotationOrder: 4
   loopIfSlotsFull: 0
+  baseCountLabelTransform: {fileID: 1543550307}
+  boosterScaleMultiplier: 1.5
+  scaleInDuration: 0.25
+  holdDuration: 3
+  scaleOutDuration: 0.35
   foodPrefabsForMerge:
   - food: 0
     prefab: {fileID: 3849605167686110678, guid: 7ff604befbcd3454cb48738d69ebd003, type: 3}
