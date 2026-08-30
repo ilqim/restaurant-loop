@@ -7698,7 +7698,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5cfa1728629d2a944a8847b8d6aa0432, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  levelData: {fileID: 11400000, guid: 790cbf3a9e679134f983fb6549f15ed5, type: 2}
+  levelData: {fileID: 11400000, guid: d6184af5f4811ec43a77e84557f8240a, type: 2}
   unityGrid: {fileID: 368813332}
   customerManager: {fileID: 1989108643}
   straightConveyorPrefab: {fileID: 7003198807947168408, guid: 51eab3757f73a4540963288817d8a339, type: 3}
@@ -7726,7 +7726,7 @@ MonoBehaviour:
   invertCol: 0
   swapAxes: 0
   reversePathDirection: 0
-  cornerRadius: 0.93
+  cornerRadius: 0.9
   cornerSegments: 7
   invertFacingSide: 0
   drawGridGizmo: 1
@@ -32996,7 +32996,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 07f02bfc0dd395e4d8aa96bc2947360b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  levelData: {fileID: 11400000, guid: 790cbf3a9e679134f983fb6549f15ed5, type: 2}
+  levelData: {fileID: 11400000, guid: d6184af5f4811ec43a77e84557f8240a, type: 2}
   gridManager: {fileID: 368813331}
 --- !u!4 &1849710157
 Transform:
@@ -34065,7 +34065,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9ae52312c87ad29478982a6e3d3a1c7f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  levelData: {fileID: 11400000, guid: 790cbf3a9e679134f983fb6549f15ed5, type: 2}
+  levelData: {fileID: 11400000, guid: d6184af5f4811ec43a77e84557f8240a, type: 2}
   gridManager: {fileID: 368813331}
   foodPrefabs:
   - food: 0
