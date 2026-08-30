@@ -977,7 +977,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.1, y: 1.1, z: 1.1}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 467102091}
@@ -7427,7 +7427,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: 0.5693341, y: -0, z: -0, w: 0.8221063}
-  m_LocalPosition: {x: 5.459968, y: 22.992193, z: -17.101217}
+  m_LocalPosition: {x: 5.460011, y: 23.4, z: -17}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -7540,7 +7540,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5cfa1728629d2a944a8847b8d6aa0432, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  levelData: {fileID: 11400000, guid: 556136915a737e24696f42d4827aca52, type: 2}
+  levelData: {fileID: 11400000, guid: 8c7818b39fabc2d48905ea229a6f24f4, type: 2}
   unityGrid: {fileID: 368813332}
   customerManager: {fileID: 1989108643}
   straightConveyorPrefab: {fileID: 7003198807947168408, guid: 51eab3757f73a4540963288817d8a339, type: 3}
@@ -10268,7 +10268,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.1, y: 1.1, z: 1.1}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 594656518}
@@ -21035,7 +21035,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.1, y: 1.1, z: 1.1}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 933773624}
@@ -28910,7 +28910,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: -0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.1, y: 1.1, z: 1.1}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 1224766057}
@@ -29572,7 +29572,7 @@ Transform:
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 1.1, y: 1.1, z: 1.1}
   m_ConstrainProportionsScale: 1
   m_Children: []
   m_Father: {fileID: 1904745220}
@@ -32646,7 +32646,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 07f02bfc0dd395e4d8aa96bc2947360b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  levelData: {fileID: 11400000, guid: 556136915a737e24696f42d4827aca52, type: 2}
+  levelData: {fileID: 11400000, guid: 8c7818b39fabc2d48905ea229a6f24f4, type: 2}
   gridManager: {fileID: 368813331}
 --- !u!4 &1849710157
 Transform:
@@ -33715,7 +33715,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9ae52312c87ad29478982a6e3d3a1c7f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  levelData: {fileID: 11400000, guid: 556136915a737e24696f42d4827aca52, type: 2}
+  levelData: {fileID: 11400000, guid: 8c7818b39fabc2d48905ea229a6f24f4, type: 2}
   gridManager: {fileID: 368813331}
   foodPrefabs:
   - food: 0
@@ -34294,7 +34294,7 @@ RectTransform:
   m_GameObject: {fileID: 2135350543}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.0011848, y: 1.0011848, z: 1}
+  m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 934538700}
@@ -34324,7 +34324,7 @@ MonoBehaviour:
   scaleStrength: 1
   minScale: 1
   maxScale: 1.6
-  currentAppliedScale: 1.0011848
+  currentAppliedScale: 1
 --- !u!1 &2135948226
 GameObject:
   m_ObjectHideFlags: 0
