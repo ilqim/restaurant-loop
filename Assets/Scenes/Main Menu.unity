@@ -8966,7 +8966,7 @@ MonoBehaviour:
     difficulty: 0
   - data: {fileID: 11400000, guid: 9710a036e21d2df4dada7823cb3ca2ee, type: 2}
     difficulty: 2
-  selectBoosterUnlockLevel: 20
+  selectBoosterUnlockLevel: 1
   addTrayBoosterUnlockLevel: 9
   shuffleBoosterUnlockLevel: 15
   gameplaySceneName: Game

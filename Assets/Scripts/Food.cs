@@ -50,6 +50,16 @@ namespace RestaurantLoop
 
         private Sequence clickPunchSequence;
 
+        // Punch-scale animasyonunun HER ZAMAN referans alacağı, oyun
+        // başında BİR KEZ sabitlenmiş gerçek ölçek. transform.localScale'i
+        // canlı okumuyoruz çünkü çok hızlı art arda tıklanınca (özellikle
+        // mobilde) bir önceki punch animasyonu KÜÇÜLME aşamasındayken
+        // kesilebiliyor (Kill()) — o anda transform.localScale zaten
+        // küçülmüş durumda olur, ve bunu "orijinal boyut" sanıp ona göre
+        // devam etmek, her hızlı tıklamada biraz daha küçülüp öyle
+        // kalmasına (asla tam boyuta dönmemesine) yol açıyordu.
+        private Vector3 baseScale;
+
         [Header("State")]
         [SerializeField] private FoodState currentState = FoodState.AvailableInQueue;
 
@@ -100,6 +110,8 @@ namespace RestaurantLoop
 
         private void Awake()
         {
+            baseScale = transform.localScale;
+
             if(spriteVisual == null)
             {
                 var sr = GetComponentInChildren<SpriteRenderer>(true);
@@ -166,14 +178,12 @@ namespace RestaurantLoop
             if (clickPunchSequence != null && clickPunchSequence.IsActive())
                 clickPunchSequence.Kill();
 
-            Vector3 originalScale = transform.localScale;
-
             clickPunchSequence = DOTween.Sequence();
             clickPunchSequence.SetLink(gameObject);
             clickPunchSequence.Append(
-                transform.DOScale(originalScale * clickScaleDownFactor, clickScaleDuration).SetEase(Ease.OutQuad));
+                transform.DOScale(baseScale * clickScaleDownFactor, clickScaleDuration).SetEase(Ease.OutQuad));
             clickPunchSequence.Append(
-                transform.DOScale(originalScale, clickScaleDuration).SetEase(Ease.OutBack));
+                transform.DOScale(baseScale, clickScaleDuration).SetEase(Ease.OutBack));
 
             if (onComplete != null)
                 clickPunchSequence.OnComplete(() => onComplete());

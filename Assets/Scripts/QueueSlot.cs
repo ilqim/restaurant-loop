@@ -44,6 +44,12 @@ namespace RestaurantLoop
 
         private Sequence clickPunchSequence;
 
+        // Aynı DOTween "kill mid-tween" sorununu önlemek için — Food.cs'teki
+        // baseScale ile AYNI mantık, sadece hedef burada countLabel'ın
+        // transform'u.
+        private Vector3 baseCountLabelScale;
+        private bool baseCountLabelScaleCached;
+
         public Food AssignedFood => assignedFood;
 
         public void AssignFood(Food food)
@@ -86,17 +92,25 @@ namespace RestaurantLoop
 
             Transform target = countLabel.transform;
 
+            // İlk çağrıda gerçek ölçeği BİR KEZ sabitliyoruz — sonraki
+            // çağrılarda transform.localScale'in o anki (bir önceki
+            // animasyon küçülme aşamasındayken kesilmiş olabilecek,
+            // bozulmuş) haline hiç güvenmiyoruz.
+            if (!baseCountLabelScaleCached)
+            {
+                baseCountLabelScale = target.localScale;
+                baseCountLabelScaleCached = true;
+            }
+
             if (clickPunchSequence != null && clickPunchSequence.IsActive())
                 clickPunchSequence.Kill();
-
-            Vector3 originalScale = target.localScale;
 
             clickPunchSequence = DOTween.Sequence();
             clickPunchSequence.SetLink(target.gameObject);
             clickPunchSequence.Append(
-                target.DOScale(originalScale * clickScaleDownFactor, clickScaleDuration).SetEase(Ease.OutQuad));
+                target.DOScale(baseCountLabelScale * clickScaleDownFactor, clickScaleDuration).SetEase(Ease.OutQuad));
             clickPunchSequence.Append(
-                target.DOScale(originalScale, clickScaleDuration).SetEase(Ease.OutBack));
+                target.DOScale(baseCountLabelScale, clickScaleDuration).SetEase(Ease.OutBack));
         }
     }
 }
