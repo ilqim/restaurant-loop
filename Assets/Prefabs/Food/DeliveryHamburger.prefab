@@ -64,9 +64,33 @@ PrefabInstance:
       propertyPath: m_ConstrainProportionsScale
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: -6991806510395151794, guid: efb39fd7edadc13438cccee1d9add418, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -4574954000057589172, guid: efb39fd7edadc13438cccee1d9add418, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -2875811489934244917, guid: efb39fd7edadc13438cccee1d9add418, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -719817652671122319, guid: efb39fd7edadc13438cccee1d9add418, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: efb39fd7edadc13438cccee1d9add418, type: 3}
       propertyPath: m_Name
       value: DeliveryHamburger
+      objectReference: {fileID: 0}
+    - target: {fileID: 3300697844002503020, guid: efb39fd7edadc13438cccee1d9add418, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5867374309030177470, guid: efb39fd7edadc13438cccee1d9add418, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

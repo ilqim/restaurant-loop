@@ -64,9 +64,21 @@ PrefabInstance:
       propertyPath: m_ConstrainProportionsScale
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: -3258771382408540265, guid: cb113dbf2705f0b46873ae72bba82374, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: cb113dbf2705f0b46873ae72bba82374, type: 3}
       propertyPath: m_Name
       value: DeliverySteak
+      objectReference: {fileID: 0}
+    - target: {fileID: 4341699741990558801, guid: cb113dbf2705f0b46873ae72bba82374, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7541457481921523871, guid: cb113dbf2705f0b46873ae72bba82374, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []
