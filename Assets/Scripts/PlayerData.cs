@@ -168,10 +168,7 @@ namespace RestaurantLoop
         {
             if (amount <= 0) return;
             Coins += amount;
-            // İSTEK: Coin sesi 3 kez ARDIŞIK çalsın (üst üste binmeden) —
-            // gerçek "biri bitince diğeri başlar" mantığı AudioManager'da
-            // (coroutine ile) yönetiliyor, buradan sadece istek gönderiliyor.
-            AudioEvents.PlayCoinEarnSequence(3);
+            AudioEvents.PlayCoinEarn();
         }
 
         public static bool TrySpendCoins(int amount)
@@ -313,6 +310,12 @@ namespace RestaurantLoop
             hearts = null;
             currentLevel = null;
             nextRegenTime = null;
+
+            // İSTEK: Boosterlar da (Shuffle/AddTray/Select) hepsi 99'a
+            // sıfırlansın — eskiden bu metod boosterlara HİÇ dokunmuyordu,
+            // bu yüzden daha önce kullanılıp 0'a düşmüş bir booster,
+            // "Reset ALL" yapılsa bile 0'da kalıyordu.
+            ResetAllBoostersToDefault();
 
             CoinsChanged?.Invoke(Coins);
             HeartsChanged?.Invoke(Hearts);
