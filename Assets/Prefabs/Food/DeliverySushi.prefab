@@ -64,9 +64,45 @@ PrefabInstance:
       propertyPath: m_ConstrainProportionsScale
       value: 1
       objectReference: {fileID: 0}
+    - target: {fileID: -8376683165287237265, guid: 6db06585d1f3dce49aaef8ebb0e88a4e, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -3832225189922025857, guid: 6db06585d1f3dce49aaef8ebb0e88a4e, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -3535425713196734507, guid: 6db06585d1f3dce49aaef8ebb0e88a4e, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: -1320704471492077329, guid: 6db06585d1f3dce49aaef8ebb0e88a4e, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
     - target: {fileID: 919132149155446097, guid: 6db06585d1f3dce49aaef8ebb0e88a4e, type: 3}
       propertyPath: m_Name
       value: DeliverySushi
+      objectReference: {fileID: 0}
+    - target: {fileID: 1602552702520975861, guid: 6db06585d1f3dce49aaef8ebb0e88a4e, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 3924972172385889138, guid: 6db06585d1f3dce49aaef8ebb0e88a4e, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 4475277063994005182, guid: 6db06585d1f3dce49aaef8ebb0e88a4e, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 5693817933228790186, guid: 6db06585d1f3dce49aaef8ebb0e88a4e, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
+      objectReference: {fileID: 0}
+    - target: {fileID: 7202827619640530749, guid: 6db06585d1f3dce49aaef8ebb0e88a4e, type: 3}
+      propertyPath: m_CastShadows
+      value: 0
       objectReference: {fileID: 0}
     m_RemovedComponents: []
     m_RemovedGameObjects: []

@@ -61,6 +61,13 @@ namespace RestaurantLoop
         [SerializeField] private CustomerManager customerManager;
         [SerializeField] private SlotManager slotManager;
 
+        [Header("Anti-COllision of Trays")]
+        [SerializeField] private float minTraySpacing = 1.8f;
+        [SerializeField] private float launchCooldown = 0.4f;
+
+        private float lastLaunchTime = -999f;
+        private readonly List<Tray> activeConveyorTrays = new();
+
         [Header("Tray Prefab")]
         [Tooltip("Tray component'i taşıyan prefab.")]
         [SerializeField] private GameObject trayPrefab;
@@ -323,6 +330,8 @@ namespace RestaurantLoop
 
         public void ReturnTrayToBase(Tray tray)
         {
+            if(activeConveyorTrays.Contains(tray)) activeConveyorTrays.Remove(tray);
+
             if (tray == null)
                 return;
 
@@ -461,6 +470,20 @@ namespace RestaurantLoop
 
         public bool CanLaunchTray()
         {
+            if(Time.time - lastLaunchTime < launchCooldown)
+            {
+                return false;
+            }
+
+            Vector3 startPos = GetWaypointPosition(0);
+
+            foreach(var tray in activeConveyorTrays)
+            {
+                if(tray != null || !tray.gameObject.activeInHierarchy) continue;
+
+                float distFromStart = Vector3.Distance(startPos, tray.transform.position);
+                if (distFromStart < minTraySpacing) return false;
+            }
             if(currentActiveTrays >= maxActiveTrays)
             {
                 return false;
@@ -519,6 +542,8 @@ namespace RestaurantLoop
         /// </summary>
         public Tray PrepareUpcomingTray()
         {
+            lastLaunchTime = Time.time;
+            
             if (currentActiveTrays >= maxActiveTrays)
                 return null;
 
@@ -565,6 +590,11 @@ namespace RestaurantLoop
             if (facings != null && facings.Count > 0 && facings[0].sqrMagnitude > 0.0001f)
             {
                 trayToLaunch.ModelTransform.rotation = Quaternion.LookRotation(facings[0], Vector3.up);
+            }
+
+            if(trayToLaunch != null)
+            {
+                activeConveyorTrays.Add(trayToLaunch);
             }
 
             return trayToLaunch;
