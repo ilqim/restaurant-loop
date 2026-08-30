@@ -15,6 +15,7 @@ namespace RestaurantLoop
     {
         private const string CoinsKey = "PlayerData_Coins";
         private const string HeartsKey = "PlayerData_Hearts";
+        public const string NextRegenTimeKey = "PlayerData_NextHeartRegenTime";
         private const string CurrentLevelKey = "PlayerData_CurrentLevel";
         private const string BoosterKeyPrefix = "PlayerData_Booster_";
 
@@ -22,10 +23,12 @@ namespace RestaurantLoop
         public const int DefaultInitialCoins = 100;
         public const int DefaultStartingLevel = 1;
         public const int DefaultBoosterCount = 99;
+        public const double HeartRegenIntervalMinutes = 30.0;
 
         private static int? coins;
         private static int? hearts;
         private static int? currentLevel;
+        private static DateTime? nextRegenTime;
         private static readonly Dictionary<BoosterType, int> boosterCounts = new();
 
         public static event Action<int> CoinsChanged;
@@ -54,17 +57,18 @@ namespace RestaurantLoop
         {
             get
             {
+                CheckAndRegenerateHearts();
                 hearts ??= PlayerPrefs.GetInt(HeartsKey, MaxHearts);
                 return hearts.Value;
             }
             private set
             {
                 int clamped = Mathf.Clamp(value, 0, MaxHearts);
-                if (hearts.HasValue && hearts.Value == clamped) return;
+
                 hearts = clamped;
-                PlayerPrefs.SetInt(HeartsKey, hearts.Value);
+                PlayerPrefs.SetInt(HeartsKey, clamped);
                 PlayerPrefs.Save();
-                HeartsChanged?.Invoke(hearts.Value);
+                HeartsChanged?.Invoke(clamped);
             }
         }
 
@@ -90,6 +94,76 @@ namespace RestaurantLoop
             }
         }
 
+        public static DateTime NextHeartRegenTime
+        {
+            get
+            {
+                if (!nextRegenTime.HasValue)
+                {
+                    string str = PlayerPrefs.GetString(NextRegenTimeKey, string.Empty);
+                    if(!string.IsNullOrEmpty(str) && long.TryParse(str, out long binaryTime))
+                    {
+                        nextRegenTime = DateTime.FromBinary(binaryTime);
+                    }
+                    else
+                    {
+                        nextRegenTime = DateTime.UtcNow.AddMinutes(HeartRegenIntervalMinutes);
+                    }
+                }
+                return nextRegenTime.Value;
+            }
+            set
+            {
+                nextRegenTime = value;
+                PlayerPrefs.SetString(NextRegenTimeKey, value.ToBinary().ToString());
+                PlayerPrefs.Save();
+            }
+        }
+        public static TimeSpan GetTimeToNextHeart()
+        {
+            if (Hearts >= MaxHearts)
+                return TimeSpan.Zero;
+
+            TimeSpan remaining = NextHeartRegenTime - DateTime.UtcNow;
+            return remaining < TimeSpan.Zero ? TimeSpan.Zero : remaining;
+        }
+        public static void CheckAndRegenerateHearts()
+        {
+            int current = hearts ?? PlayerPrefs.GetInt(HeartsKey, MaxHearts);
+            if (current >= MaxHearts)
+            {
+                PlayerPrefs.DeleteKey(NextRegenTimeKey);
+                nextRegenTime = null;
+                return;
+            }
+
+            DateTime nextTime = NextHeartRegenTime;
+            DateTime now = DateTime.UtcNow;
+
+            if (now >= nextTime)
+            {
+                TimeSpan elapsedSinceNext = now - nextTime;
+                int heartsToAdd = 1 + (int)(elapsedSinceNext.TotalMinutes / HeartRegenIntervalMinutes);
+
+                int newHeartCount = Mathf.Min(MaxHearts, current + heartsToAdd);
+                hearts = newHeartCount;
+                PlayerPrefs.SetInt(HeartsKey, newHeartCount);
+                PlayerPrefs.Save();
+                HeartsChanged?.Invoke(newHeartCount);
+
+                if (newHeartCount < MaxHearts)
+                {
+                    double leftoverMinutes = elapsedSinceNext.TotalMinutes % HeartRegenIntervalMinutes;
+                    NextHeartRegenTime = now.AddMinutes(HeartRegenIntervalMinutes - leftoverMinutes);
+                }
+                else
+                {
+                    PlayerPrefs.DeleteKey(NextRegenTimeKey);
+                    nextRegenTime = null;
+                }
+            }
+        }
+
         public static void AddCoins(int amount)
         {
             if (amount <= 0) return;
@@ -106,14 +180,32 @@ namespace RestaurantLoop
 
         public static void ConsumeHeart()
         {
+            CheckAndRegenerateHearts();
+
+            int current = Hearts;
             if (Hearts > 0)
-                Hearts--;
+            {
+                if (current == MaxHearts)
+                {
+                    NextHeartRegenTime = DateTime.UtcNow.AddMinutes(HeartRegenIntervalMinutes);
+                }
+
+                Hearts = current - 1;
+            }
+                
         }
 
         public static void AddHearts(int amount)
         {
             if (amount <= 0) return;
-            Hearts += amount;
+            
+            Hearts = Mathf.Min(MaxHearts, Hearts + amount);
+
+            if(Hearts >= MaxHearts)
+            {
+                PlayerPrefs.DeleteKey(NextRegenTimeKey);
+                nextRegenTime = null;
+            }
         }
 
         public static bool HasHearts() => Hearts > 0;
