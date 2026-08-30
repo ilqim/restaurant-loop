@@ -45,14 +45,31 @@ namespace RestaurantLoop
         private void UpdateCoinVisual(int count)
         {
             string formatted = count.ToString();
-            if (coinTextTMP != null) coinTextTMP.text = formatted;
+
+            if (coinTextTMP != null)
+            {
+                coinTextTMP.text = formatted;
+                // ÖNEMLİ: TextMeshPro'nun bilinen bir sorunu — .text değeri
+                // obje PASİFKEN (ya da bir üst parent'ı pasifken) set
+                // edilirse, mesh (görsel render) otomatik yenilenmeyebiliyor;
+                // obje sonradan aktif olsa bile eski/bayat görüntüyü
+                // gösterebiliyor. ForceMeshUpdate() bunu garanti çözüyor.
+                coinTextTMP.ForceMeshUpdate();
+            }
+
             if (coinTextLegacy != null) coinTextLegacy.text = formatted;
         }
 
         private void UpdateHeartVisual(int count)
         {
-            string formatted = $"{count}/{PlayerData.MaxHearts}";
-            if (heartTextTMP != null) heartTextTMP.text = formatted;
+            string formatted = count.ToString();
+
+            if (heartTextTMP != null)
+            {
+                heartTextTMP.text = formatted;
+                heartTextTMP.ForceMeshUpdate();
+            }
+
             if (heartTextLegacy != null) heartTextLegacy.text = formatted;
         }
 
@@ -73,7 +90,8 @@ namespace RestaurantLoop
                 timerString = $"{remaining.Minutes:D2}:{remaining.Seconds:D2}";
             }
 
-            if (timerTextTMP != null) timerTextTMP.text = timerString;
+            timerTextTMP.text = timerString;
+            timerTextTMP.ForceMeshUpdate();
         }
     }
 }
