@@ -479,7 +479,14 @@ namespace RestaurantLoop
 
             foreach(var tray in activeConveyorTrays)
             {
-                if(tray != null || !tray.gameObject.activeInHierarchy) continue;
+                // ÖNEMLİ FIX: Bu koşul TERSTİ — "tray != null" olduğunda
+                // (yani neredeyse HER geçerli tray'de) 'continue' ile
+                // atlanıyordu, bu da mesafe kontrolünün ('distFromStart <
+                // minTraySpacing') PRATİKTE HİÇBİR ZAMAN çalışmamasına yol
+                // açıyordu. Şimdi doğru mantık: sadece NULL ya da PASİF
+                // olan tray'ler atlanıyor, geçerli olanlar için mesafe
+                // GERÇEKTEN kontrol ediliyor.
+                if(tray == null || !tray.gameObject.activeInHierarchy) continue;
 
                 float distFromStart = Vector3.Distance(startPos, tray.transform.position);
                 if (distFromStart < minTraySpacing) return false;
