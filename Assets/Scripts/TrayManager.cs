@@ -123,7 +123,8 @@ namespace RestaurantLoop
         [SerializeField] private Transform baseCountLabelTransform; // Assign the base text/label Transform in Inspector
         [SerializeField] private float boosterScaleMultiplier = 1.4f;
         [SerializeField] private float scaleInDuration = 0.25f;
-        [SerializeField] private float holdDuration = 3.0f;
+        [Tooltip("İSTEK: Büyüdükten sonra BÜYÜK KALMASIN diye varsayılan 0 yapıldı — artık büyüyüp HEMEN küçülüyor (punch hissi). İstersen kısa bir bekleme için küçük bir değer (ör. 0.1-0.3) girebilirsin, ama 3sn gibi uzun bir bekleme büyük kalma hissi yaratıyordu.")]
+        [SerializeField] private float holdDuration = 0f;
         [SerializeField] private float scaleOutDuration = 0.35f;
 
         private Vector3 originalBaseLabelScale = Vector3.one;
@@ -234,8 +235,11 @@ namespace RestaurantLoop
                     .SetEase(Ease.OutBack)
             );
 
-            // 2. Hold for 3 seconds
-            baseLabelScaleSequence.AppendInterval(holdDuration);
+            // 2. Hold (İSTEK ÜZERİNE varsayılan 0 — büyük kalmasın diye
+            // artık grow'dan HEMEN sonra shrink başlıyor, gerçek bir
+            // bekleme yok. holdDuration=0 ise AppendInterval etkisizdir.)
+            if (holdDuration > 0f)
+                baseLabelScaleSequence.AppendInterval(holdDuration);
 
             // 3. Scale back to default
             baseLabelScaleSequence.Append(
@@ -520,13 +524,6 @@ namespace RestaurantLoop
 
             foreach(var tray in activeConveyorTrays)
             {
-                // ÖNEMLİ FIX: Bu koşul TERSTİ — "tray != null" olduğunda
-                // (yani neredeyse HER geçerli tray'de) 'continue' ile
-                // atlanıyordu, bu da mesafe kontrolünün ('distFromStart <
-                // minTraySpacing') PRATİKTE HİÇBİR ZAMAN çalışmamasına yol
-                // açıyordu. Şimdi doğru mantık: sadece NULL ya da PASİF
-                // olan tray'ler atlanıyor, geçerli olanlar için mesafe
-                // GERÇEKTEN kontrol ediliyor.
                 if(tray == null || !tray.gameObject.activeInHierarchy) continue;
 
                 float distFromStart = Vector3.Distance(startPos, tray.transform.position);

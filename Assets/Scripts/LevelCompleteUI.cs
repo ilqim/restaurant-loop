@@ -32,6 +32,11 @@ namespace RestaurantLoop
         [Tooltip("Panel tam göründükten (fade-in bitince) sonra, coin doğması VE sayının sayması BİRLİKTE başlamadan önce ne kadar beklensin. 0 = panel görünür görünmez ikisi de anında başlar.")]
         [SerializeField] private float countStartDelay = 0f;
 
+        [Header("Kutlama Karakteri (Level Sonu — Rastgele)")]
+        [Tooltip("Her level bitişinde bu ikisinden RASTGELE biri aktif olur, diğeri pasif kalır.")]
+        [SerializeField] private GameObject celebCharacter1;
+        [SerializeField] private GameObject celebCharacter2;
+
         [Header("Animation Settings")]
         [SerializeField] private float fadeDuration = 0.35f;
 
@@ -55,6 +60,10 @@ namespace RestaurantLoop
             if (popupContent != null)
                 popupContent.SetActive(true);
 
+            // İSTEK: Her level bitişinde 2 karakterden RASTGELE biri
+            // aktif, diğeri pasif olsun.
+            ShowRandomCelebCharacter();
+
             // ÖNEMLİ: Text'i HEMEN "+0"a sıfırlıyoruz — Editor'de bırakılmış
             // eski bir değer (örn. "+40") panel açılır açılmaz bir an için
             // yanlışlıkla görünmesin diye. Coin animasyonu başlamadan önce
@@ -62,6 +71,22 @@ namespace RestaurantLoop
             SetCoinText("+0");
 
             StartCoroutine(ShowSequenceRoutine(earnedAmount));
+        }
+
+        /// <summary>
+        /// celebCharacter1 ve celebCharacter2'den rastgele birini aktif
+        /// yapar, diğerini pasif bırakır. Her Show() çağrısında (yani her
+        /// level bitişinde) yeniden rastgele seçilir.
+        /// </summary>
+        private void ShowRandomCelebCharacter()
+        {
+            if (celebCharacter1 == null && celebCharacter2 == null)
+                return;
+
+            bool showFirst = Random.value < 0.5f;
+
+            if (celebCharacter1 != null) celebCharacter1.SetActive(showFirst);
+            if (celebCharacter2 != null) celebCharacter2.SetActive(!showFirst);
         }
 
         private IEnumerator ShowSequenceRoutine(int earnedAmount)
