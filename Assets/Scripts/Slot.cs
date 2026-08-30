@@ -40,6 +40,12 @@ namespace RestaurantLoop
 
         private Sequence clickPunchSequence;
 
+        // Aynı DOTween "kill mid-tween" sorununu önlemek için — Food.cs'teki
+        // baseScale ile AYNI mantık, sadece hedef burada slot'un görsel
+        // transform'u.
+        private Vector3 baseSlotVisualScale;
+        private bool baseSlotVisualScaleCached;
+
         [Header("Kapasite Etiketi Davranışı")]
         [Tooltip("KAPALI (varsayılan): Slota tıklanır tıklanmaz kapasite etiketi HEMEN kaybolur, konveyöre binme animasyonunun bitmesini beklemez. AÇIK: Etiket hemen kaybolmaz — parça bazlı uçuş animasyonu sürerken HER parça konveyöre binişte 1 azalır, son parça binince kaybolur.")]
         [SerializeField] private bool decrementLabelDuringAnimation = false;
@@ -267,17 +273,25 @@ namespace RestaurantLoop
         {
             Transform target = slotVisualTransform != null ? slotVisualTransform : transform;
 
+            // İlk çağrıda gerçek ölçeği BİR KEZ sabitliyoruz — sonraki
+            // çağrılarda transform.localScale'in o anki (bir önceki
+            // animasyon küçülme aşamasındayken kesilmiş olabilecek,
+            // bozulmuş) haline hiç güvenmiyoruz.
+            if (!baseSlotVisualScaleCached)
+            {
+                baseSlotVisualScale = target.localScale;
+                baseSlotVisualScaleCached = true;
+            }
+
             if (clickPunchSequence != null && clickPunchSequence.IsActive())
                 clickPunchSequence.Kill();
-
-            Vector3 originalScale = target.localScale;
 
             clickPunchSequence = DOTween.Sequence();
             clickPunchSequence.SetLink(target.gameObject);
             clickPunchSequence.Append(
-                target.DOScale(originalScale * clickScaleDownFactor, clickScaleDuration).SetEase(Ease.OutQuad));
+                target.DOScale(baseSlotVisualScale * clickScaleDownFactor, clickScaleDuration).SetEase(Ease.OutQuad));
             clickPunchSequence.Append(
-                target.DOScale(originalScale, clickScaleDuration).SetEase(Ease.OutBack));
+                target.DOScale(baseSlotVisualScale, clickScaleDuration).SetEase(Ease.OutBack));
         }
 
         // ============================================================
