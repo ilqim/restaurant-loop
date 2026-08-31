@@ -407,6 +407,22 @@ MonoBehaviour:
   baseScaleInDuration: 0.15
   baseScaleInEase: 27
   countLabel: {fileID: 8615966494281220122}
+  enableInertiaSway: 1
+  bodySwaySensitivity: 2
+  bodyMaxSwayAngle: 6
+  bodySwayStiffness: 120
+  bodySwayDamping: 25
+  enableStackSway: 0
+  stackSwaySensitivity: 3
+  stackMaxSwayAngle: 6
+  stackSwayStiffness: 60
+  stackSwayDamping: 10
+  velocitySmoothingTime: 0.08
+  enableStackLinearLag: 1
+  stackLinearLagSensitivity: 0.05
+  stackLinearLagMaxDistance: 0.35
+  stackLinearLagStiffness: 35
+  stackLinearLagDamping: 8
   rotationSmoothing: 15
   debugMoveAxis: 0
   debugAxisUnchangedThisSegment: 0
