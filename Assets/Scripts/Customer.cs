@@ -641,35 +641,10 @@ namespace RestaurantLoop
 
             SetState(CustomerState.Leaving);
 
-            if(animator != null)
-            {
-                animator.SetTrigger("Vanish");
-                StartCoroutine(WaitForVanishAndDespawnRoutine());
-            }
-            else
-            {
-                Despawn();
-            }
-        }
-
-        private System.Collections.IEnumerator WaitForVanishAndDespawnRoutine()
-        {
-            // Wait until next frame so the Animator enters the transition
-            yield return null;
-
-            // Get the length of the currently playing/next clip
-            AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
-    
-            // If it's transitioning to the vanish state, get the next state duration
-            if (animator.IsInTransition(0))
-            {
-                stateInfo = animator.GetNextAnimatorStateInfo(0);
-            }
-
-            float clipLength = stateInfo.length > 0f ? stateInfo.length : 0.5f;
-
-            yield return new WaitForSeconds(clipLength);
-
+            // İSTEK: Animator'ın "Vanish" klibi kötü görünüyordu (kafa
+            // garip şekilde büyüyordu) — artık o klibe HİÇ güvenilmiyor.
+            // Kaybolma tamamen kod/DOTween ile (Despawn() içinde,
+            // küçülüp hafifçe yukarı süzülerek) yapılıyor.
             Despawn();
         }
 
@@ -738,14 +713,39 @@ namespace RestaurantLoop
                 initialized = false;
             }
 
-            if (ObjectPool.Instance != null)
+            // İSTEK: Animator'ın "Vanish" klibine artık HİÇ güvenmiyoruz
+            // (kafa garip şekilde büyüyordu, kötü görünüyordu) — kaybolma
+            // tamamen kod/DOTween ile yapılıyor: hafifçe küçülüp yukarı
+            // süzülerek kayboluyor. Pool'a dönüş (ya da SetActive(false))
+            // animasyon TAM BİTTİKTEN sonra gerçekleşiyor.
+            transform.DOKill();
+
+            Vector3 startScale = transform.localScale;
+
+            Sequence vanishSequence = DOTween.Sequence();
+            vanishSequence.SetLink(gameObject);
+
+            vanishSequence.Join(
+                transform.DOScale(startScale * 0.2f, 0.35f).SetEase(Ease.InBack));
+
+            vanishSequence.Join(
+                transform.DOMoveY(transform.position.y + 0.4f, 0.35f).SetEase(Ease.OutQuad));
+
+            vanishSequence.OnComplete(() =>
             {
-                ObjectPool.Instance.Return(gameObject);
-            }
-            else
-            {
-                gameObject.SetActive(false);
-            }
+                // Pool'a dönmeden önce ölçeği eski haline getiriyoruz —
+                // bir sonraki kullanımda küçülmüş halde spawn olmasın.
+                transform.localScale = startScale;
+
+                if (ObjectPool.Instance != null)
+                {
+                    ObjectPool.Instance.Return(gameObject);
+                }
+                else
+                {
+                    gameObject.SetActive(false);
+                }
+            });
         }
 
 
