@@ -373,7 +373,7 @@ Transform:
   m_GameObject: {fileID: 7222614405959504423}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 17.385332, y: 2.9748695, z: -20.459883}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 1
   m_Children:
@@ -398,6 +398,14 @@ MonoBehaviour:
   shootPunchDuration: 0.2
   shootPunchVibrato: 5
   shootPunchElasticity: 0.86
+  vanishMoveDistance: 2
+  vanishMoveUpDistance: 1.5
+  vanishMoveAngleNoise: 70
+  vanishMoveEase: 5
+  vanishMoveDuration: 0.3
+  baseScaleInStartScale: 0.3
+  baseScaleInDuration: 0.15
+  baseScaleInEase: 27
   countLabel: {fileID: 8615966494281220122}
   rotationSmoothing: 15
   debugMoveAxis: 0
@@ -405,7 +413,7 @@ MonoBehaviour:
   debugLastTrayCell: {x: 0, y: 0}
   debugLastTargetRowCol: {x: 0, y: 0}
   debugLastAlignmentResult: '-'
-  trayAnimator: {fileID: 0}
+  trayAnimator: {fileID: 6277749502403414563}
   debugCurrentState: 0
 --- !u!1001 &6188605265853243863
 PrefabInstance:

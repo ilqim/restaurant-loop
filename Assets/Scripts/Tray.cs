@@ -34,6 +34,40 @@ namespace RestaurantLoop
         [Range(0f,1f)]
         [SerializeField] private float shootPunchElasticity = 0.5f;
 
+        [Header("Vanish Hareketi (DOTween — Geriye ve Yukarı)")]
+        [Tooltip("Vanish animasyonu oynarken ModelTransform'un ne kadar geriye (tepsinin yemek fırlattığı " +
+                 "yönün TAM TERSİNE, yani -ModelTransform.forward) ilerleyeceği. Bu yön tepsinin o anki " +
+                 "rotasyonuna göre HESAPLANIR — dünya ekseni sabit DEĞİL, tepsi hangi yöne bakıyorsa ona göre değişir.")]
+        [SerializeField] private float vanishMoveDistance = 1.5f;
+
+        [Tooltip("Aynı anda DÜNYA +Y (yukarı, sabit dünya ekseni) ekseninde ne kadar yükseleceği — " +
+                 "'havaya fırlama' hissi için. Bu, geri gitme yönünden bağımsız, her zaman yukarı.")]
+        [SerializeField] private float vanishMoveUpDistance = 1f;
+
+        [Tooltip("Geri yönün etrafında rastgele sapma açısı (derece). Her vanish'te -ModelTransform.forward " +
+                 "yönü, dünya +Y ekseni etrafında [-bu değer, +bu değer] aralığında rastgele döndürülür — " +
+                 "böylece her tepsi tam olarak aynı çizgide değil, hafif farklı açılarda geri gider.")]
+        [SerializeField] private float vanishMoveAngleNoise = 20f;
+
+        [Tooltip("Hareketin ease eğrisi.")]
+        [SerializeField] private Ease vanishMoveEase = Ease.OutQuad;
+
+        [Tooltip("Vanish hareketinin süresi (saniye). ÖNEMLİ: Hareket animasyonla AYNI ANDA, tetiklendiği " +
+                 "an başlaması gerektiği için artık Animator klip uzunluğunu BEKLEMİYORUZ — bu süre doğrudan " +
+                 "kullanılıyor. Vanish klibinin süresine yakın bir değer gir ki hareket ile animasyon birlikte bitsin.")]
+        [SerializeField] private float vanishMoveDuration = 0.3f;
+
+        [Header("Base'e Giriş Scale Animasyonu (Pop-In)")]
+        [Tooltip("Tray, ReturnTrayToBase() ile base'e 'ışınlandıktan' sonra küçük scale'de aktif olup " +
+                 "büyüyerek görünsün mü? (Sadece dönüşlerde uygulanır — ilk sahne kurulumunda/booster'da değil.)")]
+        [SerializeField] private float baseScaleInStartScale = 0.3f;
+
+        [Tooltip("Küçükten normale büyüme süresi (saniye).")]
+        [SerializeField] private float baseScaleInDuration = 0.25f;
+
+        [Tooltip("Büyüme ease eğrisi — 'pop' hissi için OutBack iyi durur.")]
+        [SerializeField] private Ease baseScaleInEase = Ease.OutBack;
+
         [Header("Sayı Etiketi")]
         [Tooltip("Tray'in kalan kapasitesini gösteren 3D etiket (Canvas değil, normal derinlik testine tabi). " +
                  "Kökün (bu objenin) child'ı olmalı, visualModel'in DEĞİL — böylece path dönüşünden etkilenmez.")]
@@ -131,7 +165,7 @@ namespace RestaurantLoop
                 Debug.LogWarning($"Tray [{gameObject.name}]: Visual Model atanmamış — path dönüşü hâlâ kök objeyi (dolayısıyla CountLabel'ı da) etkileyecek.", this);
         }
 
-        public void ParkAtBase(TrayManager manager, Vector3 pos)
+        public void ParkAtBase(TrayManager manager, Vector3 pos, bool scaleIn = false)
         {
             if (moveRoutine != null)
             {
@@ -146,10 +180,26 @@ namespace RestaurantLoop
             }
 
             trayManager = manager;
+
+            // ÖNEMLİ FIX: ModelTransform'un yanı sıra KÖK transform'u da
+            // (transform) DOKill ediyoruz. Sebep: kuyrukta beklerken bu
+            // tepsi RefreshBaseQueuePositions() tarafından kendi ROOT
+            // transform'una bir DOMove tween'i almış olabilir (sıradaki
+            // yerini almak için). Eğer bu tray çok hızlı tekrar konveyöre
+            // çıkarılırsa ve bu tween öldürülmezse, konveyör hareketi
+            // (transform.position'ı elle set eden MoveSegment) ile bu eski
+            // "base slotuna git" tween'i AYNI ANDA aynı transform'u
+            // kontrol etmeye çalışır — tepsi konveyörde ilerlerken görünmez
+            // bir güçle base'e doğru çekiliyormuş gibi davranır.
+            transform.DOKill();
             transform.position = pos;
 
             // ÖNEMLİ: Rotasyon artık KÖK objeye değil, visualModel'e uygulanıyor.
             // Kök hep identity/sabit kalır, CountLabel (kökün child'ı) bundan etkilenmez.
+            // NOT: ModelTransform.DOKill() aşağıda çağrılıyor — bu, VanishThenReturnToBase()
+            // içinde başlatılan geri+yukarı DOTween hareketini de burada otomatik temizler,
+            // böylece tepsi base'e her döndüğünde ModelTransform'un local pozisyonu
+            // sıfırlanmış/temiz bir durumdan devam eder.
             ModelTransform.rotation = manager != null
                 ? manager.BaseStackRotation
                 : Quaternion.identity;
@@ -166,7 +216,25 @@ namespace RestaurantLoop
             debugAxisUnchangedThisSegment = false;
 
             ModelTransform.DOKill();
-            ModelTransform.localScale = Vector3.one;
+            ModelTransform.localPosition = Vector3.zero;
+
+            if (scaleIn)
+            {
+                // Tepsi base'e ışınlandıktan sonra küçük başlayıp büyüyerek
+                // görünür — pop-in efekti. Bu satır, çağıran taraf (TrayManager.
+                // ReturnTrayToBase) tray'i gameObject.SetActive(true) yapmadan
+                // ÖNCE bu metodu çağırdığı için sorunsuz çalışır: küçük scale
+                // obje aktif olmadan set edilmiş oluyor, aktif olduğu an
+                // zaten büyümeye başlamış (ya da başlamak üzere) durumda.
+                ModelTransform.localScale = Vector3.one * baseScaleInStartScale;
+                ModelTransform
+                    .DOScale(Vector3.one, baseScaleInDuration)
+                    .SetEase(baseScaleInEase);
+            }
+            else
+            {
+                ModelTransform.localScale = Vector3.one;
+            }
 
             enabled = false;
         }
@@ -203,8 +271,18 @@ namespace RestaurantLoop
             customersReservedByThisTray.Clear();
             pendingCheckCells.Clear();
 
+            // ÖNEMLİ FIX: transform.DOKill() — bu tray hâlâ base kuyruğunda
+            // beklerken RefreshBaseQueuePositions() tarafından ROOT transform'a
+            // (sıradaki yerine kaymak için) bir DOMove tween'i uygulanmış
+            // olabilir. Tray çok hızlı art arda tekrar konveyöre çıkarılırsa
+            // (hızlı launch), bu eski tween ölmeden konveyör hareketiyle aynı
+            // transform üzerinde YARIŞIR — tepsi konveyörde ilerlerken görünmez
+            // bir güçle eski base slotuna doğru çekiliyormuş gibi davranırdı.
+            // ModelTransform.DOKill() zaten vardı, şimdi root için de ekliyoruz.
+            transform.DOKill();
             ModelTransform.DOKill();
             ModelTransform.localScale = Vector3.one;
+            ModelTransform.localPosition = Vector3.zero;
 
             SetState(TrayState.InConveyor);
 
@@ -366,9 +444,63 @@ namespace RestaurantLoop
             }
         }
 
+        /// <summary>
+        /// Vanish tetiklendiği AN çağrılır (Animator'ın state'e girdiğini
+        /// onaylamasını BEKLEMEZ — bu bekleme, Any State geçişinde bir
+        /// crossfade/transition duration varsa hareketin gözle görülür
+        /// gecikmeli başlamasına sebep oluyordu).
+        ///
+        /// Hareket YÖNÜ iki farklı eksenin toplamı:
+        /// - GERİ: tepsinin yemek fırlattığı yönün TAM TERSİ, yani
+        ///   -ModelTransform.forward. Bu, o anki rotasyona göre hesaplanır
+        ///   (dünya ekseni sabit DEĞİL — tepsi nereye bakıyorsa ters yöne gider).
+        ///   Ayrıca bu yön, dünya +Y ekseni etrafında [-vanishMoveAngleNoise,
+        ///   +vanishMoveAngleNoise] derece aralığında RASTGELE döndürülür —
+        ///   her tepsi tam aynı çizgide değil, hafif farklı açılarda gider.
+        /// - YUKARI: sabit dünya +Y ekseni (Vector3.up) — yönden bağımsız,
+        ///   her zaman yukarı.
+        /// </summary>
+        private void PlayVanishMoveTween()
+        {
+            if (ModelTransform == null)
+                return;
+
+            if (vanishMoveDistance <= 0f && vanishMoveUpDistance <= 0f)
+                return;
+
+            // Önceki (varsa) hareket tween'ini öldür, sıfırdan başlat.
+            ModelTransform.DOKill();
+
+            Vector3 startPos = ModelTransform.position;
+
+            // Tepsinin o anki bakış yönünün TAM TERSİ (geri), etrafında
+            // rastgele bir açı kadar sapmış.
+            Vector3 backwardDir = ModelTransform.forward;
+
+            if (vanishMoveAngleNoise > 0f)
+            {
+                float randomAngle = Random.Range(-vanishMoveAngleNoise, vanishMoveAngleNoise);
+                backwardDir = Quaternion.AngleAxis(randomAngle, Vector3.up) * backwardDir;
+            }
+
+            Vector3 targetPos = startPos
+                + backwardDir.normalized * vanishMoveDistance
+                + Vector3.up * vanishMoveUpDistance;
+
+            ModelTransform
+                .DOMove(targetPos, vanishMoveDuration)
+                .SetEase(vanishMoveEase);
+        }
+
         private IEnumerator VanishThenReturnToBase()
         {
             SetState(TrayState.Vanishing);
+
+            // ÖNEMLİ: Hareket, Animator'ın state'e GERÇEKTEN girdiğini
+            // onaylamasını beklemeden, trigger'ın atıldığı AYNI ANDA başlar.
+            // Böylece bir crossfade/transition duration yüzünden hareketin
+            // animasyondan geç kalması engellenmiş oluyor.
+            PlayVanishMoveTween();
 
             if (trayAnimator != null)
             {
@@ -388,6 +520,10 @@ namespace RestaurantLoop
                 {
                     yield return null;
                 }
+            }
+            else
+            {
+                yield return new WaitForSeconds(vanishMoveDuration);
             }
 
             vanishRoutine = null;
