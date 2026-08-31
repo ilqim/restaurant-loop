@@ -323,6 +323,21 @@ namespace RestaurantLoop
                 );
             }
 
+            // İSTEK: Sahne başladığı anda TÜM müşteriler aynı state'i
+            // (ör. Idle) TAM AYNI andan (t=0) oynatmaya başladığı için
+            // hepsi senkron sallanıyordu. Çözüm: o an oynayan state'i
+            // (hangi state olduğunu BİLMEMİZE gerek kalmadan) rastgele
+            // bir normalize zaman noktasından (0-1 arası) tekrar
+            // başlatıyoruz — bu, aynı loop içinde farklı bir "faz"a
+            // atlamak demek, senkronu tamamen kırıyor. Pool'dan her
+            // yeniden kullanımda da (Init her çağrıldığında) TEKRAR
+            // rastgele bir noktadan başlar.
+            if (animator != null)
+            {
+                var stateInfo = animator.GetCurrentAnimatorStateInfo(0);
+                animator.Play(stateInfo.fullPathHash, 0, Random.Range(0f, 1f));
+            }
+
             // Pool'dan dönen objede headRenderer referansı ve materyali
             // garantiye al — önceki kullanımdan yarım kalmış "gözler
             // kapalı" materyaliyle spawn olmasın diye açığa sıfırlanıyor.
