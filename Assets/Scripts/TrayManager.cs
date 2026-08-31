@@ -635,7 +635,14 @@ namespace RestaurantLoop
             var facings = gridManager.WaypointFacingDirections;
             if (facings != null && facings.Count > 0 && facings[0].sqrMagnitude > 0.0001f)
             {
-                trayToLaunch.ModelTransform.rotation = Quaternion.LookRotation(facings[0], Vector3.up);
+                // FIX: ModelTransform.rotation'a ARTIK DOĞRUDAN YAZILMIYOR.
+                // Tray.cs'teki yeni sallanma (inertia sway) sistemi her frame
+                // ModelTransform.rotation'ı kendi "headingRotation" kaydına göre
+                // yeniden hesaplayıp yazıyor; buraya doğrudan bir atama yapılırsa
+                // (tray'in component'i o an enabled ise) bir sonraki LateUpdate'te
+                // sessizce geri alınırdı. SetFacingRotationImmediate() bu kaydı da
+                // güncelleyerek çakışmayı önlüyor.
+                trayToLaunch.SetFacingRotationImmediate(Quaternion.LookRotation(facings[0], Vector3.up));
             }
 
             if(trayToLaunch != null)

@@ -73,6 +73,70 @@ namespace RestaurantLoop
                  "Kökün (bu objenin) child'ı olmalı, visualModel'in DEĞİL — böylece path dönüşünden etkilenmez.")]
         [SerializeField] private WorldSpaceCountLabel countLabel;
 
+        [Header("Sallanma / Eylemsizlik — Tepsi Gövdesi (Inertia Sway)")]
+        [Tooltip("Konveyörde hareket ederken tepsinin (ModelTransform = mesh) ivmeye göre sallanmasını aç/kapat. " +
+                 "Örn: tepsi ileri hızlanınca hafifçe GERİYE yaslanır, yavaşlayınca/dönerken de buna göre eğilir.")]
+        [SerializeField] private bool enableInertiaSway = true;
+
+        [Tooltip("İvmenin sallanma açısına dönüşüm hassasiyeti. Büyütürsen daha sert/abartılı sallanır. " +
+                 "Yön ters geliyorsa bu değerin işaretini (-) yap.")]
+        [SerializeField] private float bodySwaySensitivity = 3f;
+
+        [Tooltip("Gövde sallanmasının maksimum açısı (derece) — bu değeri aşmaz, ne kadar sert frenlerse frenlesin.")]
+        [SerializeField] private float bodyMaxSwayAngle = 6f;
+
+        [Tooltip("Gövde sallanma yayının sertliği. Büyük = hızlı tepki/az gecikme, küçük = yumuşak/gecikmeli.")]
+        [SerializeField] private float bodySwayStiffness = 120f;
+
+        [Tooltip("Gövde sallanma yayının sönümü. Kritik sönüme (≈2*sqrt(stiffness)) ne kadar yakınsa salınım " +
+                 "o kadar çabuk kesilir; düşük tutarsan birkaç kez ileri-geri sallanıp durur.")]
+        [SerializeField] private float bodySwayDamping = 16f;
+
+        [Header("Sallanma — Yığın (Üst Üste Yemekler)")]
+        [Tooltip("Yemek yığınının, tepsi gövdesinin ÜZERİNE binen ek ve DAHA GEVŞEK bir sallanmasını aç/kapat. " +
+                 "Yığın, ModelTransform'un origin'inde duran tek bir pivot (StackSwayPivot) etrafında döner; " +
+                 "parçalar bu pivota göre farklı yüksekliklerde durduğu için ÜSTTEKİ parçalar kaldıraç kolu " +
+                 "uzun olduğundan ALTTAKİLERDEN otomatik olarak daha fazla yer değiştirir — katman başına " +
+                 "ayrı kod yazmaya gerek kalmadan 'üsttekiler daha çok sallanıyor' hissi buradan gelir.")]
+        [SerializeField] private bool enableStackSway = true;
+
+        [Tooltip("Yığının ivmeye tepki hassasiyeti. Gövdeninkinden genelde YÜKSEK tutulur ki yemekler " +
+                 "tepsiden daha gevşek/geç tepki versin.")]
+        [SerializeField] private float stackSwaySensitivity = 6f;
+
+        [Tooltip("Yığın sallanmasının maksimum açısı (derece). Gövdeninkinden büyük tutulması önerilir.")]
+        [SerializeField] private float stackMaxSwayAngle = 16f;
+
+        [Tooltip("Yığın yayının sertliği — gövdeninkinden DÜŞÜK tutulmalı ki daha geç ve salınımlı (overshoot'lu) tepki versin.")]
+        [SerializeField] private float stackSwayStiffness = 40f;
+
+        [Tooltip("Yığın yayının sönümü — gövdeninkinden düşük tutulursa yığın birkaç kez ileri-geri sallanıp öyle durur.")]
+        [SerializeField] private float stackSwayDamping = 6f;
+
+        [Tooltip("İvme hesaplanırken kullanılan hız, ani frame dalgalanmalarından etkilenmesin diye bu kadar " +
+                 "saniyelik pencerede yumuşatılır (0 = yumuşatma yok, ham ivme kullanılır).")]
+        [SerializeField] private float velocitySmoothingTime = 0.08f;
+
+        [Header("Yığın — Doğrusal Geri Kayma (Rotasyonsuz, Katman Bazlı)")]
+        [Tooltip("AÇIKSA yığın parçaları artık rotasyonla DEĞİL, DÜZ ÇİZGİDE geriye doğru kayarak eylemsizlik " +
+                 "gösterir — en ÜST katman en çok, en ALT katman en az kayar. Yukarıdaki rotasyonel yığın " +
+                 "sallanmasından (Enable Stack Sway) TAMAMEN BAĞIMSIZDIR, ikisi aynı anda açık olabilir ve " +
+                 "üst üste biner.")]
+        [SerializeField] private bool enableStackLinearLag = false;
+
+        [Tooltip("İvmenin doğrusal kayma MESAFESİNE (açıya değil) dönüşüm hassasiyeti.")]
+        [SerializeField] private float stackLinearLagSensitivity = 0.05f;
+
+        [Tooltip("Maksimum kayma mesafesi (dünya birimi). Bu, EN ÜST katman için geçerli tavandır; alt " +
+                 "katmanlar bunun bir oranı kadar (katman yüksekliğine göre) kayar.")]
+        [SerializeField] private float stackLinearLagMaxDistance = 0.35f;
+
+        [Tooltip("Doğrusal kayma yayının sertliği — büyük = hızlı tepki, küçük = yumuşak/gecikmeli.")]
+        [SerializeField] private float stackLinearLagStiffness = 35f;
+
+        [Tooltip("Doğrusal kayma yayının sönümü — düşük tutarsan parçalar birkaç kez ileri-geri kayıp öyle durur.")]
+        [SerializeField] private float stackLinearLagDamping = 6f;
+
         [Header("Yönelim")]
         [SerializeField] private float rotationSmoothing = 15f;
 
@@ -117,6 +181,42 @@ namespace RestaurantLoop
 
         public TrayState CurrentState => currentState;
 
+        // ---------------------------------------------------------------
+        // Sallanma (Inertia Sway) — çalışma zamanı durumu
+        // ---------------------------------------------------------------
+
+        // ModelTransform'un "saf" (sallanma katılmamış) hedef rotasyonu.
+        // TEK doğru kaynak burasıdır — ModelTransform.rotation'a artık başka
+        // hiçbir yerden direkt yazılmıyor, hep bu alandan + sallanmadan üretiliyor.
+        // (Aksi halde sallanma açısı, slerp/atama zincirine sızıp zamanla
+        // "heading" içine karışır ve tepsi kalıcı olarak yamulmuş görünebilir.)
+        private Quaternion headingRotation = Quaternion.identity;
+
+        // Yığının (yemek stack'i) ModelTransform origin'inde duran, sadece
+        // sallanma için var olan pivotu. Tüm stack parçaları artık
+        // ModelTransform yerine buna bağlanıyor.
+        private Transform stackSwayPivot;
+
+        // Gövde (ModelTransform) sallanma yayı — iki eksen: pitch (ileri/geri) ve roll (yanlara).
+        private float bodyPitch, bodyPitchVel;
+        private float bodyRoll, bodyRollVel;
+
+        // Yığın (stack) sallanma yayı — gövdeden bağımsız, daha gevşek.
+        private float stackPitch, stackPitchVel;
+        private float stackRoll, stackRollVel;
+
+        // Yığın doğrusal (rotasyonsuz) geri kayma yayı — TEK paylaşılan
+        // değer; her parçaya kendi katman oranıyla çarpılarak uygulanır
+        // (bkz. LateUpdate). En üst katman = tam değer, alt katmanlar orantılı az.
+        private float stackLinearLagValue, stackLinearLagVel;
+
+        // Hız/ivme takibi (kök transform.position üzerinden — vanish hareketi
+        // sadece ModelTransform'u etkilediği için buraya karışmaz).
+        private Vector3 previousPosition;
+        private Vector3 smoothedVelocity;
+        private Vector3 velocitySmoothDampVel;
+        private Vector3 previousSmoothedVelocity;
+
         private readonly HashSet<Customer> customersReservedByThisTray = new();
         private readonly List<Vector2Int> pendingCheckCells = new();
 
@@ -153,6 +253,21 @@ namespace RestaurantLoop
         /// </summary>
         public Transform ModelTransform => visualModel != null ? visualModel : transform;
 
+        /// <summary>
+        /// TrayManager gibi DIŞARIDAN tepsinin yön (facing) rotasyonunu ayarlamak
+        /// isteyen kodlar ModelTransform.rotation'a DOĞRUDAN yazmak yerine BUNU
+        /// çağırmalı. Sebep: iç sallanma sistemi (headingRotation + LateUpdate)
+        /// her frame ModelTransform.rotation'ı kendi hesapladığı değere göre
+        /// YENİDEN yazıyor; dışarıdan yapılan doğrudan bir atama, component o an
+        /// enabled ise bir sonraki LateUpdate'te sessizce geri alınır (üzerine
+        /// yazılır). Bu metod atamanın "resmi" heading kaydına (headingRotation)
+        /// da işlenmesini sağlayarak bu çakışmayı önler.
+        /// </summary>
+        public void SetFacingRotationImmediate(Quaternion rotation)
+        {
+            SetHeadingRotation(rotation);
+        }
+
         private void Awake()
         {
             if (trayAnimator == null)
@@ -163,6 +278,18 @@ namespace RestaurantLoop
 
             if (visualModel == null)
                 Debug.LogWarning($"Tray [{gameObject.name}]: Visual Model atanmamış — path dönüşü hâlâ kök objeyi (dolayısıyla CountLabel'ı da) etkileyecek.", this);
+
+            // Yığın sallanma pivotu: ModelTransform'un origin'inde, sadece
+            // stack parçalarını taşımak ve onlara kendi (gövdeden bağımsız,
+            // daha gevşek) sallanmasını uygulamak için var.
+            if (stackSwayPivot == null)
+            {
+                var pivotGO = new GameObject("StackSwayPivot (Auto)");
+                stackSwayPivot = pivotGO.transform;
+                stackSwayPivot.SetParent(ModelTransform, false); // false: local pos/rot origin'e sıfırlanır
+            }
+
+            previousPosition = transform.position;
         }
 
         public void ParkAtBase(TrayManager manager, Vector3 pos, bool scaleIn = false)
@@ -194,15 +321,21 @@ namespace RestaurantLoop
             transform.DOKill();
             transform.position = pos;
 
+            // Sallanma durumunu (gövde + yığın yayları, hız takibi) sıfırla —
+            // aksi halde bir önceki turdan kalan hız/ivme, tepsi ışınlanır
+            // ışınlanmaz sahte bir sallanma sıçraması yaratır.
+            ResetSwayState();
+
             // ÖNEMLİ: Rotasyon artık KÖK objeye değil, visualModel'e uygulanıyor.
             // Kök hep identity/sabit kalır, CountLabel (kökün child'ı) bundan etkilenmez.
             // NOT: ModelTransform.DOKill() aşağıda çağrılıyor — bu, VanishThenReturnToBase()
             // içinde başlatılan geri+yukarı DOTween hareketini de burada otomatik temizler,
             // böylece tepsi base'e her döndüğünde ModelTransform'un local pozisyonu
             // sıfırlanmış/temiz bir durumdan devam eder.
-            ModelTransform.rotation = manager != null
-                ? manager.BaseStackRotation
-                : Quaternion.identity;
+            SetHeadingRotation(
+                manager != null
+                    ? manager.BaseStackRotation
+                    : Quaternion.identity);
 
             ClearStackVisuals();
 
@@ -297,6 +430,12 @@ namespace RestaurantLoop
             Vector3 startPos = trayManager.GetWaypointPosition(0);
             transform.position = startPos;
 
+            // Sallanma durumunu sıfırla — previousPosition'ı yeni başlangıç
+            // noktasına göre yeniden seed'liyoruz, aksi halde ilk frame'de
+            // (eski konumdan yeni konuma "ışınlanma" farkından) devasa sahte
+            // bir hız/ivme okunup tepsi sahte bir sallanmayla başlar.
+            ResetSwayState();
+
             var facings = gridManager.WaypointFacingDirections;
 
             if (facings != null &&
@@ -304,11 +443,11 @@ namespace RestaurantLoop
                 facings[0].sqrMagnitude > 0.0001f)
             {
                 // ÖNEMLİ: Yönelim artık visualModel'e uygulanıyor, köke değil.
-                ModelTransform.rotation =
+                SetHeadingRotation(
                     Quaternion.LookRotation(
                         facings[0],
                         Vector3.up
-                    );
+                    ));
             }
 
             cumulativeMovementDistance = new float[waypoints.Count];
@@ -377,6 +516,13 @@ namespace RestaurantLoop
                 float xOffset = (posInLayer == 0 || posInLayer == 2) ? -half : half;
                 float zOffset = (posInLayer == 0 || posInLayer == 1) ? half : -half;
 
+                // Hazır (pre-spawned) parçalar da yığın sallanmasına katılsın
+                // diye stackSwayPivot'a taşınıyor. worldPositionStays: true —
+                // parça zaten doğru dünya konumundaysa yer değiştirmesin,
+                // sadece parent'ı (ve dolayısıyla sallanma davranışı) değişsin.
+                if (pieces[i] != null)
+                    pieces[i].transform.SetParent(stackSwayPivot, true);
+
                 stackPieceInfos.Add(new StackPieceInfo
                 {
                     go = pieces[i],
@@ -411,6 +557,172 @@ namespace RestaurantLoop
 
         // Billboard rotasyonu WorldSpaceCountLabel'ın kendi LateUpdate'inde
         // yapılıyor — Tray'in ayrıca bir şey yapmasına gerek yok.
+
+        // ---------------------------------------------------------------
+        // Sallanma (Inertia Sway)
+        // ---------------------------------------------------------------
+
+        /// <summary>
+        /// ModelTransform'un rotasyonunu ayarlamanın TEK doğru yolu. Sallanma
+        /// açıları (bodyPitch/bodyRoll) her zaman burada, "saf" heading'in
+        /// üzerine bindirilir. Kod tabanındaki hiçbir yer artık
+        /// ModelTransform.rotation'a doğrudan yazmıyor — bu, sallanmanın
+        /// zamanla heading içine sızıp kalıcı bir yamulmaya dönüşmesini engeller.
+        /// </summary>
+        private void SetHeadingRotation(Quaternion rotation)
+        {
+            headingRotation = rotation;
+            ModelTransform.rotation = headingRotation * Quaternion.Euler(bodyPitch, 0f, bodyRoll);
+        }
+
+        /// <summary>
+        /// Sallanma ile ilgili TÜM çalışma zamanı durumunu (yaylar, hız/ivme
+        /// takibi) sıfırlar. Tray her "ışınlandığında" (ParkAtBase, Init)
+        /// çağrılmalı — aksi halde önceki konumdan yeni konuma sıçrama, dev
+        /// bir sahte hız/ivme olarak okunup anlamsız bir sallanma sıçraması yaratır.
+        /// </summary>
+        private void ResetSwayState()
+        {
+            bodyPitch = bodyPitchVel = 0f;
+            bodyRoll = bodyRollVel = 0f;
+            stackPitch = stackPitchVel = 0f;
+            stackRoll = stackRollVel = 0f;
+            stackLinearLagValue = stackLinearLagVel = 0f;
+
+            smoothedVelocity = Vector3.zero;
+            velocitySmoothDampVel = Vector3.zero;
+            previousSmoothedVelocity = Vector3.zero;
+            previousPosition = transform.position;
+
+            if (stackSwayPivot != null)
+                stackSwayPivot.localRotation = Quaternion.identity;
+        }
+
+        /// <summary>
+        /// Basit bir kritik-sönümlü yay (spring-damper) adımı. value, target'a
+        /// doğru stiffness/damping'e göre yumuşakça (ve gerekirse hafif
+        /// salınarak) yaklaşır. Hem gövde hem yığın sallanması bunu kullanır.
+        /// </summary>
+        private static void SpringTowards(ref float value, ref float velocity, float target, float stiffness, float damping, float dt)
+        {
+            float force = (target - value) * stiffness - velocity * damping;
+            velocity += force * dt;
+            value += velocity * dt;
+        }
+
+        private void LateUpdate()
+        {
+            if (!enableInertiaSway && !enableStackSway)
+            {
+                // Sallanma tamamen kapalıysa gereksiz hesap yapmadan sadece
+                // saf heading'i uygula.
+                ModelTransform.rotation = headingRotation;
+
+                if (stackSwayPivot != null)
+                    stackSwayPivot.localRotation = Quaternion.identity;
+
+                previousPosition = transform.position;
+                return;
+            }
+
+            float dt = Time.deltaTime;
+
+            if (dt <= 0f)
+                return;
+
+            // --- Hız ve ivme (kök transform.position üzerinden) ---
+            Vector3 rawVelocity = (transform.position - previousPosition) / dt;
+            previousPosition = transform.position;
+
+            smoothedVelocity = velocitySmoothingTime > 0f
+                ? Vector3.SmoothDamp(smoothedVelocity, rawVelocity, ref velocitySmoothDampVel, velocitySmoothingTime)
+                : rawVelocity;
+
+            Vector3 acceleration = (smoothedVelocity - previousSmoothedVelocity) / dt;
+            previousSmoothedVelocity = smoothedVelocity;
+
+            // İvmeyi tepsinin o anki BAKIŞ yönüne (headingRotation) göre yerel
+            // eksene çeviriyoruz: "ileri ivme -> geriye yaslanma",
+            // "yana ivme (dönüş) -> yana yaslanma" doğru çıksın diye.
+            Vector3 localAccel = Quaternion.Inverse(headingRotation) * acceleration;
+
+            // --- Gövde (tepsinin kendisi) sallanması ---
+            if (enableInertiaSway)
+            {
+                float bodyPitchTarget = Mathf.Clamp(-localAccel.z * bodySwaySensitivity, -bodyMaxSwayAngle, bodyMaxSwayAngle);
+                float bodyRollTarget = Mathf.Clamp(localAccel.x * bodySwaySensitivity, -bodyMaxSwayAngle, bodyMaxSwayAngle);
+
+                SpringTowards(ref bodyPitch, ref bodyPitchVel, bodyPitchTarget, bodySwayStiffness, bodySwayDamping, dt);
+                SpringTowards(ref bodyRoll, ref bodyRollVel, bodyRollTarget, bodySwayStiffness, bodySwayDamping, dt);
+            }
+            else
+            {
+                bodyPitch = bodyPitchVel = 0f;
+                bodyRoll = bodyRollVel = 0f;
+            }
+
+            ModelTransform.rotation = headingRotation * Quaternion.Euler(bodyPitch, 0f, bodyRoll);
+
+            // --- Yığın (üst üste yemekler) sallanması — gövdeden bağımsız,
+            // daha gevşek bir yay. StackSwayPivot, ModelTransform'un ÇOCUĞU
+            // olduğu için gövde sallanmasının (yukarıdaki satır) ÜZERİNE
+            // biniyor; ayrıca parçalar farklı yüksekliklerde durduğundan aynı
+            // açı bile üsttekini alttakinden daha çok hareket ettiriyor. ---
+            if (enableStackSway && stackSwayPivot != null)
+            {
+                float stackPitchTarget = Mathf.Clamp(-localAccel.z * stackSwaySensitivity, -stackMaxSwayAngle, stackMaxSwayAngle);
+                float stackRollTarget = Mathf.Clamp(localAccel.x * stackSwaySensitivity, -stackMaxSwayAngle, stackMaxSwayAngle);
+
+                SpringTowards(ref stackPitch, ref stackPitchVel, stackPitchTarget, stackSwayStiffness, stackSwayDamping, dt);
+                SpringTowards(ref stackRoll, ref stackRollVel, stackRollTarget, stackSwayStiffness, stackSwayDamping, dt);
+
+                stackSwayPivot.localRotation = Quaternion.Euler(stackPitch, 0f, stackRoll);
+            }
+            else if (stackSwayPivot != null)
+            {
+                stackPitch = stackPitchVel = 0f;
+                stackRoll = stackRollVel = 0f;
+                stackSwayPivot.localRotation = Quaternion.identity;
+            }
+
+            // --- Yığın — Doğrusal Geri Kayma (rotasyonsuz, katman bazlı) ---
+            // ROTASYONDAN FARKLI: parçalar DÖNMÜYOR, düz çizgide (o anki
+            // GERİ yönde) kayıyor. Üstteki katman en çok, alttaki katman en
+            // az kayar — TEK paylaşılan bir yay değeri (stackLinearLagValue)
+            // hesaplanıp her parçaya kendi katman oranıyla (layerIndex+1 /
+            // toplam katman sayısı) çarpılarak uygulanıyor. Kapalıyken (veya
+            // ivme sıfırken) parçalar tam spawn pozisyonuna döner.
+            if (enableStackLinearLag)
+            {
+                float linearLagTarget = Mathf.Clamp(-localAccel.z * stackLinearLagSensitivity, -stackLinearLagMaxDistance, stackLinearLagMaxDistance);
+                SpringTowards(ref stackLinearLagValue, ref stackLinearLagVel, linearLagTarget, stackLinearLagStiffness, stackLinearLagDamping, dt);
+            }
+            else
+            {
+                stackLinearLagValue = stackLinearLagVel = 0f;
+            }
+
+            if (stackPieceInfos.Count > 0)
+            {
+                int totalLayers = Mathf.Max(1, currentLayerCount);
+
+                foreach (var piece in stackPieceInfos)
+                {
+                    if (piece.go == null)
+                        continue;
+
+                    float layerScale = (piece.layerIndex + 1) / (float)totalLayers;
+
+                    Vector3 basePos = new Vector3(
+                        piece.offsetXZ.x,
+                        config.foodBaseYOffset + piece.layerIndex * config.pieceHeightSpacing,
+                        piece.offsetXZ.y
+                    );
+
+                    piece.go.transform.localPosition = basePos + Vector3.forward * (stackLinearLagValue * layerScale);
+                }
+            }
+        }
 
         // ---------------------------------------------------------------
         // Tray State / Animasyon
@@ -459,6 +771,10 @@ namespace RestaurantLoop
         ///   her tepsi tam aynı çizgide değil, hafif farklı açılarda gider.
         /// - YUKARI: sabit dünya +Y ekseni (Vector3.up) — yönden bağımsız,
         ///   her zaman yukarı.
+        ///
+        /// NOT: Bu hareket sadece ModelTransform'un POZİSYONUNU değiştirir;
+        /// StackSwayPivot onun ÇOCUĞU olduğu için yığın da otomatik olarak
+        /// tepsiyle birlikte geri/yukarı gider — ayrı bir şey yapmaya gerek yok.
         /// </summary>
         private void PlayVanishMoveTween()
         {
@@ -757,22 +1073,22 @@ namespace RestaurantLoop
                     ? half
                     : -half;
 
-            // ÖNEMLİ: Parent artık ModelTransform — stack parçaları görsel
-            // model ile BİRLİKTE dönsün istiyoruz (kökle değil), aksi halde
-            // tray köşede dönerken üzerindeki yemek yığını sabit kalır gibi
-            // görünürdü.
+            // ÖNEMLİ: Parent artık StackSwayPivot — stack parçaları hem
+            // görsel model ile BİRLİKTE (path dönüşü, vanish hareketi, gövde
+            // sallanması) dönsün, HEM DE kendi ek/gevşek yığın sallanmasına
+            // sahip olsun istiyoruz. (Eskiden doğrudan ModelTransform'du.)
             GameObject piece =
                 ObjectPool.Instance != null
                     ? ObjectPool.Instance.Get(
                         config.stackPiecePrefab,
-                        ModelTransform.position,
+                        stackSwayPivot.position,
                         config.stackPiecePrefab.transform.rotation,
-                        ModelTransform)
+                        stackSwayPivot)
                     : Instantiate(
                         config.stackPiecePrefab,
-                        ModelTransform.position,
+                        stackSwayPivot.position,
                         config.stackPiecePrefab.transform.rotation,
-                        ModelTransform);
+                        stackSwayPivot);
 
             float yOffset =
                 config.foodBaseYOffset +
@@ -821,7 +1137,10 @@ namespace RestaurantLoop
                 return;
 
             // ÖNEMLİ: ModelTransform üzerinden — tray'in GERÇEK görsel
-            // yönelimine göre hesaplanmalı, sabit kalan kökün rotasyonuna göre DEĞİL.
+            // yönelimine (heading + gövde sallanması) göre hesaplanmalı,
+            // yığının kendi ekstra (gevşek) sallanmasına göre DEĞİL —
+            // aksi halde hangi parçanın seçileceği yığın sallanması yüzünden
+            // frame frame değişip kararsız/titrek bir seçim yapardı.
             Vector3 localDir =
                 ModelTransform.InverseTransformDirection(
                     dirToCustomerWorld
@@ -1025,13 +1344,15 @@ namespace RestaurantLoop
                     : 0f;
 
             // ÖNEMLİ: Hedef rotasyon hesaplanırken "şu anki rotasyon" artık
-            // ModelTransform'dan okunuyor (kökten değil).
+            // headingRotation'dan okunuyor (ModelTransform.rotation'dan DEĞİL —
+            // o an ModelTransform sallanma açısını da içerdiği için, onu hedef
+            // olarak kullanmak sallanmanın zamanla heading'e sızmasına yol açardı).
             Quaternion targetRotation =
                 targetFacing.sqrMagnitude > 0.0001f
                     ? Quaternion.LookRotation(
                         targetFacing,
                         Vector3.up)
-                    : ModelTransform.rotation;
+                    : headingRotation;
 
             float elapsed = 0f;
 
@@ -1054,16 +1375,19 @@ namespace RestaurantLoop
                         t
                     );
 
-                // ROTASYON artık ModelTransform'a uygulanıyor — kök hep sabit
-                // kalıyor, CountLabel (kökün child'ı) bundan etkilenmiyor.
-                ModelTransform.rotation =
+                // ROTASYON (saf heading) hesaplanıp SetHeadingRotation ile
+                // uygulanıyor; asıl görünen ModelTransform.rotation, bunun
+                // üstüne LateUpdate'te bindirilen sallanmayla birlikte oluşuyor.
+                Quaternion newHeading =
                     rotationSmoothing > 0f
                         ? Quaternion.Slerp(
-                            ModelTransform.rotation,
+                            headingRotation,
                             targetRotation,
                             Time.deltaTime *
                             rotationSmoothing)
                         : targetRotation;
+
+                SetHeadingRotation(newHeading);
 
                 if (totalMovementLength > 0.0001f)
                 {
@@ -1084,7 +1408,7 @@ namespace RestaurantLoop
             }
 
             transform.position = target;
-            ModelTransform.rotation = targetRotation;
+            SetHeadingRotation(targetRotation);
         }
 
         private void AdvanceDeliveryCheckpoints(
