@@ -42,9 +42,19 @@ namespace RestaurantLoop
         [Range(0f, 1f)]
         [SerializeField] private float bubblePunchElasticity = 0.7f;
 
-        [Header("Göz Kırpma (Blink)")]
-        [Tooltip("Kafa objesini buraya sürükle — üzerinde bir Animator olmalı, Trigger parametre adı 'Blink' olmalı.")]
+        [Header("Balon Kaybolma Animasyonu (Yemek Ulaştığında)")]
+        [Tooltip("Yemek müşteriye ulaştığında (ReceiveFood), balon anında kaybolmak yerine bu süre boyunca küçülüp ÖYLE kaybolur.")]
+        [SerializeField] private float bubbleVanishDuration = 0.25f;
+
+        [Header("Göz Kırpma (Blink) — 2 Materyal Arasında Geçiş")]
+        [Tooltip("Kafa objesini buraya sürükle — üzerindeki Renderer otomatik bulunur, kırpma sırasında bu Renderer'ın materyali Eyes Open <-> Eyes Closed arasında değiştirilir.")]
         [SerializeField] private Transform headTransform;
+
+        [Tooltip("Gözler AÇIKKEN kullanılacak materyal (normal görünüm).")]
+        [SerializeField] private Material eyesOpenMaterial;
+
+        [Tooltip("Gözler KAPALIYKEN (kırpma anında) kullanılacak materyal.")]
+        [SerializeField] private Material eyesClosedMaterial;
 
         [Tooltip("Ortalama kaç saniyede bir göz kırpsın.")]
         [SerializeField] private float blinkInterval = 3f;
@@ -52,8 +62,10 @@ namespace RestaurantLoop
         [Tooltip("Aralığın rastgele ne kadar sapabileceği (+/-). Örn. interval=3, variance=1 ise her kırpma 2-4 saniye arasında rastgele olur.")]
         [SerializeField] private float blinkIntervalVariance = 1f;
 
-        private Animator headAnimator;
-        private static readonly int BlinkTriggerHash = Animator.StringToHash("Blink");
+        [Tooltip("Gözler KAPALI materyaliyle ne kadar süre gösterilsin (saniye) — kısa tut, gerçek bir kırpma anlık olur.")]
+        [SerializeField] private float blinkClosedHoldDuration = 0.08f;
+
+        private Renderer headRenderer;
         private Coroutine blinkRoutine;
 
         [Header("Debug")]
@@ -141,9 +153,17 @@ namespace RestaurantLoop
 
             animator = GetComponentInChildren<Animator>();
 
-            // Blink için kafa objesindeki Animator — bir kez cache'leniyor.
+            // Blink için kafa objesindeki Renderer — bir kez cache'lenip
+            // başlangıçta "gözler açık" materyaline sabitleniyor.
             if (headTransform != null)
-                headAnimator = headTransform.GetComponent<Animator>();
+            {
+                headRenderer = headTransform.GetComponent<Renderer>();
+                if (headRenderer == null)
+                    headRenderer = headTransform.GetComponentInChildren<Renderer>();
+
+                if (headRenderer != null && eyesOpenMaterial != null)
+                    headRenderer.material = eyesOpenMaterial;
+            }
 
             // MaterialPropertyBlock hazırla.
             mpb = new MaterialPropertyBlock();
@@ -303,6 +323,22 @@ namespace RestaurantLoop
                 );
             }
 
+            // Pool'dan dönen objede headRenderer referansı ve materyali
+            // garantiye al — önceki kullanımdan yarım kalmış "gözler
+            // kapalı" materyaliyle spawn olmasın diye açığa sıfırlanıyor.
+            if (headTransform != null)
+            {
+                if (headRenderer == null)
+                {
+                    headRenderer = headTransform.GetComponent<Renderer>();
+                    if (headRenderer == null)
+                        headRenderer = headTransform.GetComponentInChildren<Renderer>();
+                }
+
+                if (headRenderer != null && eyesOpenMaterial != null)
+                    headRenderer.material = eyesOpenMaterial;
+            }
+
             // Blink rutinini (yeniden) başlat — pool'dan geri dönen bir
             // customer'da ESKİ rutin varsa önce durdurulur, sonra HER
             // seferinde YENİ bir rastgele başlangıç gecikmesiyle baştan
@@ -311,7 +347,7 @@ namespace RestaurantLoop
             if (blinkRoutine != null)
                 StopCoroutine(blinkRoutine);
 
-            if (headAnimator != null)
+            if (headRenderer != null && eyesOpenMaterial != null && eyesClosedMaterial != null)
                 blinkRoutine = StartCoroutine(BlinkRoutine());
         }
 
@@ -319,9 +355,10 @@ namespace RestaurantLoop
         /// Sürekli tekrar eden göz kırpma döngüsü. İlk bekleme
         /// [0, blinkInterval] arasında TAMAMEN rastgele seçilir — bu
         /// sayede sahne başladığı anda spawn edilen tüm müşteriler farklı
-        /// zamanlarda kırpmaya başlar, hepsi birlikte kırpmaz. Sonraki her
-        /// kırpma da (blinkInterval - variance) ile (blinkInterval +
-        /// variance) arasında rastgele bir süre bekler.
+        /// zamanlarda kırpmaya başlar, hepsi birlikte kırpmaz. Her kırpma:
+        /// Eyes Closed materyaline geç -> blinkClosedHoldDuration kadar
+        /// bekle -> Eyes Open materyaline geri dön -> rastgele bir süre
+        /// daha bekleyip tekrarla.
         /// </summary>
         private System.Collections.IEnumerator BlinkRoutine()
         {
@@ -330,8 +367,13 @@ namespace RestaurantLoop
 
             while (true)
             {
-                if (headAnimator != null)
-                    headAnimator.SetTrigger(BlinkTriggerHash);
+                if (headRenderer != null && eyesClosedMaterial != null)
+                    headRenderer.material = eyesClosedMaterial;
+
+                yield return new WaitForSeconds(Mathf.Max(0.01f, blinkClosedHoldDuration));
+
+                if (headRenderer != null && eyesOpenMaterial != null)
+                    headRenderer.material = eyesOpenMaterial;
 
                 float wait = Mathf.Max(0.05f,
                     blinkInterval + Random.Range(-blinkIntervalVariance, blinkIntervalVariance));
@@ -421,6 +463,33 @@ namespace RestaurantLoop
                 bubblePunchVibrato,
                 bubblePunchElasticity
             );
+        }
+
+        /// <summary>
+        /// Bir balonu (orderBubble ya da blockedOrderBubble) ANINDA
+        /// SetActive(false) yapmak yerine, önce küçülüp kaybolma
+        /// animasyonu oynatır, animasyon bitince gerçekten pasif hale
+        /// getirir ve ölçeğini (bir sonraki kullanım için) eski haline
+        /// geri kor. Zaten pasifse hiçbir şey yapmaz.
+        /// </summary>
+        private void VanishBubble(Transform bubble)
+        {
+            if (bubble == null)
+                return;
+
+            if (!bubble.gameObject.activeSelf)
+                return;
+
+            Vector3 startScale = bubble.localScale;
+
+            bubble.DOKill();
+            bubble.DOScale(Vector3.zero, bubbleVanishDuration)
+                .SetEase(Ease.InBack)
+                .OnComplete(() =>
+                {
+                    bubble.gameObject.SetActive(false);
+                    bubble.localScale = startScale;
+                });
         }
 
 
@@ -545,10 +614,11 @@ namespace RestaurantLoop
             // Banttaki food müşteriyle eşleştiğinde.
             AudioEvents.PlayOrderDelivered();
 
-            // İKİ balonu da kapat — hangisi aktifse (normal ya da blocked
-            // varyantı) artık gösterilmemeli.
-            if (orderBubble != null) orderBubble.gameObject.SetActive(false);
-            if (blockedOrderBubble != null) blockedOrderBubble.gameObject.SetActive(false);
+            // İSTEK: Balon artık ANINDA kapanmıyor — küçülüp kaybolma
+            // animasyonu oynatıp ONDAN SONRA kapanıyor. Hangisi aktifse
+            // (normal ya da blocked varyantı) o animasyonu oynatır.
+            VanishBubble(orderBubble);
+            VanishBubble(blockedOrderBubble);
 
             SetState(CustomerState.Eating);
 
@@ -638,6 +708,11 @@ namespace RestaurantLoop
                 StopCoroutine(blinkRoutine);
                 blinkRoutine = null;
             }
+
+            // Pool'a dönerken gözler "kapalı" materyalinde yarım kalmasın
+            // diye açığa sıfırlıyoruz.
+            if (headRenderer != null && eyesOpenMaterial != null)
+                headRenderer.material = eyesOpenMaterial;
 
             if (orderBubble != null)
                 orderBubble.DOKill();
