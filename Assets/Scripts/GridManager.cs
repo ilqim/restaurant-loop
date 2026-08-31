@@ -35,7 +35,7 @@ namespace RestaurantLoop
         [SerializeField] private GameObject baseCoverPrefab;
 
         [Header("Customer Ground (Yol İçi Zemin)")]
-        [Tooltip("BaseTray (BaseOpening/BaseCover) DIŞINDAKİ HER hücreye — Conveyor, Empty ve CustomerSlot dahil — bu zemin prefabı otomatik yerleştirilir. Boş bırakılırsa hiçbir şey yerleştirilmez.")]
+        [Tooltip("BaseTray (BaseOpening/BaseCover) DIŞINDAKİ hücrelere bu zemin prefabı yerleştirilir: Empty/CustomerSlot hücrelerin TAMAMI (gerçek iç alanda kalanlar) + Conveyor'ın SADECE müşteri tarafına yakın (iç) yarısı — dış şeride konmaz. Boş bırakılırsa hiçbir şey yerleştirilmez.")]
         [SerializeField] private GameObject customerGroundPrefab;
 
         [Header("Customer Prefabs — her yemek tipi için ayrı prefab sürükle")]
@@ -167,9 +167,19 @@ namespace RestaurantLoop
 
                     if (type == CellType.Conveyor)
                     {
-                        // Konveyörün KENDİSİ zaten "içeride" sayılır — hiç
-                        // filtrelemeye gerek yok, altına her zaman zemin konur.
-                        SpawnCustomerGroundTile(r, c);
+                        // GÜNCELLEME: Konveyörün 2 hücre kalınlığındaki
+                        // bandının TAMAMINA değil, SADECE müşteri tarafına
+                        // yakın (iç) yarısına zemin konuyor. Bir konveyör
+                        // hücresi, komşularından EN AZ BİRİ gerçek iç alana
+                        // (insideLoopCells) bitişikse "iç şerit" sayılır ve
+                        // zemin alır — dış şerit (sadece başka conveyor
+                        // hücrelerine ya da grid dışına bitişik olan) zemin
+                        // almaz.
+                        if (IsInnerConveyorCell(r, c, insideLoopCells))
+                        {
+                            SpawnCustomerGroundTile(r, c);
+                        }
+
                         SpawnConveyorTile(r, c);
                     }
                     else if (type == CellType.Empty || type == CellType.CustomerSlot)
@@ -207,6 +217,28 @@ namespace RestaurantLoop
                 }
             }
             SpawnTrayBaseTiles(data);
+        }
+
+        /// <summary>
+        /// Bir Conveyor hücresinin, 2 hücre kalınlığındaki bandın MÜŞTERİ
+        /// tarafına yakın (iç) yarısında mı olduğunu kontrol eder — yani
+        /// komşularından (yukarı/aşağı/sol/sağ) EN AZ BİRİ gerçek iç alana
+        /// (insideLoopCells) bitişik mi. Değilse bu hücre bandın DIŞ
+        /// yarısıdır (sadece başka conveyor hücrelerine ve/veya grid
+        /// dışına bitişiktir) ve zemin almamalıdır.
+        /// </summary>
+        private bool IsInnerConveyorCell(int row, int col, HashSet<Vector2Int> insideLoopCells)
+        {
+            Vector2Int[] neighbors = { new(-1, 0), new(1, 0), new(0, -1), new(0, 1) };
+            Vector2Int cell = new Vector2Int(row, col);
+
+            foreach (var d in neighbors)
+            {
+                if (insideLoopCells.Contains(cell + d))
+                    return true;
+            }
+
+            return false;
         }
 
         /// <summary>
