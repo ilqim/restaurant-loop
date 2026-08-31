@@ -8957,7 +8957,7 @@ MonoBehaviour:
   - data: {fileID: 11400000, guid: 3afe2b710b5c9cf4393e7db10a82dcd3, type: 2}
     difficulty: 0
   - data: {fileID: 11400000, guid: 790cbf3a9e679134f983fb6549f15ed5, type: 2}
-    difficulty: 0
+    difficulty: 1
   - data: {fileID: 11400000, guid: daf8afa8bdedcef498c57c776b5d6af5, type: 2}
     difficulty: 0
   - data: {fileID: 11400000, guid: d8dbc359a095f1e4d8e2744389b5b45b, type: 2}
