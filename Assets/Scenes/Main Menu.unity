@@ -8936,7 +8936,7 @@ MonoBehaviour:
     difficulty: 0
   - data: {fileID: 11400000, guid: bfb064997b4127046868f4e1496c8cd4, type: 2}
     difficulty: 0
-  - data: {fileID: 11400000, guid: 5158d25f0b432e44fbd64690c1aa54b9, type: 2}
+  - data: {fileID: 11400000, guid: 6d14f28626bd9e142a18836c34bc5dd6, type: 2}
     difficulty: 0
   - data: {fileID: 11400000, guid: 1156e184914b0394f9621ed11d5dee4d, type: 2}
     difficulty: 0
@@ -8950,13 +8950,13 @@ MonoBehaviour:
     difficulty: 0
   - data: {fileID: 11400000, guid: bccb30f9abfe0d34fb0d7a151ac27824, type: 2}
     difficulty: 0
-  - data: {fileID: 11400000, guid: 7767c5c3340912843a9885cff52b71f2, type: 2}
+  - data: {fileID: 11400000, guid: 7c995248a1664754e86b4d1e35fa73e5, type: 2}
     difficulty: 1
   - data: {fileID: 11400000, guid: d6184af5f4811ec43a77e84557f8240a, type: 2}
     difficulty: 0
   - data: {fileID: 11400000, guid: 3afe2b710b5c9cf4393e7db10a82dcd3, type: 2}
     difficulty: 0
-  - data: {fileID: 11400000, guid: e5f7d381ebc215e4fb3acf5d0ed3a9cf, type: 2}
+  - data: {fileID: 11400000, guid: 790cbf3a9e679134f983fb6549f15ed5, type: 2}
     difficulty: 0
   - data: {fileID: 11400000, guid: daf8afa8bdedcef498c57c776b5d6af5, type: 2}
     difficulty: 0
@@ -8964,10 +8964,10 @@ MonoBehaviour:
     difficulty: 0
   - data: {fileID: 11400000, guid: a5ff6e8fa78f0084fb8441bb9c6d604e, type: 2}
     difficulty: 0
-  - data: {fileID: 11400000, guid: 9710a036e21d2df4dada7823cb3ca2ee, type: 2}
+  - data: {fileID: 11400000, guid: 68619b9a6055ae24d9390f7a147ae1a4, type: 2}
     difficulty: 2
-  selectBoosterUnlockLevel: 2
-  addTrayBoosterUnlockLevel: 1
+  selectBoosterUnlockLevel: 20
+  addTrayBoosterUnlockLevel: 9
   shuffleBoosterUnlockLevel: 15
   gameplaySceneName: Game
 --- !u!4 &1378133352

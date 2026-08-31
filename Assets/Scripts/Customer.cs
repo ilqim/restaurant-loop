@@ -34,16 +34,27 @@ namespace RestaurantLoop
         [Header("Blocked -> Normal Balon Zıplama (Punch Scale)")]
         [Tooltip("Blocked'tan Blocked-olmayan bir state'e geçildiği ANDA, orderBubble bu kadar 'zıplasın' (0 = hiç zıplama olmaz).")]
         [SerializeField] private float bubblePunchScale = 0.15f;
-
         [Tooltip("Zıplamanın toplam süresi (saniye) — bu süre sonunda otomatik söner, loop YOK.")]
         [SerializeField] private float bubblePunchDuration = 0.4f;
-
         [Tooltip("Kaç kez sallansın (titreşim sayısı) — büyütürsen daha 'titrek', küçültürsen daha yumuşak zıplar.")]
         [SerializeField] private int bubblePunchVibrato = 8;
-
         [Tooltip("Sekme/esneklik miktarı (0=hiç geri sekmez, 1=çok belirgin sekme).")]
         [Range(0f, 1f)]
         [SerializeField] private float bubblePunchElasticity = 0.7f;
+
+        [Header("Göz Kırpma (Blink)")]
+        [Tooltip("Kafa objesini buraya sürükle — üzerinde bir Animator olmalı, Trigger parametre adı 'Blink' olmalı.")]
+        [SerializeField] private Transform headTransform;
+
+        [Tooltip("Ortalama kaç saniyede bir göz kırpsın.")]
+        [SerializeField] private float blinkInterval = 3f;
+
+        [Tooltip("Aralığın rastgele ne kadar sapabileceği (+/-). Örn. interval=3, variance=1 ise her kırpma 2-4 saniye arasında rastgele olur.")]
+        [SerializeField] private float blinkIntervalVariance = 1f;
+
+        private Animator headAnimator;
+        private static readonly int BlinkTriggerHash = Animator.StringToHash("Blink");
+        private Coroutine blinkRoutine;
 
         [Header("Debug")]
         [SerializeField] private CustomerState currentState = CustomerState.Blocked;
@@ -51,8 +62,11 @@ namespace RestaurantLoop
 
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
-        // Bubble'ın prefab üzerindeki gerçek scale değerini saklar.
-        // Örneğin Inspector'da 0.4 ise burada 0.4 olarak tutulur.
+        // Bubble'ın prefab üzerindeki GERÇEK localScale değerini saklar
+        // (ör. 0.38) — Vector3.one YANLIŞTIR, çünkü balonun prefab ölçeği
+        // 1 olmak zorunda değil. Bu iki alan olmadan, punch/reset
+        // işlemleri balonu yanlışlıkla 1'e sabitleyip anormal büyük
+        // göstermesine yol açıyordu.
         private Vector3 orderBubbleBaseScale = Vector3.one;
         private bool orderBubbleBaseScaleCached;
 
@@ -114,7 +128,9 @@ namespace RestaurantLoop
             // yapıda olabileceği için otomatik bulmaya çalışmıyoruz).
             FindOrderBubble();
 
-            // Bubble'ın prefab üzerindeki GERÇEK scale değerini cache'le.
+            // Bubble'ın prefab üzerindeki GERÇEK scale değerini bir kere
+            // cache'le — sonraki hiçbir işlem bunu Vector3.one'a
+            // sıfırlamamalı.
             CacheOrderBubbleBaseScale();
 
             // Renderer'ları otomatik bul — BUBBLE'LARI (orderBubble ve
@@ -125,6 +141,10 @@ namespace RestaurantLoop
 
             animator = GetComponentInChildren<Animator>();
 
+            // Blink için kafa objesindeki Animator — bir kez cache'leniyor.
+            if (headTransform != null)
+                headAnimator = headTransform.GetComponent<Animator>();
+
             // MaterialPropertyBlock hazırla.
             mpb = new MaterialPropertyBlock();
 
@@ -134,7 +154,9 @@ namespace RestaurantLoop
 
         /// <summary>
         /// Bubble'ın prefab üzerinde ayarlanmış gerçek localScale değerini
-        /// bir kere saklar.
+        /// BİR KERE saklar (orderBubbleBaseScaleCached bayrağıyla korunur).
+        /// Punch/reset işlemleri her zaman BU değere göre yapılmalı,
+        /// asla sabit Vector3.one'a değil.
         /// </summary>
         private void CacheOrderBubbleBaseScale()
         {
@@ -149,7 +171,7 @@ namespace RestaurantLoop
         }
 
         /// <summary>
-        /// GetComponentsInChildren&lt;Renderer&gt; ile bulunan tüm
+        /// GetComponentsInChildren&lt;Renderer&gt;(true) ile bulunan tüm
         /// renderer'lardan, orderBubble ve blockedOrderBubble'ın ALTINDA
         /// kalanları çıkarır. Bu iki balon artık alfa ile soluklaştırılmıyor,
         /// tamamen ayrı bir GameObject aktif/pasif mantığıyla yönetiliyor.
@@ -161,14 +183,10 @@ namespace RestaurantLoop
 
             foreach (var r in all)
             {
-                if (r == null)
-                    continue;
+                if (r == null) continue;
 
-                if (orderBubble != null && r.transform.IsChildOf(orderBubble))
-                    continue;
-
-                if (blockedOrderBubble != null && r.transform.IsChildOf(blockedOrderBubble))
-                    continue;
+                if (orderBubble != null && r.transform.IsChildOf(orderBubble)) continue;
+                if (blockedOrderBubble != null && r.transform.IsChildOf(blockedOrderBubble)) continue;
 
                 result.Add(r);
             }
@@ -233,11 +251,13 @@ namespace RestaurantLoop
             // garantiye al.
             FindOrderBubble();
 
-            // Bubble'ın gerçek scale'ini garantiye al.
+            // Bubble'ın gerçek scale'ini garantiye al (pool'dan dönen
+            // objede orderBubble referansı yeniden bulunmuş olabilir).
             CacheOrderBubbleBaseScale();
 
-            // Food/orderBubble tekrar bulunmuş olabileceği için renderer listesini
-            // de tazeleyelim ki filtre (bubble hariç tutma) hep doğru kalsın.
+            // Food/orderBubble tekrar bulunmuş olabileceği için (pool'dan
+            // dönen obje) renderer listesini de tazeleyelim ki filtre
+            // (bubble hariç tutma) hep doğru kalsın.
             renderersToFade = CollectRenderersExcludingBubbles();
 
             if (mpb == null)
@@ -245,7 +265,8 @@ namespace RestaurantLoop
 
             // Pool'dan gelen objede önceki bir punch-scale'den kalma
             // yarım kalmış bir ölçek olmasın diye GERÇEK BASE SCALE'e
-            // sıfırlıyoruz.
+            // (prefab'daki orijinal değere, ör. 0.38) sıfırlıyoruz —
+            // Vector3.one DEĞİL.
             if (orderBubble != null)
             {
                 orderBubble.DOKill();
@@ -281,6 +302,42 @@ namespace RestaurantLoop
                     $"Customer [{name}]: CustomerManager atanmadı, state sistemi çalışmayacak."
                 );
             }
+
+            // Blink rutinini (yeniden) başlat — pool'dan geri dönen bir
+            // customer'da ESKİ rutin varsa önce durdurulur, sonra HER
+            // seferinde YENİ bir rastgele başlangıç gecikmesiyle baştan
+            // başlar. Böylece sahnedeki tüm müşteriler asla senkron göz
+            // kırpmaz.
+            if (blinkRoutine != null)
+                StopCoroutine(blinkRoutine);
+
+            if (headAnimator != null)
+                blinkRoutine = StartCoroutine(BlinkRoutine());
+        }
+
+        /// <summary>
+        /// Sürekli tekrar eden göz kırpma döngüsü. İlk bekleme
+        /// [0, blinkInterval] arasında TAMAMEN rastgele seçilir — bu
+        /// sayede sahne başladığı anda spawn edilen tüm müşteriler farklı
+        /// zamanlarda kırpmaya başlar, hepsi birlikte kırpmaz. Sonraki her
+        /// kırpma da (blinkInterval - variance) ile (blinkInterval +
+        /// variance) arasında rastgele bir süre bekler.
+        /// </summary>
+        private System.Collections.IEnumerator BlinkRoutine()
+        {
+            // İLK kırpma — tamamen rastgele bir noktada (senkronu kırmak için).
+            yield return new WaitForSeconds(Random.Range(0f, Mathf.Max(0.01f, blinkInterval)));
+
+            while (true)
+            {
+                if (headAnimator != null)
+                    headAnimator.SetTrigger(BlinkTriggerHash);
+
+                float wait = Mathf.Max(0.05f,
+                    blinkInterval + Random.Range(-blinkIntervalVariance, blinkIntervalVariance));
+
+                yield return new WaitForSeconds(wait);
+            }
         }
 
 
@@ -291,15 +348,10 @@ namespace RestaurantLoop
         private void AlignOrderBubbleToCamera()
         {
             Camera cam = Camera.main;
-
             if (cam == null)
                 return;
 
-            Quaternion rot =
-                Quaternion.LookRotation(
-                    cam.transform.forward,
-                    cam.transform.up
-                );
+            Quaternion rot = Quaternion.LookRotation(cam.transform.forward, cam.transform.up);
 
             // İkisi de aynı açıya hizalanıyor — hangisi aktifse o görünür.
             if (orderBubble != null)
@@ -314,6 +366,12 @@ namespace RestaurantLoop
         // BUBBLE AKTİF/PASİF (Blocked <-> Normal geçişi)
         // ============================================================
 
+        /// <summary>
+        /// Blocked durumundaysa blockedOrderBubble'ı aktif edip
+        /// orderBubble'ı pasif eder; değilse tam tersi. blockedOrderBubble
+        /// atanmamışsa (eski davranış) sadece orderBubble kullanılmaya
+        /// devam eder, hiçbir şey kırılmaz.
+        /// </summary>
         private void UpdateBubbleVisibility()
         {
             bool isBlocked = currentState == CustomerState.Blocked;
@@ -327,17 +385,20 @@ namespace RestaurantLoop
             }
             else if (orderBubble != null)
             {
-                // blockedOrderBubble hiç atanmamışsa eski davranış:
-                // balon her zaman aktif kalır.
+                // blockedOrderBubble hiç atanmamışsa eski davranış: balon
+                // her zaman aktif kalır (soluklaştırma da artık yok, çünkü
+                // Bubble renderersToFade'den çıkarıldı) — sadece
+                // ReceiveFood() sırasında ayrıca kapatılır (aşağıda).
                 orderBubble.gameObject.SetActive(true);
             }
         }
 
-
-        // ============================================================
-        // BUBBLE PUNCH
-        // ============================================================
-
+        /// <summary>
+        /// Blocked'tan Blocked-olmayan bir state'e geçildiği ANDA
+        /// (SetState içinden çağrılır), orderBubble'a bir kere DOPunchScale
+        /// uygular — kendi kendine söner, loop YOK. Parametreler Inspector'dan
+        /// (bubblePunchScale/Duration/Vibrato/Elasticity) ayarlanabilir.
+        /// </summary>
         private void PlayBubbleUnblockPunch()
         {
             if (orderBubble == null)
@@ -346,20 +407,14 @@ namespace RestaurantLoop
             if (bubblePunchScale <= 0f)
                 return;
 
-            // Bubble'ın gerçek scale'ini garantiye al.
+            // Bubble'ın gerçek (prefab'daki) scale'ini garantiye al.
             CacheOrderBubbleBaseScale();
 
-            // Önceki punch hâlâ sürüyorsa iptal edip GERÇEK base scale'e
-            // dön.
+            // Önceki bir punch hâlâ sürüyorsa iptal edip GERÇEK base
+            // scale'e dön — Vector3.one DEĞİL.
             orderBubble.DOKill();
             orderBubble.localScale = orderBubbleBaseScale;
 
-            // Vector3.one yerine base scale kullanıyoruz.
-            //
-            // Örneğin Bubble scale = 0.4 ise:
-            // 0.4 -> punch -> tekrar 0.4
-            //
-            // Artık 0.4 -> 1.0 şeklinde büyümez.
             orderBubble.DOPunchScale(
                 orderBubbleBaseScale * bubblePunchScale,
                 bubblePunchDuration,
@@ -373,9 +428,14 @@ namespace RestaurantLoop
         // TESLİMAT REZERVASYONU (Food VE Tray ORTAK)
         // ============================================================
 
-        public bool TryReserveForDelivery(
-            object source,
-            FoodType requestedFood)
+        /// <summary>
+        /// Bir teslimat kaynağı (Food veya Tray) bu müşteriye yemek
+        /// göndermeden önce müşteriyi rezerve eder. Aynı müşteriye
+        /// ikinci bir teslimatın başlamasını engeller — kaynak fark
+        /// etmeksizin (iki Food, iki Tray, ya da bir Food + bir Tray
+        /// aynı anda hedeflemeye çalışsa bile).
+        /// </summary>
+        public bool TryReserveForDelivery(object source, FoodType requestedFood)
         {
             if (source == null)
                 return false;
@@ -384,7 +444,9 @@ namespace RestaurantLoop
             if (incomingDeliverySource != null)
                 return false;
 
-            // Müşteri sadece Idle iken rezerve edilebilir.
+            // Müşteri sadece Idle iken rezerve edilebilir. Serving,
+            // Blocked, Eating, HappyJump, Leaving, Angry — hiçbiri
+            // yeniden rezerve edilemez.
             if (currentState != CustomerState.Idle)
                 return false;
 
@@ -392,7 +454,10 @@ namespace RestaurantLoop
             if (DesiredFood != requestedFood)
                 return false;
 
-            // Müşteriyi bu kaynak için kilitle.
+            // Müşteriyi bu kaynak için kilitle. State'i de HEMEN
+            // Serving'e çekiyoruz — böylece "rezerve edildi ama hâlâ
+            // Idle görünüyor" penceresi tamamen ortadan kalkıyor; state
+            // üzerinden bakan HER kontrol artık bunu doğru görür.
             incomingDeliverySource = source;
             SetState(CustomerState.Serving);
 
@@ -411,20 +476,22 @@ namespace RestaurantLoop
 
         /// <summary>
         /// Geriye dönük uyumluluk için korunan Food-özel sarmalayıcı.
+        /// İçeride ortak TryReserveForDelivery'yi çağırır.
         /// </summary>
         public bool TryReserveForFood(Food food)
         {
             if (food == null)
                 return false;
 
-            return TryReserveForDelivery(
-                food,
-                food.FoodTypeValue
-            );
+            return TryReserveForDelivery(food, food.FoodTypeValue);
         }
 
         /// <summary>
-        /// Teslimat kaynağı rezervasyonu bırakır.
+        /// Teslimat kaynağı (Food veya Tray) rezervasyonu bırakır —
+        /// sadece rezervasyonun sahibi olan kaynak bırakabilir. Teslimat
+        /// TAMAMLANMADAN (ör. klon kayboldu) rezervasyon iptal edilirse,
+        /// müşteri tekrar servis edilebilir olsun diye state Idle'a
+        /// geri döner.
         /// </summary>
         public void ReleaseDeliveryReservation(object source)
         {
@@ -470,42 +537,51 @@ namespace RestaurantLoop
             {
                 Debug.Log(
                     $"Customer [{name}] (ID={GetInstanceID()}, " +
-                    $"Session={OrderSessionId}) ReceiveFood çağrıldı."
+                    $"Session={OrderSessionId}) " +
+                    $"ReceiveFood çağrıldı."
                 );
             }
 
-            // Yemek müşteriye ulaştığı ANDA teslim sesi
+            // Banttaki food müşteriyle eşleştiğinde.
             AudioEvents.PlayOrderDelivered();
 
-            // Teslimat rezervasyonunu temizle
-            incomingDeliverySource = null;
+            // İKİ balonu da kapat — hangisi aktifse (normal ya da blocked
+            // varyantı) artık gösterilmemeli.
+            if (orderBubble != null) orderBubble.gameObject.SetActive(false);
+            if (blockedOrderBubble != null) blockedOrderBubble.gameObject.SetActive(false);
 
-            // FOOD GELDİĞİ ANDA BUBBLE PUNCH
-            PlayBubbleUnblockPunch();
+            SetState(CustomerState.Eating);
 
-            // Bubble punch devam ederken müşteri yok olma animasyonuna girsin.
-            Despawn();
+            SetState(CustomerState.HappyJump);
+
+            SetState(CustomerState.Leaving);
+
+            if(animator != null)
+            {
+                animator.SetTrigger("Vanish");
+                StartCoroutine(WaitForVanishAndDespawnRoutine());
+            }
+            else
+            {
+                Despawn();
+            }
         }
 
         private System.Collections.IEnumerator WaitForVanishAndDespawnRoutine()
         {
-            // Wait until next frame so the Animator enters the transition.
+            // Wait until next frame so the Animator enters the transition
             yield return null;
 
-            AnimatorStateInfo stateInfo =
-                animator.GetCurrentAnimatorStateInfo(0);
-
-            // If it's transitioning to the vanish state, get the next state duration.
+            // Get the length of the currently playing/next clip
+            AnimatorStateInfo stateInfo = animator.GetCurrentAnimatorStateInfo(0);
+    
+            // If it's transitioning to the vanish state, get the next state duration
             if (animator.IsInTransition(0))
             {
-                stateInfo =
-                    animator.GetNextAnimatorStateInfo(0);
+                stateInfo = animator.GetNextAnimatorStateInfo(0);
             }
 
-            float clipLength =
-                stateInfo.length > 0f
-                    ? stateInfo.length
-                    : 0.5f;
+            float clipLength = stateInfo.length > 0f ? stateInfo.length : 0.5f;
 
             yield return new WaitForSeconds(clipLength);
 
@@ -522,17 +598,16 @@ namespace RestaurantLoop
             if (currentState == newState)
                 return;
 
-            bool wasBlocked =
-                currentState == CustomerState.Blocked;
+            bool wasBlocked = currentState == CustomerState.Blocked;
 
             currentState = newState;
 
             ApplyVisual();
             UpdateBubbleVisibility();
 
-            // Blocked'tan normale geçerken bubble punch.
-            if (wasBlocked &&
-                newState != CustomerState.Blocked)
+            // İSTEK: Blocked'tan normale (Blocked OLMAYAN herhangi bir
+            // state'e) geçtiği TAM O ANDA, balon hafifçe zıplasın.
+            if (wasBlocked && newState != CustomerState.Blocked)
             {
                 PlayBubbleUnblockPunch();
             }
@@ -555,6 +630,15 @@ namespace RestaurantLoop
 
             incomingDeliverySource = null;
 
+            // Pool'a dönerken arka planda boşuna çalışmasın diye blink
+            // rutini durduruluyor — Init() tekrar çağrıldığında (yeniden
+            // kullanıldığında) YENİ bir rastgele gecikmeyle baştan başlar.
+            if (blinkRoutine != null)
+            {
+                StopCoroutine(blinkRoutine);
+                blinkRoutine = null;
+            }
+
             if (orderBubble != null)
                 orderBubble.DOKill();
 
@@ -564,46 +648,14 @@ namespace RestaurantLoop
                 initialized = false;
             }
 
-            // Önceki animasyonları temizle
-            transform.DOKill();
-
-            // Başlangıç scale'ini sakla
-            Vector3 startScale = transform.localScale;
-
-            // Yok olma animasyonu:
-            // - Hafif yukarı çıkar
-            // - Küçülür
-            // - Sonunda pool'a döner
-            Sequence vanishSequence = DOTween.Sequence();
-
-            vanishSequence.Join(
-                transform.DOScale(
-                    startScale * 0.2f,
-                    0.35f
-                ).SetEase(Ease.InBack)
-            );
-
-            vanishSequence.Join(
-                transform.DOMoveY(
-                    transform.position.y + 0.4f,
-                    0.35f
-                ).SetEase(Ease.OutQuad)
-            );
-
-            vanishSequence.OnComplete(() =>
+            if (ObjectPool.Instance != null)
             {
-                // Pool'a dönmeden önce scale'i eski haline getir
-                transform.localScale = startScale;
-
-                if (ObjectPool.Instance != null)
-                {
-                    ObjectPool.Instance.Return(gameObject);
-                }
-                else
-                {
-                    gameObject.SetActive(false);
-                }
-            });
+                ObjectPool.Instance.Return(gameObject);
+            }
+            else
+            {
+                gameObject.SetActive(false);
+            }
         }
 
 
@@ -626,9 +678,7 @@ namespace RestaurantLoop
                     ? blockedAlpha
                     : 1f;
 
-            for (int i = 0;
-                i < renderersToFade.Length;
-                i++)
+            for (int i = 0; i < renderersToFade.Length; i++)
             {
                 var r = renderersToFade[i];
 
