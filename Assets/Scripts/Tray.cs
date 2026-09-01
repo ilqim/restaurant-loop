@@ -92,26 +92,23 @@ namespace RestaurantLoop
                  "o kadar çabuk kesilir; düşük tutarsan birkaç kez ileri-geri sallanıp durur.")]
         [SerializeField] private float bodySwayDamping = 16f;
 
-        [Header("Sallanma — Yığın (Üst Üste Yemekler)")]
-        [Tooltip("Yemek yığınının, tepsi gövdesinin ÜZERİNE binen ek ve DAHA GEVŞEK bir sallanmasını aç/kapat. " +
-                 "Yığın, ModelTransform'un origin'inde duran tek bir pivot (StackSwayPivot) etrafında döner; " +
-                 "parçalar bu pivota göre farklı yüksekliklerde durduğu için ÜSTTEKİ parçalar kaldıraç kolu " +
-                 "uzun olduğundan ALTTAKİLERDEN otomatik olarak daha fazla yer değiştirir — katman başına " +
-                 "ayrı kod yazmaya gerek kalmadan 'üsttekiler daha çok sallanıyor' hissi buradan gelir.")]
+        [Header("Sallanma — Yığın (Üst Üste Yemekler, Sabit Ritmik Salınım)")]
+        [Tooltip("AÇIKSA yığın (üst üste yemekler) HIZDAN/İVMEDEN TAMAMEN BAĞIMSIZ, sürekli sabit bir ritimle " +
+                 "sağa-sola sallanır (basit sinüs salınımı) — konveyörde dursa da hareket etse de AYNI şekilde " +
+                 "sallanmaya devam eder. Yığın, ModelTransform'un origin'inde duran tek bir pivot " +
+                 "(StackSwayPivot) etrafında döner; parçalar bu pivota göre farklı yüksekliklerde durduğu " +
+                 "için ÜSTTEKİ parçalar kaldıraç kolu uzun olduğundan ALTTAKİLERDEN otomatik olarak daha " +
+                 "fazla yer değiştirir — katman başına ayrı kod yazmaya gerek kalmadan 'üsttekiler daha çok " +
+                 "sallanıyor' hissi buradan gelir.")]
         [SerializeField] private bool enableStackSway = true;
 
-        [Tooltip("Yığının ivmeye tepki hassasiyeti. Gövdeninkinden genelde YÜKSEK tutulur ki yemekler " +
-                 "tepsiden daha gevşek/geç tepki versin.")]
-        [SerializeField] private float stackSwaySensitivity = 6f;
+        [Tooltip("Yığının sağa-sola sallanmasının genliği (derece) — ne kadar geniş açıyla sallanacağı. " +
+                 "Gövdeninkinden (varsa) büyük tutulması önerilir.")]
+        [SerializeField] private float stackSwayAmplitude = 10f;
 
-        [Tooltip("Yığın sallanmasının maksimum açısı (derece). Gövdeninkinden büyük tutulması önerilir.")]
-        [SerializeField] private float stackMaxSwayAngle = 16f;
-
-        [Tooltip("Yığın yayının sertliği — gövdeninkinden DÜŞÜK tutulmalı ki daha geç ve salınımlı (overshoot'lu) tepki versin.")]
-        [SerializeField] private float stackSwayStiffness = 40f;
-
-        [Tooltip("Yığın yayının sönümü — gövdeninkinden düşük tutulursa yığın birkaç kez ileri-geri sallanıp öyle durur.")]
-        [SerializeField] private float stackSwayDamping = 6f;
+        [Tooltip("Yığının sağa-sola sallanmasının frekansı (saniyede kaç tam salınım / Hz). Gövdeden farklı " +
+                 "bir frekans vermek (ör. biraz daha yavaş) daha organik bir his verir.")]
+        [SerializeField] private float stackSwayFrequency = 0.45f;
 
         [Tooltip("İvme hesaplanırken kullanılan hız, ani frame dalgalanmalarından etkilenmesin diye bu kadar " +
                  "saniyelik pencerede yumuşatılır (0 = yumuşatma yok, ham ivme kullanılır).")]
@@ -208,9 +205,16 @@ namespace RestaurantLoop
         private float bodyPitch, bodyPitchVel;
         private float bodyRoll, bodyRollVel;
 
-        // Yığın (stack) sallanma yayı — gövdeden bağımsız, daha gevşek.
-        private float stackPitch, stackPitchVel;
-        private float stackRoll, stackRollVel;
+        // Yığın (stack) sallanması — artık FİZİK/yay değil, sabit ritimli
+        // sinüs salınımı. stackPitch her zaman 0 kalır (öne/arkaya eğilme
+        // yok), stackRoll sinüs ile hesaplanıp sağa-sola sallanmayı verir.
+        private float stackPitch;
+        private float stackRoll;
+
+        // Her tepsi kendi rastgele faz ofsetiyle başlar ki aynı anda
+        // konveyörde olan tüm tepsiler birbirinin AYNISI sallanmasın —
+        // Awake'te bir kere rastgele atanır.
+        private float swayPhaseOffset;
 
         // Yığın doğrusal (rotasyonsuz) geri kayma yayı — TEK paylaşılan
         // 2D (X,Z) değer; her parçaya kendi katman oranıyla çarpılarak
@@ -298,6 +302,11 @@ namespace RestaurantLoop
             }
 
             previousPosition = transform.position;
+
+            // Sabit ritimli sallanma için rastgele bir faz ofseti — aynı anda
+            // konveyörde olan farklı tepsiler birbirinin BİREBİR AYNISI
+            // sallanmasın diye her tepsi kendi rastgele başlangıç noktasından başlar.
+            swayPhaseOffset = Random.Range(0f, 360f);
         }
 
         public void ParkAtBase(TrayManager manager, Vector3 pos, bool scaleIn = false)
@@ -593,8 +602,8 @@ namespace RestaurantLoop
         {
             bodyPitch = bodyPitchVel = 0f;
             bodyRoll = bodyRollVel = 0f;
-            stackPitch = stackPitchVel = 0f;
-            stackRoll = stackRollVel = 0f;
+            stackPitch = 0f;
+            stackRoll = 0f;
             stackLinearLagValue = stackLinearLagVel = Vector2.zero;
 
             smoothedVelocity = Vector3.zero;
@@ -677,25 +686,24 @@ namespace RestaurantLoop
 
             ModelTransform.rotation = headingRotation * Quaternion.Euler(bodyPitch, 0f, bodyRoll);
 
-            // --- Yığın (üst üste yemekler) sallanması — gövdeden bağımsız,
-            // daha gevşek bir yay. StackSwayPivot, ModelTransform'un ÇOCUĞU
-            // olduğu için gövde sallanmasının (yukarıdaki satır) ÜZERİNE
-            // biniyor; ayrıca parçalar farklı yüksekliklerde durduğundan aynı
-            // açı bile üsttekini alttakinden daha çok hareket ettiriyor. ---
+            // --- Yığın (üst üste yemekler) sallanması — artık HIZDAN/İVMEDEN
+            // BAĞIMSIZ, sabit ritimli bir sinüs salınımı. StackSwayPivot,
+            // ModelTransform'un ÇOCUĞU olduğu için gövde sallanmasının
+            // (yukarıdaki satır) ÜZERİNE biniyor; ayrıca parçalar farklı
+            // yüksekliklerde durduğundan aynı açı bile üsttekini alttakinden
+            // daha çok hareket ettiriyor. ---
             if (enableStackSway && stackSwayPivot != null)
             {
-                float stackPitchTarget = Mathf.Clamp(-localAccel.z * stackSwaySensitivity, -stackMaxSwayAngle, stackMaxSwayAngle);
-                float stackRollTarget = Mathf.Clamp(localAccel.x * stackSwaySensitivity, -stackMaxSwayAngle, stackMaxSwayAngle);
-
-                SpringTowards(ref stackPitch, ref stackPitchVel, stackPitchTarget, stackSwayStiffness, stackSwayDamping, dt);
-                SpringTowards(ref stackRoll, ref stackRollVel, stackRollTarget, stackSwayStiffness, stackSwayDamping, dt);
+                float swayAngleDeg = Time.time * stackSwayFrequency * 360f + swayPhaseOffset;
+                stackRoll = Mathf.Sin(swayAngleDeg * Mathf.Deg2Rad) * stackSwayAmplitude;
+                stackPitch = 0f;
 
                 stackSwayPivot.localRotation = Quaternion.Euler(stackPitch, 0f, stackRoll);
             }
             else if (stackSwayPivot != null)
             {
-                stackPitch = stackPitchVel = 0f;
-                stackRoll = stackRollVel = 0f;
+                stackPitch = 0f;
+                stackRoll = 0f;
                 stackSwayPivot.localRotation = Quaternion.identity;
             }
 
