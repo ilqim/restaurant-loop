@@ -413,15 +413,13 @@ MonoBehaviour:
   bodySwayStiffness: 120
   bodySwayDamping: 25
   enableStackSway: 1
-  stackSwaySensitivity: 1
-  stackMaxSwayAngle: 3
-  stackSwayStiffness: 60
-  stackSwayDamping: 10
+  stackSwayAmplitude: 10
+  stackSwayFrequency: 1
   velocitySmoothingTime: 0.08
-  enableStackLinearLag: 1
-  stackLinearLagSensitivity: 10
-  stackLinearLagAccelSensitivity: 0.5
-  stackLinearLagMaxDistance: 0.15
+  enableStackLinearLag: 0
+  stackLinearLagSensitivity: 6
+  stackLinearLagAccelSensitivity: 0.7
+  stackLinearLagMaxDistance: 0.25
   stackLinearLagStiffness: 35
   stackLinearLagDamping: 8
   rotationSmoothing: 15

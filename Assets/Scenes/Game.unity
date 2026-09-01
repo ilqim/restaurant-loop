@@ -30501,7 +30501,7 @@ MonoBehaviour:
   visualConfigs:
   - food: 0
     stackPiecePrefab: {fileID: 3849605167686110678, guid: 6a6f017856b00ef41afab09386558ec4, type: 3}
-    foodBaseYOffset: 0.05
+    foodBaseYOffset: 0.1
     pieceSpacing: 0.5
     pieceHeightSpacing: 0.38
     maxVisualPieces: 20
@@ -30538,7 +30538,7 @@ MonoBehaviour:
       m_RotationOrder: 4
   - food: 1
     stackPiecePrefab: {fileID: 194044074211895501, guid: 60974fb3379a9374f9d7ce5b1b3948ee, type: 3}
-    foodBaseYOffset: 0.05
+    foodBaseYOffset: 0.1
     pieceSpacing: 0.5
     pieceHeightSpacing: 0.38
     maxVisualPieces: 20
@@ -30575,7 +30575,7 @@ MonoBehaviour:
       m_RotationOrder: 4
   - food: 2
     stackPiecePrefab: {fileID: 7669723658021224773, guid: 25828ffdb9c727c4fae77709a0761fe8, type: 3}
-    foodBaseYOffset: 0.05
+    foodBaseYOffset: 0.1
     pieceSpacing: 0.5
     pieceHeightSpacing: 0.4
     maxVisualPieces: 20
@@ -30612,7 +30612,7 @@ MonoBehaviour:
       m_RotationOrder: 4
   - food: 3
     stackPiecePrefab: {fileID: 1076883276192951387, guid: ba903950fdf38b34a9f570ee84c73bd4, type: 3}
-    foodBaseYOffset: 0.05
+    foodBaseYOffset: 0.1
     pieceSpacing: 0.5
     pieceHeightSpacing: 0.4
     maxVisualPieces: 20
@@ -30649,7 +30649,7 @@ MonoBehaviour:
       m_RotationOrder: 4
   - food: 4
     stackPiecePrefab: {fileID: 5710328474086436543, guid: 5aabb5195644684459d8ed7fe46ca96e, type: 3}
-    foodBaseYOffset: 0.05
+    foodBaseYOffset: 0.1
     pieceSpacing: 0.5
     pieceHeightSpacing: 0.4
     maxVisualPieces: 20
@@ -30686,7 +30686,7 @@ MonoBehaviour:
       m_RotationOrder: 4
   - food: 5
     stackPiecePrefab: {fileID: 5351175414685016865, guid: e65926f401a3fa64a92deb1879321803, type: 3}
-    foodBaseYOffset: 0.05
+    foodBaseYOffset: 0.1
     pieceSpacing: 0.5
     pieceHeightSpacing: 0.4
     maxVisualPieces: 20
