@@ -59,6 +59,22 @@ namespace RestaurantLoop
         [SerializeField] private float shiftDuration = 0.25f;
         [SerializeField] private Ease shiftEase = Ease.OutQuad;
 
+        [Header("Shuffle Animasyonu")]
+        [Tooltip("Shuffle sırasında mevcut bir food/slot'un YENİ pozisyonuna kayma süresi (saniye).")]
+        [SerializeField] private float shuffleMoveDuration = 0.45f;
+        [Tooltip("Kayma hareketinin ease eğrisi.")]
+        [SerializeField] private Ease shuffleMoveEase = Ease.InOutQuad;
+        [Tooltip("Her item'ın animasyonu, bir öncekinden ne kadar sonra başlasın (kademeli/cascade dalga efekti). 0 = hepsi aynı anda başlar.")]
+        [SerializeField] private float shuffleStaggerDelay = 0.03f;
+        [Tooltip("Kayma sırasında food'un Y ekseninde ne kadar zıplayacağı (kartların birbirinin üstünden geçme hissi). 0 = düz kayar, zıplama yok.")]
+        [SerializeField] private float shuffleHopHeight = 0.4f;
+        [Tooltip("Artık görünür alanda YER BULAMAYAN (gizli kalan) item'ların, yok edilmeden önce kaç 'satır' kadar geriye kayarak çıkacağı.")]
+        [SerializeField] private float shuffleExitRowOffset = 1.5f;
+        [Tooltip("Önceden GİZLİ olup shuffle sonrası yeni görünür hale gelen item'ların, kaç 'satır' geriden kayarak içeri gireceği.")]
+        [SerializeField] private float shuffleEnterRowOffset = 1.5f;
+        [Tooltip("Açıksa: shuffle animasyonu süresince (kayan/giren/çıkan) slot'ların collider'ları kapatılır, yanlışlıkla tıklanmaları engellenir.")]
+        [SerializeField] private bool blockInputDuringShuffle = true;
+
         [Header("Select Booster Camera Settings")]
         [Tooltip("Kamera POZİSYONU HİÇ DEĞİŞMEZ — sadece aşağıdaki açıya döner, sonra eski açısına geri döner.")]
         [SerializeField] private Camera targetCamera;
@@ -75,6 +91,11 @@ namespace RestaurantLoop
             public GameObject foodGo;
             public GameObject slotGo;
             public Food food;
+            // Shuffle sırasında eski item'ları (food tipi + kapasite) ile
+            // eşleştirip yeniden kullanabilmek için — Food component'inin
+            // kendi public API'sine bağımlı olmadan burada saklıyoruz.
+            public FoodType foodType;
+            public int capacity;
         }
 
         private readonly Dictionary<int, List<ColumnItem>> columnItems = new();
@@ -84,6 +105,7 @@ namespace RestaurantLoop
 
         private bool started;
         private bool isSelectModeActive;
+        private bool isShuffling;
 
         private Vector3 defaultCamPos;
         private Quaternion defaultCamRot;
@@ -91,6 +113,7 @@ namespace RestaurantLoop
         private bool camDefaultsCached;
 
         public bool IsSelectModeActive => isSelectModeActive;
+        public bool IsShuffling => isShuffling;
         public event Action SelectModeEnded;
 
         public void SetLevelData(LevelData data)
@@ -206,7 +229,7 @@ namespace RestaurantLoop
             var queueSlot = slotGo.GetComponent<QueueSlot>();
             if (queueSlot != null) queueSlot.AssignFood(food);
 
-            AddColumnItem(col, foodGo, slotGo, food);
+            AddColumnItem(col, foodGo, slotGo, food, entry.food, entry.capacity);
         }
 
         private void OnSelectModeFoodStateChanged(Food food, FoodState newState)
@@ -291,6 +314,12 @@ namespace RestaurantLoop
                 return;
             }
 
+            if (isShuffling)
+            {
+                Debug.LogWarning("QueueManager: Shuffle animasyonu zaten devam ediyor, yeni çağrı yok sayıldı.");
+                return;
+            }
+
             var allEntries = new List<QueueEntry>();
             var countPerColumn = new int[levelData.queueColumns];
 
@@ -310,6 +339,7 @@ namespace RestaurantLoop
             }
 
             int cursor = 0;
+            var newColumnData = new Dictionary<int, List<QueueEntry>>();
             for (int col = 0; col < levelData.queueColumns; col++)
             {
                 int count = countPerColumn[col];
@@ -323,10 +353,285 @@ namespace RestaurantLoop
                     newList.Add(entry);
                 }
 
-                columnData[col] = newList;
+                newColumnData[col] = newList;
             }
 
-            RebuildAllVisibleRows();
+            AnimateShuffleTransition(newColumnData);
+        }
+
+        /// <summary>
+        /// Shuffle'ın GÖRSEL kısmı. Eski görünür item'ları (food tipi +
+        /// kapasite eşleşmesiyle) yeni pozisyonlarına DOTween ile kaydırır.
+        /// Yeni görünür hale gelen (önceden gizli) entry'ler için item
+        /// spawn edip arkadan kaydırarak içeri sokar. Artık görünmeyecek
+        /// olan eski item'lar arkaya doğru kayıp yok edilir. Hiçbir
+        /// GameObject anlık olarak "ışınlanmaz".
+        /// </summary>
+        private void AnimateShuffleTransition(Dictionary<int, List<QueueEntry>> newColumnData)
+        {
+            isShuffling = true;
+
+            // 1) Şu an sahnede olan (görünür) item'ları food tipi + kapasiteye
+            //    göre havuzla — hangi eski GameObject'in yeni bir entry için
+            //    yeniden kullanılabileceğini bulmak için.
+            var reusePool = new Dictionary<(FoodType food, int capacity), Queue<ColumnItem>>();
+            foreach (var items in columnItems.Values)
+            {
+                foreach (var item in items)
+                {
+                    var key = (item.foodType, item.capacity);
+                    if (!reusePool.TryGetValue(key, out var queue))
+                    {
+                        queue = new Queue<ColumnItem>();
+                        reusePool[key] = queue;
+                    }
+                    queue.Enqueue(item);
+                }
+            }
+
+            var newColumnItems = new Dictionary<int, List<ColumnItem>>();
+            int staggerIndex = 0;
+
+            for (int col = 0; col < levelData.queueColumns; col++)
+            {
+                var newList = newColumnData.TryGetValue(col, out var l) ? l : new List<QueueEntry>();
+                int visibleCount = Mathf.Min(visibleRows, newList.Count);
+
+                for (int row = 0; row < visibleCount; row++)
+                {
+                    QueueEntry entry = newList[row];
+                    var key = (entry.food, entry.capacity);
+
+                    ColumnItem itemToUse;
+
+                    if (reusePool.TryGetValue(key, out var pool) && pool.Count > 0)
+                    {
+                        itemToUse = pool.Dequeue();
+                        AnimateItemToSlot(itemToUse, col, row, staggerIndex);
+                    }
+                    else
+                    {
+                        itemToUse = SpawnEnteringItem(col, row, entry, staggerIndex);
+                    }
+
+                    if (itemToUse != null)
+                    {
+                        ApplyShuffleRowState(col, row, itemToUse);
+                        AddToColumnList(newColumnItems, col, itemToUse);
+                    }
+
+                    staggerIndex++;
+                }
+            }
+
+            // 2) Havuzda kalan (yeni görünür alanda karşılığı bulunamayan)
+            //    eski item'lar artık ekrandan çıkıyor demektir.
+            int exitIndex = 0;
+            foreach (var pool in reusePool.Values)
+            {
+                while (pool.Count > 0)
+                {
+                    AnimateItemExit(pool.Dequeue(), exitIndex);
+                    exitIndex++;
+                }
+            }
+
+            columnItems.Clear();
+            foreach (var kvp in newColumnItems)
+                columnItems[kvp.Key] = kvp.Value;
+
+            columnData.Clear();
+            foreach (var kvp in newColumnData)
+                columnData[kvp.Key] = kvp.Value;
+
+            float totalDuration = (Mathf.Max(staggerIndex, exitIndex) * shuffleStaggerDelay) + shuffleMoveDuration;
+            DOVirtual.DelayedCall(totalDuration, () => isShuffling = false);
+        }
+
+        /// <summary>Mevcut bir item'ı (foodGo + slotGo) yeni col/row pozisyonuna kaydırır.</summary>
+        private void AnimateItemToSlot(ColumnItem item, int col, int row, int staggerIndex)
+        {
+            Vector3 slotPos = ComputeSlotPosition(col, row);
+            Vector3 foodPos = slotPos;
+            foodPos.y += foodYOffset;
+
+            float delay = staggerIndex * shuffleStaggerDelay;
+
+            if (blockInputDuringShuffle) SetSlotColliderEnabled(item.slotGo, false);
+
+            if (item.slotGo != null)
+            {
+                item.slotGo.transform.DOKill();
+                var slotTween = item.slotGo.transform.DOMove(slotPos, shuffleMoveDuration)
+                    .SetEase(shuffleMoveEase)
+                    .SetDelay(delay);
+
+                if (blockInputDuringShuffle)
+                {
+                    var slotGoRef = item.slotGo;
+                    slotTween.OnComplete(() => SetSlotColliderEnabled(slotGoRef, true));
+                }
+            }
+
+            if (item.foodGo != null)
+            {
+                item.foodGo.transform.DOKill();
+                if (shuffleHopHeight > 0f)
+                    item.foodGo.transform.DOJump(foodPos, shuffleHopHeight, 1, shuffleMoveDuration)
+                        .SetEase(shuffleMoveEase).SetDelay(delay);
+                else
+                    item.foodGo.transform.DOMove(foodPos, shuffleMoveDuration)
+                        .SetEase(shuffleMoveEase).SetDelay(delay);
+            }
+        }
+
+        /// <summary>
+        /// Önceden gizli olup shuffle sonrası yeni görünür hale gelen bir entry
+        /// için item spawn eder ve shuffleEnterRowOffset kadar geriden kaydırarak
+        /// içeri sokar.
+        /// </summary>
+        private ColumnItem SpawnEnteringItem(int col, int row, QueueEntry entry, int staggerIndex)
+        {
+            GameObject prefab = GetPrefab(entry.food);
+            if (prefab == null)
+            {
+                Debug.LogWarning($"QueueManager: '{entry.food}' için Food Prefabs listesinde prefab yok.");
+                return null;
+            }
+
+            Vector3 targetSlotPos = ComputeSlotPosition(col, row);
+            Vector3 targetFoodPos = targetSlotPos;
+            targetFoodPos.y += foodYOffset;
+
+            Vector3 startSlotPos = ComputeSlotPosition(col, row + shuffleEnterRowOffset);
+            Vector3 startFoodPos = startSlotPos;
+            startFoodPos.y += foodYOffset;
+
+            var foodGo = Instantiate(prefab, startFoodPos, prefab.transform.rotation);
+            var food = foodGo.GetComponent<Food>();
+            if (food == null)
+            {
+                Debug.LogWarning($"'{prefab.name}' prefabında Food component'i yok.");
+                Destroy(foodGo);
+                return null;
+            }
+            food.PresetCapacity(entry.capacity);
+
+            var slotGo = Instantiate(queueSlotPrefab, startSlotPos, queueSlotPrefab.transform.rotation);
+            var queueSlot = slotGo.GetComponent<QueueSlot>();
+            if (queueSlot == null)
+                Debug.LogWarning($"'{queueSlotPrefab.name}' prefabında QueueSlot component'i yok.");
+            else
+                queueSlot.AssignFood(food);
+
+            float delay = staggerIndex * shuffleStaggerDelay;
+
+            if (blockInputDuringShuffle) SetSlotColliderEnabled(slotGo, false);
+
+            var slotTween = slotGo.transform.DOMove(targetSlotPos, shuffleMoveDuration)
+                .SetEase(shuffleMoveEase).SetDelay(delay);
+
+            if (blockInputDuringShuffle)
+                slotTween.OnComplete(() => SetSlotColliderEnabled(slotGo, true));
+
+            if (shuffleHopHeight > 0f)
+                foodGo.transform.DOJump(targetFoodPos, shuffleHopHeight, 1, shuffleMoveDuration)
+                    .SetEase(shuffleMoveEase).SetDelay(delay);
+            else
+                foodGo.transform.DOMove(targetFoodPos, shuffleMoveDuration)
+                    .SetEase(shuffleMoveEase).SetDelay(delay);
+
+            return new ColumnItem { foodGo = foodGo, slotGo = slotGo, food = food, foodType = entry.food, capacity = entry.capacity };
+        }
+
+        /// <summary>
+        /// Görünür alandan çıkan (yeni shuffle sonucunda karşılığı kalmayan)
+        /// eski bir item'ı shuffleExitRowOffset kadar geriye kaydırıp yok eder.
+        /// </summary>
+        private void AnimateItemExit(ColumnItem item, int exitIndex)
+        {
+            float delay = exitIndex * shuffleStaggerDelay;
+
+            if (item.food != null && availableFoodColumn.ContainsKey(item.food))
+            {
+                item.food.StateChanged -= OnAvailableFoodStateChanged;
+                availableFoodColumn.Remove(item.food);
+            }
+
+            Vector3 dir = originPoint != null ? -originPoint.forward : Vector3.back;
+            Vector3 exitOffset = dir * (shuffleExitRowOffset * cellSpacingZ);
+
+            if (blockInputDuringShuffle) SetSlotColliderEnabled(item.slotGo, false);
+
+            if (item.slotGo != null)
+            {
+                item.slotGo.transform.DOKill();
+                var slotGoRef = item.slotGo;
+                item.slotGo.transform.DOMove(item.slotGo.transform.position + exitOffset, shuffleMoveDuration)
+                    .SetEase(shuffleMoveEase)
+                    .SetDelay(delay)
+                    .OnComplete(() => { if (slotGoRef != null) Destroy(slotGoRef); });
+            }
+
+            if (item.foodGo != null)
+            {
+                item.foodGo.transform.DOKill();
+                var foodGoRef = item.foodGo;
+                Vector3 targetExitPos = item.foodGo.transform.position + exitOffset;
+
+                Tween foodTween = shuffleHopHeight > 0f
+                    ? item.foodGo.transform.DOJump(targetExitPos, shuffleHopHeight, 1, shuffleMoveDuration).SetDelay(delay)
+                    : item.foodGo.transform.DOMove(targetExitPos, shuffleMoveDuration).SetEase(shuffleMoveEase).SetDelay(delay);
+
+                foodTween.OnComplete(() => { if (foodGoRef != null) Destroy(foodGoRef); });
+            }
+        }
+
+        /// <summary>
+        /// Shuffle sonrası bir item'ın row 0 (AvailableInQueue, tıklanabilir)
+        /// mı yoksa kilitli (LockedInQueue) mi olacağını belirler — SpawnAt
+        /// içindeki mantıkla AYNI, sadece animasyonlu crossfade kullanır.
+        /// </summary>
+        private void ApplyShuffleRowState(int col, int row, ColumnItem item)
+        {
+            if (item.food == null) return;
+
+            // Önceki abonelikten kurtul — hem tekrar tekrar abone olmayı hem
+            // de artık kilitli hale gelen bir food'un event tetiklemesini önler.
+            item.food.StateChanged -= OnAvailableFoodStateChanged;
+
+            if (row == 0)
+            {
+                item.food.PresetQueueState(FoodState.AvailableInQueue);
+                availableFoodColumn[item.food] = col;
+                item.food.StateChanged += OnAvailableFoodStateChanged;
+                item.food.SetBlockedCrossfade(false, shuffleMoveDuration);
+            }
+            else
+            {
+                if (availableFoodColumn.ContainsKey(item.food))
+                    availableFoodColumn.Remove(item.food);
+
+                item.food.PresetQueueState(FoodState.LockedInQueue);
+                item.food.SetBlockedCrossfade(true, shuffleMoveDuration);
+            }
+        }
+
+        private void SetSlotColliderEnabled(GameObject slotGo, bool isEnabled)
+        {
+            if (slotGo == null) return;
+            var col = slotGo.GetComponent<Collider>();
+            if (col != null) col.enabled = isEnabled;
+        }
+
+        private void AddToColumnList(Dictionary<int, List<ColumnItem>> dict, int col, ColumnItem item)
+        {
+            if (!dict.TryGetValue(col, out var list))
+            {
+                list = new List<ColumnItem>();
+                dict[col] = list;
+            }
+            list.Add(item);
         }
 
         private void BuildColumnData()
@@ -357,7 +662,7 @@ namespace RestaurantLoop
             }
         }
 
-        private Vector3 ComputeSlotPosition(int col, int row)
+        private Vector3 ComputeSlotPosition(int col, float row)
         {
             float xOffset = (col - (levelData.queueColumns - 1) / 2f) * cellSpacingX;
             float zOffset = -row * cellSpacingZ;
@@ -401,7 +706,7 @@ namespace RestaurantLoop
                 queueSlot.AssignFood(food);
             }
 
-            AddColumnItem(col, foodGo, slotGo, food);
+            AddColumnItem(col, foodGo, slotGo, food, entry.food, entry.capacity);
 
             if (visualRow == 0)
             {
@@ -417,14 +722,14 @@ namespace RestaurantLoop
             }
         }
 
-        private void AddColumnItem(int col, GameObject foodGo, GameObject slotGo, Food food)
+        private void AddColumnItem(int col, GameObject foodGo, GameObject slotGo, Food food, FoodType foodType, int capacity)
         {
             if (!columnItems.TryGetValue(col, out var items))
             {
                 items = new List<ColumnItem>();
                 columnItems[col] = items;
             }
-            items.Add(new ColumnItem { foodGo = foodGo, slotGo = slotGo, food = food });
+            items.Add(new ColumnItem { foodGo = foodGo, slotGo = slotGo, food = food, foodType = foodType, capacity = capacity });
         }
 
         private void ClearAllVisuals()
@@ -513,10 +818,6 @@ namespace RestaurantLoop
                 if (row == 0 && item.food != null)
                 {
                     item.food.PresetQueueState(FoodState.AvailableInQueue);
-                    // ÖNEMLİ: duration=shiftDuration — Blocked'tan Available'a
-                    // geçiş, TAM OLARAK öne kayma (DOMove) ile aynı sürede,
-                    // senkron gerçekleşiyor. Artık anlık bir renk/alfa
-                    // sıçraması yok, ikisi birlikte biter.
                     item.food.SetBlockedCrossfade(false, shiftDuration);
                     availableFoodColumn[item.food] = col;
                     item.food.StateChanged += OnAvailableFoodStateChanged;
