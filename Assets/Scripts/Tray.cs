@@ -9,8 +9,8 @@ namespace RestaurantLoop
     public class Tray : MonoBehaviour
     {
         // Tray'in o anki mantıksal durumu.
-        // InTrayBase  -> Base'de bekliyor            => TrayIdleAnim
-        // InConveyor  -> Konveyörde ilerliyor         => TrayIdleAnim
+        // InTrayBase  -> Base'de bekliyor           => TrayIdleAnim
+        // InConveyor  -> Konveyörde ilerliyor       => TrayIdleAnim
         // Vanishing   -> Teslimat/merge sonrası kayboluyor => TrayVanishAnim
         public enum TrayState
         {
@@ -119,13 +119,20 @@ namespace RestaurantLoop
 
         [Header("Yığın — Doğrusal Geri Kayma (Rotasyonsuz, Katman Bazlı)")]
         [Tooltip("AÇIKSA yığın parçaları artık rotasyonla DEĞİL, DÜZ ÇİZGİDE geriye doğru kayarak eylemsizlik " +
-                 "gösterir — en ÜST katman en çok, en ALT katman en az kayar. Yukarıdaki rotasyonel yığın " +
-                 "sallanmasından (Enable Stack Sway) TAMAMEN BAĞIMSIZDIR, ikisi aynı anda açık olabilir ve " +
-                 "üst üste biner.")]
+                 "gösterir — en ÜST katman en çok, en ALT katman en az (TEK katmanlı yığında ise HİÇ) kayar. " +
+                 "Yukarıdaki rotasyonel yığın sallanmasından (Enable Stack Sway) TAMAMEN BAĞIMSIZDIR, ikisi " +
+                 "aynı anda açık olabilir ve üst üste biner.")]
         [SerializeField] private bool enableStackLinearLag = false;
 
-        [Tooltip("İvmenin doğrusal kayma MESAFESİNE (açıya değil) dönüşüm hassasiyeti.")]
+        [Tooltip("Tepsinin GİTTİĞİ YÖNDEKİ HIZININ doğrusal kayma mesafesine dönüşüm hassasiyeti. Sabit hızda " +
+                 "bile (hızlanma/yavaşlama olmasa da) yığın hareket yönünün tersine yaslı durmasını sağlar. " +
+                 "Aşağıdaki Accel Sensitivity ile TOPLANARAK uygulanır.")]
         [SerializeField] private float stackLinearLagSensitivity = 0.05f;
+
+        [Tooltip("İvmenin (hızlanma/yavaşlama/dönüş anı) doğrusal kayma mesafesine EK katkısı. Yukarıdaki hız " +
+                 "katkısına toplanır — böylece dönüş/hızlanma anında ekstra bir 'kick' oluşur; sadece hıza " +
+                 "bağlı kalınca dönüşlerde sanki değer sabitmiş gibi hissettiren durumu giderir.")]
+        [SerializeField] private float stackLinearLagAccelSensitivity = 0.02f;
 
         [Tooltip("Maksimum kayma mesafesi (dünya birimi). Bu, EN ÜST katman için geçerli tavandır; alt " +
                  "katmanlar bunun bir oranı kadar (katman yüksekliğine göre) kayar.")]
@@ -206,9 +213,10 @@ namespace RestaurantLoop
         private float stackRoll, stackRollVel;
 
         // Yığın doğrusal (rotasyonsuz) geri kayma yayı — TEK paylaşılan
-        // değer; her parçaya kendi katman oranıyla çarpılarak uygulanır
-        // (bkz. LateUpdate). En üst katman = tam değer, alt katmanlar orantılı az.
-        private float stackLinearLagValue, stackLinearLagVel;
+        // 2D (X,Z) değer; her parçaya kendi katman oranıyla çarpılarak
+        // uygulanır (bkz. LateUpdate). En üst katman = tam değer, alt
+        // katmanlar orantılı az, TEK katman = HİÇ.
+        private Vector2 stackLinearLagValue, stackLinearLagVel;
 
         // Hız/ivme takibi (kök transform.position üzerinden — vanish hareketi
         // sadece ModelTransform'u etkilediği için buraya karışmaz).
@@ -587,7 +595,7 @@ namespace RestaurantLoop
             bodyRoll = bodyRollVel = 0f;
             stackPitch = stackPitchVel = 0f;
             stackRoll = stackRollVel = 0f;
-            stackLinearLagValue = stackLinearLagVel = 0f;
+            stackLinearLagValue = stackLinearLagVel = Vector2.zero;
 
             smoothedVelocity = Vector3.zero;
             velocitySmoothDampVel = Vector3.zero;
@@ -612,7 +620,7 @@ namespace RestaurantLoop
 
         private void LateUpdate()
         {
-            if (!enableInertiaSway && !enableStackSway)
+            if (!enableInertiaSway && !enableStackSway && !enableStackLinearLag)
             {
                 // Sallanma tamamen kapalıysa gereksiz hesap yapmadan sadece
                 // saf heading'i uygula.
@@ -645,6 +653,12 @@ namespace RestaurantLoop
             // eksene çeviriyoruz: "ileri ivme -> geriye yaslanma",
             // "yana ivme (dönüş) -> yana yaslanma" doğru çıksın diye.
             Vector3 localAccel = Quaternion.Inverse(headingRotation) * acceleration;
+
+            // Doğrusal yığın kayması (aşağıda) hem HIZ hem İVME yönünü
+            // birlikte kullanıyor — sadece hız kullanılsaydı sabit hızla
+            // giderken dönüşlerde sanki "değer sabitmiş" gibi hissettiriyordu;
+            // ivme eklenince dönüş/hızlanma anında ekstra bir tepki oluşuyor.
+            Vector3 localVel = Quaternion.Inverse(headingRotation) * smoothedVelocity;
 
             // --- Gövde (tepsinin kendisi) sallanması ---
             if (enableInertiaSway)
@@ -689,17 +703,28 @@ namespace RestaurantLoop
             // ROTASYONDAN FARKLI: parçalar DÖNMÜYOR, düz çizgide (o anki
             // GERİ yönde) kayıyor. Üstteki katman en çok, alttaki katman en
             // az kayar — TEK paylaşılan bir yay değeri (stackLinearLagValue)
-            // hesaplanıp her parçaya kendi katman oranıyla (layerIndex+1 /
-            // toplam katman sayısı) çarpılarak uygulanıyor. Kapalıyken (veya
-            // ivme sıfırken) parçalar tam spawn pozisyonuna döner.
+            // hesaplanıp her parçaya kendi katman oranıyla çarpılarak
+            // uygulanıyor. HEM hız HEM ivme katkısı toplanıyor.
             if (enableStackLinearLag)
             {
-                float linearLagTarget = Mathf.Clamp(-localAccel.z * stackLinearLagSensitivity, -stackLinearLagMaxDistance, stackLinearLagMaxDistance);
-                SpringTowards(ref stackLinearLagValue, ref stackLinearLagVel, linearLagTarget, stackLinearLagStiffness, stackLinearLagDamping, dt);
+                // Hız + ivme katkılarının TOPLAMININ tam tersi yönde 2D (X,Z) hedef.
+                Vector2 linearLagTarget = new Vector2(
+                    -(localVel.x * stackLinearLagSensitivity + localAccel.x * stackLinearLagAccelSensitivity),
+                    -(localVel.z * stackLinearLagSensitivity + localAccel.z * stackLinearLagAccelSensitivity)
+                );
+
+                // Maksimum kayma mesafesini (daire şeklinde) sınırla
+                if (linearLagTarget.sqrMagnitude > stackLinearLagMaxDistance * stackLinearLagMaxDistance)
+                {
+                    linearLagTarget = linearLagTarget.normalized * stackLinearLagMaxDistance;
+                }
+
+                SpringTowards(ref stackLinearLagValue.x, ref stackLinearLagVel.x, linearLagTarget.x, stackLinearLagStiffness, stackLinearLagDamping, dt);
+                SpringTowards(ref stackLinearLagValue.y, ref stackLinearLagVel.y, linearLagTarget.y, stackLinearLagStiffness, stackLinearLagDamping, dt);
             }
             else
             {
-                stackLinearLagValue = stackLinearLagVel = 0f;
+                stackLinearLagValue = stackLinearLagVel = Vector2.zero;
             }
 
             if (stackPieceInfos.Count > 0)
@@ -711,7 +736,13 @@ namespace RestaurantLoop
                     if (piece.go == null)
                         continue;
 
-                    float layerScale = (piece.layerIndex + 1) / (float)totalLayers;
+                    // En ALT katman (layerIndex 0) TAM SIFIR kayar; yukarı
+                    // çıktıkça (layerIndex arttıkça) doğrusal olarak artar,
+                    // EN ÜST katman tam (1.0) değeri alır. TEK katman varsa
+                    // (totalLayers == 1) o katman KESİNLİKLE KAYMAZ (0f).
+                    float layerScale = totalLayers > 1
+                        ? piece.layerIndex / (float)(totalLayers - 1)
+                        : 0f;
 
                     Vector3 basePos = new Vector3(
                         piece.offsetXZ.x,
@@ -719,7 +750,7 @@ namespace RestaurantLoop
                         piece.offsetXZ.y
                     );
 
-                    piece.go.transform.localPosition = basePos + Vector3.forward * (stackLinearLagValue * layerScale);
+                    piece.go.transform.localPosition = basePos + new Vector3(stackLinearLagValue.x, 0f, stackLinearLagValue.y) * layerScale;
                 }
             }
         }
