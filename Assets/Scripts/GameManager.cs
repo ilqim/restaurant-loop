@@ -199,8 +199,7 @@ namespace RestaurantLoop
 
             // İSTEK: Particle'lar HEMEN oynasın — win ekranını (LevelCompleteUI)
             // beklemesinler.
-            if (winParticle1 != null) winParticle1.Play();
-            if (winParticle2 != null) winParticle2.Play();
+            
 
             if (levelTopBar != null)
                 levelTopBar.SetActive(false);
@@ -238,6 +237,19 @@ namespace RestaurantLoop
         {
             yield return new WaitForSecondsRealtime(winScreenDelayAfterParticles);
 
+            if (winParticle1 != null)
+            {
+                winParticle1.gameObject.SetActive(true);
+                winParticle1.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                winParticle1.Play(true);
+            }
+
+            if (winParticle2 != null)
+            {
+                winParticle2.gameObject.SetActive(true);
+                winParticle2.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
+                winParticle2.Play(true);
+            }
             // İSTEK: Para (coin) TAM BURADA, ekran/animasyon görünürken
             // veriliyor — PlayerData.AddCoins içindeki para sesi de bu
             // yüzden artık kazanma anında değil, TAM BU ANDA çalıyor.
