@@ -50,6 +50,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   renderersToFade: []
   blockedAlpha: 0.75
+  surpriseBodyRenderer: {fileID: 5617055140990454610}
+  surpriseBlockedMaterial: {fileID: 2100000, guid: 8bc77145d292af54b96207bf0abf3525, type: 2}
   orderBubble: {fileID: 3479417007000431325}
   blockedOrderBubble: {fileID: 81839895850202743}
   bubblePunchScale: 0.15
@@ -57,6 +59,8 @@ MonoBehaviour:
   bubblePunchVibrato: 8
   bubblePunchElasticity: 0.7
   bubbleVanishDuration: 0.25
+  surpriseVisual: {fileID: 0}
+  surpriseUncoverDuration: 0.3
   headTransform: {fileID: 5625845556426561585}
   eyesOpenMaterial: {fileID: 2100000, guid: be8fd60ffc59cf2409802e9e53508e98, type: 2}
   eyesClosedMaterial: {fileID: 2100000, guid: 823af087b362af540829e14d8f9bcac6, type: 2}

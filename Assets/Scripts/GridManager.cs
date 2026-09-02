@@ -195,7 +195,12 @@ namespace RestaurantLoop
 
                         if (type == CellType.CustomerSlot)
                         {
-                            if (!data.TryGetCustomerFood(r, c, out FoodType food)) continue;
+                            // GÜNCELLEME: isSurprise bilgisini de alan
+                            // overload'a geçtik — eskiden bu bilgi burada
+                            // hiç okunmuyordu, bu yüzden LevelData'da
+                            // işaretli olsa bile Customer.Init()'e ASLA
+                            // ulaşmıyordu.
+                            if (!data.TryGetCustomerFood(r, c, out FoodType food, out bool isSurprise)) continue;
 
                             GameObject prefab = GetCustomerPrefab(food);
                             if (prefab == null)
@@ -209,7 +214,7 @@ namespace RestaurantLoop
 
                             var customerComp = instance.GetComponent<Customer>();
                             if (customerComp != null)
-                                customerComp.Init(r, c, food, customerManager);
+                                customerComp.Init(r, c, food, customerManager, isSurprise);
                             else
                                 Debug.LogWarning($"'{prefab.name}' prefabında Customer component'i yok.");
                         }

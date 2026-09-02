@@ -23,6 +23,15 @@ namespace RestaurantLoop
         [Range(0f, 1f)]
         [SerializeField] private float blockedAlpha = 0.35f;
 
+        [Header("Surprise Customer Material (Blocked)")]
+        [Tooltip("Sürpriz müşteri Blocked iken materyali değişecek olan Body/Renderer objesini buraya sürükle.")]
+        [SerializeField] private Renderer surpriseBodyRenderer;
+
+        [Tooltip("Sürpriz müşteri Blocked iken kullanılacak gizemli (gölge vb.) materyal.")]
+        [SerializeField] private Material surpriseBlockedMaterial;
+        
+        private Material originalSurpriseBodyMaterial;
+
         [Header("Customer Order Bubble")]
         [Tooltip("Normal (Blocked OLMAYAN) durumda gösterilen balon. Prefab içindeki adı 'Bubble' olan child obje otomatik bulunur.")]
         [SerializeField] private Transform orderBubble;
@@ -45,6 +54,20 @@ namespace RestaurantLoop
         [Header("Balon Kaybolma Animasyonu (Yemek Ulaştığında)")]
         [Tooltip("Yemek müşteriye ulaştığında (ReceiveFood), balon anında kaybolmak yerine bu süre boyunca küçülüp ÖYLE kaybolur.")]
         [SerializeField] private float bubbleVanishDuration = 0.25f;
+
+        [Header("Surprise Customer (Level Designda İşaretlenir)")]
+        [Tooltip("Blocked olduğu sürece (surprise ise) gösterilecek gizem/soru işareti ikonu — istediği yemeğin balonunun ÜSTÜNDE/YERİNDE durup onu gizler. LevelData'daki CustomerEntry.isSurprise değerinden Init() sırasında otomatik açılıp kapanır, elle SetActive etmene gerek yok.")]
+        [SerializeField] private GameObject surpriseVisual;
+        [Tooltip("Blocked'tan çıkıldığı AN, surpriseVisual'ın küçülüp kaybolarak gerçek balonu ortaya çıkarma süresi — Food.cs'teki uncoverDuration ile aynı mantık.")]
+        [SerializeField] private float surpriseUncoverDuration = 0.3f;
+
+        private bool isSurpriseCustomer;
+        public bool IsSurpriseCustomer => isSurpriseCustomer;
+
+        private Vector3 surpriseVisualBaseScale = Vector3.one;
+        private bool surpriseVisualBaseScaleCached;
+
+        private bool suppressInitialStateAnimations;
 
         [Header("Göz Kırpma (Blink) — 2 Materyal Arasında Geçiş")]
         [Tooltip("Kafa objesini buraya sürükle — üzerindeki Renderer otomatik bulunur, kırpma sırasında bu Renderer'ın materyali Eyes Open <-> Eyes Closed arasında değiştirilir.")]
@@ -74,28 +97,9 @@ namespace RestaurantLoop
 
         private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
 
-        // Bubble'ın prefab üzerindeki GERÇEK localScale değerini saklar
-        // (ör. 0.38) — Vector3.one YANLIŞTIR, çünkü balonun prefab ölçeği
-        // 1 olmak zorunda değil. Bu iki alan olmadan, punch/reset
-        // işlemleri balonu yanlışlıkla 1'e sabitleyip anormal büyük
-        // göstermesine yol açıyordu.
         private Vector3 orderBubbleBaseScale = Vector3.one;
         private bool orderBubbleBaseScaleCached;
 
-        // Unity'nin Instance ID'si pool'dan geri dönüştürülen (SetActive
-        // false/true) objelerde DEĞİŞMEZ — bu yüzden "aynı obje" ile "aynı
-        // sipariş/müşteri" farklı şeylerdir. Bir Tray, Update() fazında bu
-        // müşteriyi aday olarak bulduktan SONRA, başka bir Tray bu
-        // müşteriyi servis edip Despawn edebilir ve pool aynı GameObject'i
-        // TAMAMEN FARKLI bir müşteri için hemen yeniden kullanabilir. İlk
-        // Tray ateş etme anına geldiğinde elindeki referans hâlâ aynı
-        // objeye işaret eder ama artık BAŞKA bir sipariştir.
-        //
-        // OrderSessionId, HER Init() çağrısında (yani her gerçek yeni
-        // müşteri/sipariş başladığında) artan, pool'dan tamamen bağımsız
-        // bir sayaçtır. Bir Tray, ateş etmeden hemen önce bu ID'nin
-        // Update()'te gördüğüyle hâlâ aynı olduğunu doğrular; değiştiyse
-        // bu artık farklı bir müşteridir ve ateş edilmez.
         private static int nextOrderSessionId = 1;
         public int OrderSessionId { get; private set; }
 
@@ -104,13 +108,6 @@ namespace RestaurantLoop
         private Color[] originalColors;
         private bool initialized;
 
-        // Bu müşteriye şu anda teslimat yapmakta olan kaynak.
-        // Food.cs VEYA Tray.cs olabilir — kasıtlı olarak genel `object`
-        // tutuluyor ki iki farklı teslimat sistemi (slot'taki Food ve
-        // conveyor'daki Tray) AYNI rezervasyonu paylaşsın. Eskiden bu alan
-        // sadece Food tipindeydi ve Tray kendi ayrı (static) rezervasyon
-        // setini kullanıyordu; bu da iki sistemin birbirinden habersiz
-        // kalıp AYNI müşteriye birden fazla yemek göndermesine yol açıyordu.
         private object incomingDeliverySource;
 
         public int Row { get; private set; }
@@ -124,37 +121,19 @@ namespace RestaurantLoop
             currentState == CustomerState.Blocked ||
             currentState == CustomerState.Serving;
 
-        // Başka bir kaynak (Food ya da Tray) şu anda bu müşteriye
-        // yemek gönderiyor mu?
         public bool IsReceivingFood => incomingDeliverySource != null;
-
-
-        // ============================================================
-        // AWAKE
-        // ============================================================
 
         private void Awake()
         {
-            // Prefab içindeki "Bubble" child'ını otomatik bul (blockedOrderBubble
-            // için otomatik arama YOK — onu sen elle atıyorsun, farklı isimde/
-            // yapıda olabileceği için otomatik bulmaya çalışmıyoruz).
             FindOrderBubble();
-
-            // Bubble'ın prefab üzerindeki GERÇEK scale değerini bir kere
-            // cache'le — sonraki hiçbir işlem bunu Vector3.one'a
-            // sıfırlamamalı.
             CacheOrderBubbleBaseScale();
+            CacheSurpriseVisualBaseScale();
 
-            // Renderer'ları otomatik bul — BUBBLE'LARI (orderBubble ve
-            // blockedOrderBubble) HARİÇ TUTARAK. Onlar artık alfa/karartma
-            // sistemine hiç girmiyor, sadece aktif/pasif ediliyorlar.
             if (renderersToFade == null || renderersToFade.Length == 0)
                 renderersToFade = CollectRenderersExcludingBubbles();
 
             animator = GetComponentInChildren<Animator>();
 
-            // Blink için kafa objesindeki Renderer — bir kez cache'lenip
-            // başlangıçta "gözler açık" materyaline sabitleniyor.
             if (headTransform != null)
             {
                 headRenderer = headTransform.GetComponent<Renderer>();
@@ -164,38 +143,39 @@ namespace RestaurantLoop
                 if (headRenderer != null && eyesOpenMaterial != null)
                     headRenderer.material = eyesOpenMaterial;
             }
+            
+            // Sürpriz müşteri için orijinal materyali sakla
+            if (surpriseBodyRenderer != null)
+            {
+                originalSurpriseBodyMaterial = surpriseBodyRenderer.sharedMaterial;
+            }
 
-            // MaterialPropertyBlock hazırla.
             mpb = new MaterialPropertyBlock();
 
-            // Bubble'ları instantiate edilir edilmez kameraya hizala.
+            if (surpriseVisual != null)
+                surpriseVisual.SetActive(false);
+
             AlignOrderBubbleToCamera();
         }
 
-        /// <summary>
-        /// Bubble'ın prefab üzerinde ayarlanmış gerçek localScale değerini
-        /// BİR KERE saklar (orderBubbleBaseScaleCached bayrağıyla korunur).
-        /// Punch/reset işlemleri her zaman BU değere göre yapılmalı,
-        /// asla sabit Vector3.one'a değil.
-        /// </summary>
         private void CacheOrderBubbleBaseScale()
         {
-            if (orderBubble == null)
-                return;
-
-            if (orderBubbleBaseScaleCached)
+            if (orderBubble == null || orderBubbleBaseScaleCached)
                 return;
 
             orderBubbleBaseScale = orderBubble.localScale;
             orderBubbleBaseScaleCached = true;
         }
 
-        /// <summary>
-        /// GetComponentsInChildren&lt;Renderer&gt;(true) ile bulunan tüm
-        /// renderer'lardan, orderBubble ve blockedOrderBubble'ın ALTINDA
-        /// kalanları çıkarır. Bu iki balon artık alfa ile soluklaştırılmıyor,
-        /// tamamen ayrı bir GameObject aktif/pasif mantığıyla yönetiliyor.
-        /// </summary>
+        private void CacheSurpriseVisualBaseScale()
+        {
+            if (surpriseVisual == null || surpriseVisualBaseScaleCached)
+                return;
+
+            surpriseVisualBaseScale = surpriseVisual.transform.localScale;
+            surpriseVisualBaseScaleCached = true;
+        }
+
         private Renderer[] CollectRenderersExcludingBubbles()
         {
             var all = GetComponentsInChildren<Renderer>(true);
@@ -204,30 +184,21 @@ namespace RestaurantLoop
             foreach (var r in all)
             {
                 if (r == null) continue;
-
                 if (orderBubble != null && r.transform.IsChildOf(orderBubble)) continue;
                 if (blockedOrderBubble != null && r.transform.IsChildOf(blockedOrderBubble)) continue;
+                if (surpriseVisual != null && r.transform.IsChildOf(surpriseVisual.transform)) continue;
 
                 result.Add(r);
             }
-
             return result.ToArray();
         }
 
-
-        // ============================================================
-        // BUBBLE BULMA
-        // ============================================================
-
         private void FindOrderBubble()
         {
-            // Zaten atanmışsa tekrar arama.
             if (orderBubble != null)
                 return;
 
-            Transform[] children =
-                GetComponentsInChildren<Transform>(true);
-
+            Transform[] children = GetComponentsInChildren<Transform>(true);
             foreach (Transform child in children)
             {
                 if (child.name == "Bubble")
@@ -236,57 +207,32 @@ namespace RestaurantLoop
                     return;
                 }
             }
-
-            Debug.LogWarning(
-                $"Customer [{name}]: Child objeler arasında 'Bubble' isimli obje bulunamadı."
-            );
         }
-
-
-        // ============================================================
-        // INIT
-        // ============================================================
 
         public void Init(
             int row,
             int col,
             FoodType desiredFood,
-            CustomerManager manager)
+            CustomerManager manager,
+            bool isSurprise = false)
         {
-            // Pool'dan geri dönüştürülmüş olsa bile bu ARTIK yeni/farklı
-            // bir sipariştir — Instance ID aynı kalsa da OrderSessionId
-            // burada mutlaka yeni bir değer alır.
             OrderSessionId = nextOrderSessionId++;
-
             Row = row;
             Col = col;
             DesiredFood = desiredFood;
             customerManager = manager;
 
             currentState = CustomerState.Blocked;
-
             incomingDeliverySource = null;
 
-            // Pool'dan tekrar kullanılıyorsa Bubble referansını
-            // garantiye al.
             FindOrderBubble();
-
-            // Bubble'ın gerçek scale'ini garantiye al (pool'dan dönen
-            // objede orderBubble referansı yeniden bulunmuş olabilir).
             CacheOrderBubbleBaseScale();
-
-            // Food/orderBubble tekrar bulunmuş olabileceği için (pool'dan
-            // dönen obje) renderer listesini de tazeleyelim ki filtre
-            // (bubble hariç tutma) hep doğru kalsın.
+            CacheSurpriseVisualBaseScale();
             renderersToFade = CollectRenderersExcludingBubbles();
 
             if (mpb == null)
                 mpb = new MaterialPropertyBlock();
 
-            // Pool'dan gelen objede önceki bir punch-scale'den kalma
-            // yarım kalmış bir ölçek olmasın diye GERÇEK BASE SCALE'e
-            // (prefab'daki orijinal değere, ör. 0.38) sıfırlıyoruz —
-            // Vector3.one DEĞİL.
             if (orderBubble != null)
             {
                 orderBubble.DOKill();
@@ -295,52 +241,25 @@ namespace RestaurantLoop
 
             CacheOriginalColors();
             ApplyVisual();
-            UpdateBubbleVisibility();
 
-            // Init sırasında da tekrar hizala.
-            // Böylece pool'dan geri geldiğinde de doğru olur.
-            AlignOrderBubbleToCamera();
+            SetSurprise(isSurprise);
 
+            suppressInitialStateAnimations = true;
             initialized = true;
 
-            if (verboseLogging)
-            {
-                Debug.Log(
-                    $"Customer [{name}] (ID={GetInstanceID()}, " +
-                    $"Session={OrderSessionId}) " +
-                    $"Init: Row={row}, Col={col}, Desired={desiredFood}"
-                );
-            }
-
             if (customerManager != null)
-            {
                 customerManager.RegisterCustomer(this);
-            }
-            else
-            {
-                Debug.LogWarning(
-                    $"Customer [{name}]: CustomerManager atanmadı, state sistemi çalışmayacak."
-                );
-            }
 
-            // İSTEK: Sahne başladığı anda TÜM müşteriler aynı state'i
-            // (ör. Idle) TAM AYNI andan (t=0) oynatmaya başladığı için
-            // hepsi senkron sallanıyordu. Çözüm: o an oynayan state'i
-            // (hangi state olduğunu BİLMEMİZE gerek kalmadan) rastgele
-            // bir normalize zaman noktasından (0-1 arası) tekrar
-            // başlatıyoruz — bu, aynı loop içinde farklı bir "faz"a
-            // atlamak demek, senkronu tamamen kırıyor. Pool'dan her
-            // yeniden kullanımda da (Init her çağrıldığında) TEKRAR
-            // rastgele bir noktadan başlar.
+            suppressInitialStateAnimations = false;
+
+            AlignOrderBubbleToCamera();
+
             if (animator != null)
             {
                 var stateInfo = animator.GetCurrentAnimatorStateInfo(0);
                 animator.Play(stateInfo.fullPathHash, 0, Random.Range(0f, 1f));
             }
 
-            // Pool'dan dönen objede headRenderer referansı ve materyali
-            // garantiye al — önceki kullanımdan yarım kalmış "gözler
-            // kapalı" materyaliyle spawn olmasın diye açığa sıfırlanıyor.
             if (headTransform != null)
             {
                 if (headRenderer == null)
@@ -349,16 +268,10 @@ namespace RestaurantLoop
                     if (headRenderer == null)
                         headRenderer = headTransform.GetComponentInChildren<Renderer>();
                 }
-
                 if (headRenderer != null && eyesOpenMaterial != null)
                     headRenderer.material = eyesOpenMaterial;
             }
 
-            // Blink rutinini (yeniden) başlat — pool'dan geri dönen bir
-            // customer'da ESKİ rutin varsa önce durdurulur, sonra HER
-            // seferinde YENİ bir rastgele başlangıç gecikmesiyle baştan
-            // başlar. Böylece sahnedeki tüm müşteriler asla senkron göz
-            // kırpmaz.
             if (blinkRoutine != null)
                 StopCoroutine(blinkRoutine);
 
@@ -366,18 +279,8 @@ namespace RestaurantLoop
                 blinkRoutine = StartCoroutine(BlinkRoutine());
         }
 
-        /// <summary>
-        /// Sürekli tekrar eden göz kırpma döngüsü. İlk bekleme
-        /// [0, blinkInterval] arasında TAMAMEN rastgele seçilir — bu
-        /// sayede sahne başladığı anda spawn edilen tüm müşteriler farklı
-        /// zamanlarda kırpmaya başlar, hepsi birlikte kırpmaz. Her kırpma:
-        /// Eyes Closed materyaline geç -> blinkClosedHoldDuration kadar
-        /// bekle -> Eyes Open materyaline geri dön -> rastgele bir süre
-        /// daha bekleyip tekrarla.
-        /// </summary>
         private System.Collections.IEnumerator BlinkRoutine()
         {
-            // İLK kırpma — tamamen rastgele bir noktada (senkronu kırmak için).
             yield return new WaitForSeconds(Random.Range(0f, Mathf.Max(0.01f, blinkInterval)));
 
             while (true)
@@ -397,11 +300,6 @@ namespace RestaurantLoop
             }
         }
 
-
-        // ============================================================
-        // BUBBLE KAMERAYA HİZALAMA
-        // ============================================================
-
         private void AlignOrderBubbleToCamera()
         {
             Camera cam = Camera.main;
@@ -410,68 +308,55 @@ namespace RestaurantLoop
 
             Quaternion rot = Quaternion.LookRotation(cam.transform.forward, cam.transform.up);
 
-            // İkisi de aynı açıya hizalanıyor — hangisi aktifse o görünür.
             if (orderBubble != null)
                 orderBubble.rotation = rot;
-
             if (blockedOrderBubble != null)
                 blockedOrderBubble.rotation = rot;
+            if (surpriseVisual != null)
+                surpriseVisual.transform.rotation = rot;
         }
 
-
-        // ============================================================
-        // BUBBLE AKTİF/PASİF (Blocked <-> Normal geçişi)
-        // ============================================================
-
-        /// <summary>
-        /// Blocked durumundaysa blockedOrderBubble'ı aktif edip
-        /// orderBubble'ı pasif eder; değilse tam tersi. blockedOrderBubble
-        /// atanmamışsa (eski davranış) sadece orderBubble kullanılmaya
-        /// devam eder, hiçbir şey kırılmaz.
-        /// </summary>
         private void UpdateBubbleVisibility()
         {
             bool isBlocked = currentState == CustomerState.Blocked;
+            bool hideRealBubblesForSurprise = isSurpriseCustomer && isBlocked;
 
             if (blockedOrderBubble != null)
             {
-                blockedOrderBubble.gameObject.SetActive(isBlocked);
-
+                blockedOrderBubble.gameObject.SetActive(isBlocked && !hideRealBubblesForSurprise);
                 if (orderBubble != null)
-                    orderBubble.gameObject.SetActive(!isBlocked);
+                    orderBubble.gameObject.SetActive(!isBlocked && !hideRealBubblesForSurprise);
             }
             else if (orderBubble != null)
             {
-                // blockedOrderBubble hiç atanmamışsa eski davranış: balon
-                // her zaman aktif kalır (soluklaştırma da artık yok, çünkü
-                // Bubble renderersToFade'den çıkarıldı) — sadece
-                // ReceiveFood() sırasında ayrıca kapatılır (aşağıda).
-                orderBubble.gameObject.SetActive(true);
+                orderBubble.gameObject.SetActive(!hideRealBubblesForSurprise);
+            }
+        }
+        
+        private void UpdateSurpriseMaterial()
+        {
+            if (surpriseBodyRenderer == null || originalSurpriseBodyMaterial == null || surpriseBlockedMaterial == null)
+                return;
+
+            // 'sharedMaterial' kullanıyoruz ki Unity sürekli yeni instance üretmesin
+            if (isSurpriseCustomer && currentState == CustomerState.Blocked)
+            {
+                surpriseBodyRenderer.sharedMaterial = surpriseBlockedMaterial;
+            }
+            else
+            {
+                surpriseBodyRenderer.sharedMaterial = originalSurpriseBodyMaterial;
             }
         }
 
-        /// <summary>
-        /// Blocked'tan Blocked-olmayan bir state'e geçildiği ANDA
-        /// (SetState içinden çağrılır), orderBubble'a bir kere DOPunchScale
-        /// uygular — kendi kendine söner, loop YOK. Parametreler Inspector'dan
-        /// (bubblePunchScale/Duration/Vibrato/Elasticity) ayarlanabilir.
-        /// </summary>
         private void PlayBubbleUnblockPunch()
         {
-            if (orderBubble == null)
+            if (orderBubble == null || bubblePunchScale <= 0f)
                 return;
 
-            if (bubblePunchScale <= 0f)
-                return;
-
-            // Bubble'ın gerçek (prefab'daki) scale'ini garantiye al.
             CacheOrderBubbleBaseScale();
-
-            // Önceki bir punch hâlâ sürüyorsa iptal edip GERÇEK base
-            // scale'e dön — Vector3.one DEĞİL.
             orderBubble.DOKill();
             orderBubble.localScale = orderBubbleBaseScale;
-
             orderBubble.DOPunchScale(
                 orderBubbleBaseScale * bubblePunchScale,
                 bubblePunchDuration,
@@ -480,23 +365,53 @@ namespace RestaurantLoop
             );
         }
 
-        /// <summary>
-        /// Bir balonu (orderBubble ya da blockedOrderBubble) ANINDA
-        /// SetActive(false) yapmak yerine, önce küçülüp kaybolma
-        /// animasyonu oynatır, animasyon bitince gerçekten pasif hale
-        /// getirir ve ölçeğini (bir sonraki kullanım için) eski haline
-        /// geri kor. Zaten pasifse hiçbir şey yapmaz.
-        /// </summary>
-        private void VanishBubble(Transform bubble)
+        public void SetSurprise(bool surprise)
         {
-            if (bubble == null)
+            isSurpriseCustomer = surprise;
+
+            if (surpriseVisual != null)
+            {
+                CacheSurpriseVisualBaseScale();
+                surpriseVisual.transform.DOKill();
+                surpriseVisual.transform.localScale = surpriseVisualBaseScale;
+
+                bool shouldShow = isSurpriseCustomer && currentState == CustomerState.Blocked;
+                surpriseVisual.SetActive(shouldShow);
+            }
+            UpdateBubbleVisibility();
+            UpdateSurpriseMaterial();
+        }
+
+        private void UncoverSurpriseVisual(bool instant = false)
+        {
+            if (!isSurpriseCustomer || surpriseVisual == null || !surpriseVisual.activeSelf)
                 return;
 
-            if (!bubble.gameObject.activeSelf)
+            surpriseVisual.transform.DOKill();
+
+            if (instant)
+            {
+                surpriseVisual.SetActive(false);
+                surpriseVisual.transform.localScale = surpriseVisualBaseScale;
+                return;
+            }
+
+            surpriseVisual.transform.localScale = surpriseVisualBaseScale;
+            surpriseVisual.transform.DOScale(Vector3.zero, surpriseUncoverDuration)
+                .SetEase(Ease.InBack)
+                .OnComplete(() =>
+                {
+                    surpriseVisual.SetActive(false);
+                    surpriseVisual.transform.localScale = surpriseVisualBaseScale;
+                });
+        }
+
+        private void VanishBubble(Transform bubble)
+        {
+            if (bubble == null || !bubble.gameObject.activeSelf)
                 return;
 
             Vector3 startScale = bubble.localScale;
-
             bubble.DOKill();
             bubble.DOScale(Vector3.zero, bubbleVanishDuration)
                 .SetEase(Ease.InBack)
@@ -507,82 +422,27 @@ namespace RestaurantLoop
                 });
         }
 
-
-        // ============================================================
-        // TESLİMAT REZERVASYONU (Food VE Tray ORTAK)
-        // ============================================================
-
-        /// <summary>
-        /// Bir teslimat kaynağı (Food veya Tray) bu müşteriye yemek
-        /// göndermeden önce müşteriyi rezerve eder. Aynı müşteriye
-        /// ikinci bir teslimatın başlamasını engeller — kaynak fark
-        /// etmeksizin (iki Food, iki Tray, ya da bir Food + bir Tray
-        /// aynı anda hedeflemeye çalışsa bile).
-        /// </summary>
         public bool TryReserveForDelivery(object source, FoodType requestedFood)
         {
-            if (source == null)
-                return false;
+            if (source == null) return false;
+            if (incomingDeliverySource != null) return false;
+            if (currentState != CustomerState.Idle) return false;
+            if (DesiredFood != requestedFood) return false;
 
-            // Zaten başka bir kaynak bu müşteriye yemek gönderiyor.
-            if (incomingDeliverySource != null)
-                return false;
-
-            // Müşteri sadece Idle iken rezerve edilebilir. Serving,
-            // Blocked, Eating, HappyJump, Leaving, Angry — hiçbiri
-            // yeniden rezerve edilemez.
-            if (currentState != CustomerState.Idle)
-                return false;
-
-            // İstenen yemek ile gönderilen yemek eşleşmeli.
-            if (DesiredFood != requestedFood)
-                return false;
-
-            // Müşteriyi bu kaynak için kilitle. State'i de HEMEN
-            // Serving'e çekiyoruz — böylece "rezerve edildi ama hâlâ
-            // Idle görünüyor" penceresi tamamen ortadan kalkıyor; state
-            // üzerinden bakan HER kontrol artık bunu doğru görür.
             incomingDeliverySource = source;
             SetState(CustomerState.Serving);
-
-            if (verboseLogging)
-            {
-                Debug.Log(
-                    $"Customer [{name}] (ID={GetInstanceID()}, " +
-                    $"Session={OrderSessionId}) " +
-                    $"RESERVED by {source} -> state=Serving " +
-                    $"(SourceID={(source as Object)?.GetInstanceID()})"
-                );
-            }
-
             return true;
         }
 
-        /// <summary>
-        /// Geriye dönük uyumluluk için korunan Food-özel sarmalayıcı.
-        /// İçeride ortak TryReserveForDelivery'yi çağırır.
-        /// </summary>
         public bool TryReserveForFood(Food food)
         {
-            if (food == null)
-                return false;
-
+            if (food == null) return false;
             return TryReserveForDelivery(food, food.FoodTypeValue);
         }
 
-        /// <summary>
-        /// Teslimat kaynağı (Food veya Tray) rezervasyonu bırakır —
-        /// sadece rezervasyonun sahibi olan kaynak bırakabilir. Teslimat
-        /// TAMAMLANMADAN (ör. klon kayboldu) rezervasyon iptal edilirse,
-        /// müşteri tekrar servis edilebilir olsun diye state Idle'a
-        /// geri döner.
-        /// </summary>
         public void ReleaseDeliveryReservation(object source)
         {
-            if (source == null)
-                return;
-
-            if (incomingDeliverySource != source)
+            if (source == null || incomingDeliverySource != source)
                 return;
 
             incomingDeliverySource = null;
@@ -590,68 +450,25 @@ namespace RestaurantLoop
             if (currentState == CustomerState.Serving)
             {
                 SetState(CustomerState.Idle);
-
-                if (verboseLogging)
-                {
-                    Debug.Log(
-                        $"Customer [{name}] (ID={GetInstanceID()}, " +
-                        $"Session={OrderSessionId}) " +
-                        $"rezervasyon iptal -> state=Idle"
-                    );
-                }
             }
         }
 
-        /// <summary>
-        /// Geriye dönük uyumluluk için korunan Food-özel sarmalayıcı.
-        /// </summary>
         public void ClearFoodReservation(Food food)
         {
             ReleaseDeliveryReservation(food);
         }
 
-
-        // ============================================================
-        // FOOD RECEIVED
-        // ============================================================
-
         public void ReceiveFood()
         {
-            if (verboseLogging)
-            {
-                Debug.Log(
-                    $"Customer [{name}] (ID={GetInstanceID()}, " +
-                    $"Session={OrderSessionId}) " +
-                    $"ReceiveFood çağrıldı."
-                );
-            }
-
-            // Banttaki food müşteriyle eşleştiğinde.
             AudioEvents.PlayOrderDelivered();
-
-            // İSTEK: Balon artık ANINDA kapanmıyor — küçülüp kaybolma
-            // animasyonu oynatıp ONDAN SONRA kapanıyor. Hangisi aktifse
-            // (normal ya da blocked varyantı) o animasyonu oynatır.
             VanishBubble(orderBubble);
             VanishBubble(blockedOrderBubble);
 
             SetState(CustomerState.Eating);
-
             SetState(CustomerState.HappyJump);
-
             SetState(CustomerState.Leaving);
-
-            // İSTEK: Animator'ın "Vanish" klibi kötü görünüyordu (kafa
-            // garip şekilde büyüyordu) — artık o klibe HİÇ güvenilmiyor.
-            // Kaybolma tamamen kod/DOTween ile (Despawn() içinde,
-            // küçülüp hafifçe yukarı süzülerek) yapılıyor.
             Despawn();
         }
-
-
-        // ============================================================
-        // STATE
-        // ============================================================
 
         public void SetState(CustomerState newState)
         {
@@ -659,53 +476,58 @@ namespace RestaurantLoop
                 return;
 
             bool wasBlocked = currentState == CustomerState.Blocked;
-
             currentState = newState;
 
             ApplyVisual();
             UpdateBubbleVisibility();
+            UpdateSurpriseMaterial();
 
-            // İSTEK: Blocked'tan normale (Blocked OLMAYAN herhangi bir
-            // state'e) geçtiği TAM O ANDA, balon hafifçe zıplasın.
             if (wasBlocked && newState != CustomerState.Blocked)
             {
-                PlayBubbleUnblockPunch();
+                UncoverSurpriseVisual(instant: suppressInitialStateAnimations);
+                if (!suppressInitialStateAnimations)
+                    PlayBubbleUnblockPunch();
+            }
+            else if (!wasBlocked && newState == CustomerState.Blocked)
+            {
+                if (isSurpriseCustomer && surpriseVisual != null)
+                {
+                    surpriseVisual.transform.DOKill();
+                    surpriseVisual.transform.localScale = surpriseVisualBaseScale;
+                    surpriseVisual.SetActive(true);
+                }
             }
         }
 
-
-        // ============================================================
-        // DESPAWN
-        // ============================================================
-
         private void Despawn()
         {
-            if (verboseLogging)
-            {
-                Debug.Log(
-                    $"Customer [{name}] (ID={GetInstanceID()}, " +
-                    $"Session={OrderSessionId}) despawn."
-                );
-            }
-
             incomingDeliverySource = null;
 
-            // Pool'a dönerken arka planda boşuna çalışmasın diye blink
-            // rutini durduruluyor — Init() tekrar çağrıldığında (yeniden
-            // kullanıldığında) YENİ bir rastgele gecikmeyle baştan başlar.
             if (blinkRoutine != null)
             {
                 StopCoroutine(blinkRoutine);
                 blinkRoutine = null;
             }
 
-            // Pool'a dönerken gözler "kapalı" materyalinde yarım kalmasın
-            // diye açığa sıfırlıyoruz.
             if (headRenderer != null && eyesOpenMaterial != null)
                 headRenderer.material = eyesOpenMaterial;
 
+            // Pool'a dönerken sürpriz materyalini sıfırla ki bir sonraki sefer normal müşteri olarak çıkarsa hatalı görünmesin
+            if (surpriseBodyRenderer != null && originalSurpriseBodyMaterial != null)
+            {
+                surpriseBodyRenderer.sharedMaterial = originalSurpriseBodyMaterial;
+                surpriseBodyRenderer.SetPropertyBlock(null); // Özel ayarı temizle
+            }
+
             if (orderBubble != null)
                 orderBubble.DOKill();
+
+            if (surpriseVisual != null)
+            {
+                surpriseVisual.transform.DOKill();
+                surpriseVisual.transform.localScale = surpriseVisualBaseScale;
+                surpriseVisual.SetActive(false);
+            }
 
             if (initialized && customerManager != null)
             {
@@ -713,67 +535,43 @@ namespace RestaurantLoop
                 initialized = false;
             }
 
-            // İSTEK: Animator'ın "Vanish" klibine artık HİÇ güvenmiyoruz
-            // (kafa garip şekilde büyüyordu, kötü görünüyordu) — kaybolma
-            // tamamen kod/DOTween ile yapılıyor: hafifçe küçülüp yukarı
-            // süzülerek kayboluyor. Pool'a dönüş (ya da SetActive(false))
-            // animasyon TAM BİTTİKTEN sonra gerçekleşiyor.
             transform.DOKill();
-
             Vector3 startScale = transform.localScale;
-
             Sequence vanishSequence = DOTween.Sequence();
             vanishSequence.SetLink(gameObject);
 
-            vanishSequence.Join(
-                transform.DOScale(startScale * 0.2f, 0.35f).SetEase(Ease.InBack));
-
-            vanishSequence.Join(
-                transform.DOMoveY(transform.position.y + 0.4f, 0.35f).SetEase(Ease.OutQuad));
+            vanishSequence.Join(transform.DOScale(startScale * 0.2f, 0.35f).SetEase(Ease.InBack));
+            vanishSequence.Join(transform.DOMoveY(transform.position.y + 0.4f, 0.35f).SetEase(Ease.OutQuad));
 
             vanishSequence.OnComplete(() =>
             {
-                // Pool'a dönmeden önce ölçeği eski haline getiriyoruz —
-                // bir sonraki kullanımda küçülmüş halde spawn olmasın.
                 transform.localScale = startScale;
-
                 if (ObjectPool.Instance != null)
-                {
                     ObjectPool.Instance.Return(gameObject);
-                }
                 else
-                {
                     gameObject.SetActive(false);
-                }
             });
         }
 
-
-        // ============================================================
-        // VISUAL
-        // ============================================================
-
-        /// <summary>
-        /// Artık SADECE body/kafa gibi Bubble-dışı renderer'ları etkiler —
-        /// Bubble'lar UpdateBubbleVisibility() ile ayrı yönetiliyor.
-        /// </summary>
         private void ApplyVisual()
         {
-            if (renderersToFade == null ||
-                originalColors == null)
+            if (renderersToFade == null || originalColors == null)
                 return;
 
-            float alpha =
-                currentState == CustomerState.Blocked
-                    ? blockedAlpha
-                    : 1f;
+            float alpha = currentState == CustomerState.Blocked ? blockedAlpha : 1f;
+            bool hideOriginalBodyColor = isSurpriseCustomer && currentState == CustomerState.Blocked;
 
             for (int i = 0; i < renderersToFade.Length; i++)
             {
                 var r = renderersToFade[i];
+                if (r == null) continue;
 
-                if (r == null)
+                // BUG FIX: Sürpriz Blocked müşteri ise, mpb (MaterialPropertyBlock) ile eski rengi üstüne YAZMA.
+                if (hideOriginalBodyColor && r == surpriseBodyRenderer)
+                {
+                    r.SetPropertyBlock(null);
                     continue;
+                }
 
                 Color c = originalColors[i];
                 c.a = alpha;
@@ -790,22 +588,12 @@ namespace RestaurantLoop
             }
         }
 
-
-        // ============================================================
-        // ORIGINAL COLORS
-        // ============================================================
-
         private void CacheOriginalColors()
         {
-            originalColors =
-                new Color[renderersToFade.Length];
-
-            for (int i = 0;
-                i < renderersToFade.Length;
-                i++)
+            originalColors = new Color[renderersToFade.Length];
+            for (int i = 0; i < renderersToFade.Length; i++)
             {
                 var r = renderersToFade[i];
-
                 if (r == null)
                 {
                     originalColors[i] = Color.white;
@@ -819,30 +607,20 @@ namespace RestaurantLoop
                 }
 
                 var mat = r.sharedMaterial;
-
-                originalColors[i] =
-                    mat != null &&
-                    mat.HasProperty(BaseColorId)
-                        ? mat.GetColor(BaseColorId)
-                        : Color.white;
+                originalColors[i] = mat != null && mat.HasProperty(BaseColorId)
+                    ? mat.GetColor(BaseColorId)
+                    : Color.white;
             }
         }
-
-
-        // ============================================================
-        // DESTROY
-        // ============================================================
 
         private void OnDestroy()
         {
             if (orderBubble != null)
                 orderBubble.DOKill();
-
-            if (initialized &&
-                customerManager != null)
-            {
+            if (surpriseVisual != null)
+                surpriseVisual.transform.DOKill();
+            if (initialized && customerManager != null)
                 customerManager.UnregisterCustomer(this);
-            }
         }
     }
 }
