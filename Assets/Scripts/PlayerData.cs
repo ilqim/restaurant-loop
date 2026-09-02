@@ -18,23 +18,32 @@ namespace RestaurantLoop
         public const string NextRegenTimeKey = "PlayerData_NextHeartRegenTime";
         private const string CurrentLevelKey = "PlayerData_CurrentLevel";
         private const string BoosterKeyPrefix = "PlayerData_Booster_";
+        private const string PlayerNameKey = "PlayerData_PlayerName";
+        private const string PlayerAvatarIndexKey = "PlayerData_PlayerAvatarIndex";
 
         public const int MaxHearts = 5;
         public const int DefaultInitialCoins = 100;
         public const int DefaultStartingLevel = 1;
         public const int DefaultBoosterCount = 99;
         public const double HeartRegenIntervalMinutes = 30.0;
+        public const string DefaultPlayerName = "Player";
+        public const int PlayerNameMaxLength = 16;
+        public const int DefaultAvatarIndex = 0;
 
         private static int? coins;
         private static int? hearts;
         private static int? currentLevel;
         private static DateTime? nextRegenTime;
+        private static string playerName;
+        private static int? playerAvatarIndex;
         private static readonly Dictionary<BoosterType, int> boosterCounts = new();
 
         public static event Action<int> CoinsChanged;
         public static event Action<int> HeartsChanged;
         public static event Action<int> CurrentLevelChanged;
         public static event Action<BoosterType, int> BoosterCountChanged;
+        public static event Action<string> PlayerNameChanged;
+        public static event Action<int> PlayerAvatarIndexChanged;
 
         public static int Coins
         {
@@ -91,6 +100,61 @@ namespace RestaurantLoop
                 PlayerPrefs.SetInt(CurrentLevelKey, currentLevel.Value);
                 PlayerPrefs.Save();
                 CurrentLevelChanged?.Invoke(currentLevel.Value);
+            }
+        }
+
+        /// <summary>
+        /// Oyuncunun profilde girdiği isim — PlayerPrefs üzerinden kalıcı.
+        /// Boş/whitespace bir değer set edilirse otomatik DefaultPlayerName'e
+        /// düşer, PlayerNameMaxLength'i aşan kısım kırpılır.
+        /// </summary>
+        public static string PlayerName
+        {
+            get
+            {
+                playerName ??= PlayerPrefs.GetString(PlayerNameKey, DefaultPlayerName);
+                return playerName;
+            }
+            set
+            {
+                string sanitized = string.IsNullOrWhiteSpace(value)
+                    ? DefaultPlayerName
+                    : value.Trim();
+
+                if (sanitized.Length > PlayerNameMaxLength)
+                    sanitized = sanitized.Substring(0, PlayerNameMaxLength);
+
+                if (playerName != null && playerName == sanitized) return;
+
+                playerName = sanitized;
+                PlayerPrefs.SetString(PlayerNameKey, playerName);
+                PlayerPrefs.Save();
+                PlayerNameChanged?.Invoke(playerName);
+            }
+        }
+
+        /// <summary>
+        /// Oyuncunun seçtiği avatarın AvatarDatabase içindeki index'i —
+        /// PlayerPrefs üzerinden kalıcı. Değiştiğinde PlayerAvatarIndexChanged
+        /// tetiklenir; ana menüdeki ikon (HomeAvatarIcon) buna abone olup
+        /// kendini günceller.
+        /// </summary>
+        public static int PlayerAvatarIndex
+        {
+            get
+            {
+                playerAvatarIndex ??= PlayerPrefs.GetInt(PlayerAvatarIndexKey, DefaultAvatarIndex);
+                return playerAvatarIndex.Value;
+            }
+            set
+            {
+                int clamped = Mathf.Max(0, value);
+                if (playerAvatarIndex.HasValue && playerAvatarIndex.Value == clamped) return;
+
+                playerAvatarIndex = clamped;
+                PlayerPrefs.SetInt(PlayerAvatarIndexKey, clamped);
+                PlayerPrefs.Save();
+                PlayerAvatarIndexChanged?.Invoke(clamped);
             }
         }
 
@@ -290,14 +354,17 @@ namespace RestaurantLoop
         }
 
         /// <summary>
-        /// SADECE TEST/DEBUG amaçlı — coin, can ve level ilerlemesinin
-        /// TÜMÜNÜ varsayılana sıfırlar (yeni oyuncu gibi baştan başlar).
+        /// SADECE TEST/DEBUG amaçlı — coin, can, level ilerlemesi, oyuncu
+        /// ismi VE avatarının TÜMÜNÜ varsayılana sıfırlar (yeni oyuncu gibi
+        /// baştan başlar).
         /// </summary>
         public static void ResetAll()
         {
             PlayerPrefs.DeleteKey(CoinsKey);
             PlayerPrefs.DeleteKey(HeartsKey);
             PlayerPrefs.DeleteKey(CurrentLevelKey);
+            PlayerPrefs.DeleteKey(PlayerNameKey);
+            PlayerPrefs.DeleteKey(PlayerAvatarIndexKey);
             // ÖNEMLİ EKLEME: Regen zamanlayıcısı da temizleniyor — eskiden
             // bu satır YOKTU, bu yüzden "Reset ALL" yapsan bile ESKİ
             // (belki saatler önceki) regen zamanı hayalet gibi kalıyordu.
@@ -310,6 +377,8 @@ namespace RestaurantLoop
             hearts = null;
             currentLevel = null;
             nextRegenTime = null;
+            playerName = null;
+            playerAvatarIndex = null;
 
             // İSTEK: Boosterlar da (Shuffle/AddTray/Select) hepsi 99'a
             // sıfırlansın — eskiden bu metod boosterlara HİÇ dokunmuyordu,
@@ -320,6 +389,8 @@ namespace RestaurantLoop
             CoinsChanged?.Invoke(Coins);
             HeartsChanged?.Invoke(Hearts);
             CurrentLevelChanged?.Invoke(CurrentLevel);
+            PlayerNameChanged?.Invoke(PlayerName);
+            PlayerAvatarIndexChanged?.Invoke(PlayerAvatarIndex);
         }
     }
 }
