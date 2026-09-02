@@ -2534,6 +2534,12 @@ MonoBehaviour:
   - id: 8
     clip: {fileID: 8300000, guid: bbb7e725751675b4fb15f37b815be8e7, type: 3}
     volume: 1
+  - id: 9
+    clip: {fileID: 8300000, guid: 432f439c53529784a90cea60abfe1a15, type: 3}
+    volume: 1
+  - id: 10
+    clip: {fileID: 8300000, guid: 012a077a9e4c8d54988d78efcdd3054e, type: 3}
+    volume: 1
   timedCustomerCountdownClip: {fileID: 0}
   timedCustomerCountdownVolume: 1
   menuMusicClip: {fileID: 8300000, guid: 7311baa0aa367ed4e8704a9a1080708f, type: 3}
@@ -2541,7 +2547,7 @@ MonoBehaviour:
   easyMusicClip: {fileID: 8300000, guid: 1233e800fc91ec341a2fd3140d2d9573, type: 3}
   hardMusicClip: {fileID: 8300000, guid: bc303075f5455224bb113ddaa694c75f, type: 3}
   superHardMusicClip: {fileID: 8300000, guid: 8eb7e3d701402cf449195162793028f4, type: 3}
-  easyMusicVolume: 1
+  easyMusicVolume: 0.8
   hardMusicVolume: 0.7
   superHardMusicVolume: 1
   failMusicClip: {fileID: 0}
@@ -10093,7 +10099,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   levels:
-  - data: {fileID: 11400000, guid: 9eb87fee5f6ec884e81478a41446afe2, type: 2}
+  - data: {fileID: 11400000, guid: 4a778f79ce5994b4aacd9fe07c072ace, type: 2}
     difficulty: 0
   - data: {fileID: 11400000, guid: ea3bad14f15879546b3c2f022a98bf10, type: 2}
     difficulty: 0

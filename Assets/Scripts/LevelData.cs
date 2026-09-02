@@ -95,17 +95,41 @@ namespace RestaurantLoop
             return false;
         }
 
-        public void SetCustomerAt(int row, int col, FoodType food)
+        /// <summary>
+        /// TryGetCustomerFood'un surprise bilgisini de döndüren overload'ı —
+        /// CustomerManager, bir müşteriyi spawn ederken bu food+isSurprise
+        /// ikilisini Customer.Init()'e geçirmek için kullanmalı. Eski
+        /// (isSurprise almayan) TryGetCustomerFood çağrılarını KIRMAZ, ayrı
+        /// bir overload olarak eklendi.
+        /// </summary>
+        public bool TryGetCustomerFood(int row, int col, out FoodType food, out bool isSurprise)
+        {
+            foreach (var entry in customers)
+            {
+                if (entry.row == row && entry.col == col)
+                {
+                    food = entry.food;
+                    isSurprise = entry.isSurprise;
+                    return true;
+                }
+            }
+            food = default;
+            isSurprise = false;
+            return false;
+        }
+
+        public void SetCustomerAt(int row, int col, FoodType food, bool isSurprise = false)
         {
             foreach (var entry in customers)
             {
                 if (entry.row == row && entry.col == col)
                 {
                     entry.food = food;
+                    entry.isSurprise = isSurprise;
                     return;
                 }
             }
-            customers.Add(new CustomerEntry { row = row, col = col, food = food });
+            customers.Add(new CustomerEntry { row = row, col = col, food = food, isSurprise = isSurprise });
             SetCell(row, col, CellType.CustomerSlot);
         }
 
@@ -188,6 +212,8 @@ namespace RestaurantLoop
         public int row;
         public int col;
         public FoodType food;
+        [Tooltip("İşaretlenirse bu müşteri 'surprise' olur — Blocked olduğu sürece istediği yemek gizli kalır, gerçek balon Blocked'tan çıkınca ortaya çıkar (Food'daki surprise mantığının aynısı).")]
+        public bool isSurprise;
     }
 
     [Serializable]

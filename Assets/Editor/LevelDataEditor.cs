@@ -37,6 +37,12 @@ namespace RestaurantLoop.EditorTools
         private static readonly Color TrayBaseColor = new Color(0.85f, 0.45f, 0.95f); // yeni — boş tepsi park yeri
 
         private PaintMode currentMode = PaintMode.Conveyor;
+        // İSTEK: Level grid'inde müşteri boyarken de (Queue'daki
+        // "Surprise Food?" toggle'ıyla AYNI mantık) bu müşterinin surprise
+        // olup olmayacağını seçebilmek için — sadece food fırçalarından
+        // (Hamburger...Donut) biri seçiliyken anlamlı, diğer modlarda
+        // (Conveyor/Erase/Start/Exit/TrayBase) hiçbir etkisi yok.
+        private bool paintCustomerAsSurprise = false;
         private bool isPainting;
         private int lastPaintedRow = -1, lastPaintedCol = -1;
         private int undoGroupAtStroke;
@@ -110,13 +116,29 @@ namespace RestaurantLoop.EditorTools
             DrawToolButton(PaintMode.Donut, "Donut", FoodColors[FoodType.Donut]);
             EditorGUILayout.EndHorizontal();
 
+            // Sadece bir food fırçası seçiliyken anlamlı — Conveyor/Erase/
+            // Start/Exit/TrayBase modlarında bu toggle'ın hiçbir etkisi yok,
+            // ama karışıklık olmasın diye her zaman gösteriliyor (Queue
+            // bölümündeki "Surprise Food?" ile aynı yerleşim/his).
+            bool isFoodBrushSelected = currentMode is PaintMode.Hamburger or PaintMode.Fries or
+                PaintMode.Drink or PaintMode.Sushi or PaintMode.Steak or PaintMode.Donut;
+
+            using (new EditorGUI.DisabledScope(!isFoodBrushSelected))
+            {
+                paintCustomerAsSurprise = EditorGUILayout.ToggleLeft(
+                    "Surprise Customer? (bu fırçayla boyanacak yeni müşteriler)",
+                    paintCustomerAsSurprise);
+            }
+
             EditorGUILayout.HelpBox(
     "Conveyor 2x2'lik bloklar halinde boyanır. Start ve Exit 2x2 Conveyor bloklarıdır. " +
     "Tray Base ise 2x2'lik ayrı bir alandır ve Conveyor'ın parçası değildir.\n\n" +
     "• Start: yemekler conveyor'a buradan girer (eskiden 'Base' diye adlandırılıyordu).\n" +
     "• Exit: conveyor'dan çıkış noktası.\n" +
     "• Tray Base: boş traylerin park ettiği/stackleneceği yer. " +
-    "Sadece referans noktası olarak kullanılır ve conveyor yolunu etkilemez.",
+    "Sadece referans noktası olarak kullanılır ve conveyor yolunu etkilemez.\n\n" +
+    "• Surprise Customer: işaretliyken, food fırçalarından biriyle boyanan müşteriler " +
+    "'surprise' olarak işaretlenir — Blocked olduğu sürece gizli, Blocked'tan çıkınca ortaya çıkar.",
     MessageType.Info);
 
             var path = ConveyorPathBuilder.BuildPath(levelData, out bool pathValid, out string pathReason);
@@ -171,10 +193,12 @@ namespace RestaurantLoop.EditorTools
                     bool isExit = levelData.IsCellInExitBlock(r, c);
                     bool isTrayBase = levelData.IsCellInTrayBaseBlock(r, c);
 
+                    bool cellIsSurpriseCustomer = false;
+
                     Color color = type switch
                     {
                         CellType.Conveyor => ConveyorColor,
-                        CellType.CustomerSlot => levelData.TryGetCustomerFood(r, c, out var food)
+                        CellType.CustomerSlot => levelData.TryGetCustomerFood(r, c, out var food, out cellIsSurpriseCustomer)
                                                     ? FoodColors[food] : new Color(0.25f, 0.25f, 0.25f),
                         _ => new Color(0.18f, 0.18f, 0.18f)
                     };
@@ -183,6 +207,18 @@ namespace RestaurantLoop.EditorTools
                     else if (isTrayBase) color = TrayBaseColor;
 
                     EditorGUI.DrawRect(cellRect, color);
+
+                    // Queue grid'indeki "?" rozetiyle AYNI görsel dil —
+                    // surprise müşteri hücrelerinde sol üstte küçük sarı "?".
+                    if (cellIsSurpriseCustomer)
+                    {
+                        Rect badgeRect = new Rect(cellRect.x + 2, cellRect.y + 1, 10, 10);
+                        EditorGUI.LabelField(badgeRect, "?", new GUIStyle(EditorStyles.boldLabel)
+                        {
+                            fontSize = 9,
+                            normal = { textColor = Color.yellow }
+                        });
+                    }
 
                     bool isStartOrigin = levelData.baseRow == r && levelData.baseCol == c;
                     bool isExitOrigin = levelData.exitRow == r && levelData.exitCol == c;
@@ -280,7 +316,7 @@ namespace RestaurantLoop.EditorTools
 
                 default:
                     if (levelData.GetCell(row, col) != CellType.Conveyor)
-                        levelData.SetCustomerAt(row, col, PaintModeToFood(currentMode));
+                        levelData.SetCustomerAt(row, col, PaintModeToFood(currentMode), paintCustomerAsSurprise);
                     break;
             }
         }
