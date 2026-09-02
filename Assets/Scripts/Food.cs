@@ -49,15 +49,6 @@ namespace RestaurantLoop
         [SerializeField] private float clickScaleDuration = 0.08f;
 
         private Sequence clickPunchSequence;
-
-        // Punch-scale animasyonunun HER ZAMAN referans alacağı, oyun
-        // başında BİR KEZ sabitlenmiş gerçek ölçek. transform.localScale'i
-        // canlı okumuyoruz çünkü çok hızlı art arda tıklanınca (özellikle
-        // mobilde) bir önceki punch animasyonu KÜÇÜLME aşamasındayken
-        // kesilebiliyor (Kill()) — o anda transform.localScale zaten
-        // küçülmüş durumda olur, ve bunu "orijinal boyut" sanıp ona göre
-        // devam etmek, her hızlı tıklamada biraz daha küçülüp öyle
-        // kalmasına (asla tam boyuta dönmemesine) yol açıyordu.
         private Vector3 baseScale;
 
         [Header("State")]
@@ -74,10 +65,6 @@ namespace RestaurantLoop
         private static readonly int BlockedBaseColorId = Shader.PropertyToID("_BaseColor");
         private MaterialPropertyBlock mpb;
 
-        // 2D Visual'ın kendi SpriteRenderer'ı ve onun "Blocked" child'ının
-        // SpriteRenderer'ı — Blocked/Available arası ÇAPRAZ SOLMA
-        // (crossfade) için cache'leniyor. ApplyBlockedVisual (RGB karartma)
-        // farklı bir mekanizma — bu ikisi karıştırılmasın.
         private SpriteRenderer twoDVisualRenderer;
         private SpriteRenderer blockedChildRenderer;
         private bool blockedRenderersCached;
@@ -88,18 +75,15 @@ namespace RestaurantLoop
         public FoodType FoodTypeValue => foodType;
         public int Capacity => capacity;
 
+        // Dışarıdan yemeğin sürpriz olup olmadığını kontrol edebilmek için eklendi
+        public bool IsSurpriseFood => isSurpriseFood;
+
         public event Action<Food, FoodState> StateChanged;
         public event Action<Food> ReenterConveyorRequested;
-
-        /// <summary>
-        /// Parça bazlı uçuş animasyonu sırasında HER parça konveyöre
-        /// (tray'e) fırlatıldığında tetiklenir. İkinci parametre, o parça
-        /// fırlatıldıktan SONRA kalan kapasiteyi verir (ör. capacity=10,
-        /// ilk parça fırlayınca 9 gelir). Slot.cs gibi dinleyiciler bunu
-        /// kullanarak, animasyon sürerken kapasite etiketini canlı olarak
-        /// azaltabilir.
-        /// </summary>
         public event Action<Food, int> PieceLaunched;
+
+        // Sürpriz açıldığı an dinleyicileri haberdar etmek için eklendi
+        public event Action<Food> SurpriseUncovered;
 
         public void PresetQueueState(FoodState state)
         {
@@ -118,16 +102,21 @@ namespace RestaurantLoop
             isSurpriseFood = surprise;
             if (surpriseVisual != null)
             {
-                surpriseVisual.SetActive(isSurpriseFood );
+                surpriseVisual.SetActive(isSurpriseFood);
             }
         }
 
         public void UncoverSurprise()
         {
-            if (!isSurpriseFood || surpriseVisual == null || !surpriseVisual.activeSelf)
+            if (!isSurpriseFood)
                 return;
 
             isSurpriseFood = false;
+
+            // Sürpriz yemeğin ÖZEL açılma sesi
+            AudioEvents.PlaySurpriseFood();
+
+            SurpriseUncovered?.Invoke(this);
 
             if (surpriseVisual != null && surpriseVisual.activeSelf)
             {
@@ -137,7 +126,7 @@ namespace RestaurantLoop
                     .OnComplete(() =>
                     {
                         surpriseVisual.SetActive(false);
-                        surpriseVisual.transform.localScale = Vector3.one; // Reset scale for object pooling
+                        surpriseVisual.transform.localScale = Vector3.one;
                     });
             }
         }
@@ -146,22 +135,18 @@ namespace RestaurantLoop
         {
             baseScale = transform.localScale;
 
-            if(spriteVisual == null)
+            if (spriteVisual == null)
             {
                 var sr = GetComponentInChildren<SpriteRenderer>(true);
-                if(sr != null) spriteVisual = sr.gameObject;
+                if (sr != null) spriteVisual = sr.gameObject;
             }
 
-            if(modelVisual == null)
+            if (modelVisual == null)
             {
                 var mr = GetComponentInChildren<MeshRenderer>(true);
-                if(mr != null) modelVisual = mr.gameObject;
+                if (mr != null) modelVisual = mr.gameObject;
             }
 
-            // Oyun başlar başlamaz (Blocked mı değil mi kontrol edilerek)
-            // alfaları ANINDA doğru değere sabitliyoruz — Editor'de prefab
-            // üzerinde bırakılmış olabilecek yanlış varsayılan alfa
-            // değerlerine güvenmiyoruz.
             EnsureBlockedRenderersCached();
         }
 
@@ -183,11 +168,6 @@ namespace RestaurantLoop
 
             if (currentState == FoodState.AvailableInQueue)
             {
-                // Queue'deki food'u banda göndermek için tıklama. Ses SADECE
-                // konveyörde gerçekten yer varsa (yemek fiilen çıkabildiyse)
-                // çalar — her tıklamada değil. Punch animasyonu ARTIK BURADA
-                // DEĞİL, TryLaunchPiecesToConveyor() içinde — çünkü orada
-                // parça uçuş animasyonuyla TAM SENKRON başlatılması gerekiyor.
                 bool launched = TryLaunchPiecesToConveyor();
                 if (launched)
                     AudioEvents.PlayFoodClick();
@@ -199,16 +179,8 @@ namespace RestaurantLoop
             }
         }
 
-        /// <summary>
-        /// Tıklanınca çalan "buton hissi" animasyonu — ölçek anında küçülüp
-        /// hemen ardından yumuşakça (hafif zıplayarak) orijinal boyutuna
-        /// döner. onComplete verilirse, animasyon TAM BİTTİĞİ anda çağrılır
-        /// (ör. food'un görselini o an gizlemek için).
-        /// </summary>
         private void PlayClickPunch(System.Action onComplete = null)
         {
-            // Sadece KENDİ önceki punch sekansımızı öldürüyoruz — transform
-            // üzerindeki başka (pozisyon vb.) tween'lere dokunmuyoruz.
             if (clickPunchSequence != null && clickPunchSequence.IsActive())
                 clickPunchSequence.Kill();
 
@@ -223,25 +195,11 @@ namespace RestaurantLoop
                 clickPunchSequence.OnComplete(() => onComplete());
         }
 
-        /// <summary>
-        /// Konveyöre GERÇEKTEN çıkmadan, sadece "şu an çıkabilir mi" diye
-        /// kontrol eder (hiçbir state değiştirmez, hiçbir animasyon
-        /// başlatmaz). Slot.cs, tıklama anında (HandleClick içinde)
-        /// countLabel'ı gizleyip gizlememeye bu kontrolle karar veriyor —
-        /// böylece "önce gizle, olmazsa tekrar göster" titremesi hiç
-        /// yaşanmıyor; sadece GERÇEKTEN gidebilecekse gizleniyor.
-        /// </summary>
         public bool CanEnterConveyorFromSlot()
         {
             return trayManager != null && trayManager.CanLaunchTray();
         }
 
-        /// <summary>
-        /// Slot, food'u konveyöre geri göndermek istediğinde çağırır.
-        /// Dönüş değeri: food GERÇEKTEN konveyöre çıkabildi mi (true) yoksa
-        /// konveyör dolu olduğu için olduğu yerde mi kaldı (false).
-        /// Slot, bu sonuca göre kendini boşaltıp boşaltmayacağına karar verir.
-        /// </summary>
         public bool EnterConveyorFromSlot()
         {
             return TryLaunchPiecesToConveyor();
@@ -251,7 +209,7 @@ namespace RestaurantLoop
         {
             isSurpriseFood = false;
             if (surpriseVisual != null)
-            {   
+            {
                 surpriseVisual.SetActive(false);
             }
             ChangeState(FoodState.InFoodSlot);
@@ -263,24 +221,13 @@ namespace RestaurantLoop
                                           currentState == FoodState.LockedInQueue ||
                                           currentState == FoodState.InFoodSlot);
 
-            // Kuyrukta ve slotta 2D Sprite göster, fırlatma/uçuş anında ve konveyörde 3D modeli göster
             if (spriteVisual != null)
                 spriteVisual.SetActive(isStaticInSlotOrQueue);
 
             if (modelVisual != null)
                 modelVisual.SetActive(!isStaticInSlotOrQueue && currentState != FoodState.Launching);
-
-            if (modelVisual != null)
-                modelVisual.SetActive(!isStaticInSlotOrQueue && currentState != FoodState.Launching);
         }
 
-        /// <summary>
-        /// Queue'da locked (henüz sırası gelmemiş) durumdaki görünüm.
-        /// ÖNEMLİ: Saydamlık (alpha) DEĞİL, RGB karartma kullanıyor —
-        /// materyal Opaque kalmaya devam ediyor, bu yüzden altındaki 2D
-        /// queue slot sprite'ıyla derinlik/sıralama çakışması olmuyor.
-        /// isBlocked=false ile çağırırsan orijinal renge geri döner.
-        /// </summary>
         public void ApplyBlockedVisual(bool isBlocked, float darkenFactor = 0.35f)
         {
             if (mpb == null) mpb = new MaterialPropertyBlock();
@@ -292,14 +239,11 @@ namespace RestaurantLoop
             {
                 if (r == null) continue;
 
-                // SpriteRenderer varsa (Customer.cs'deki Bubble fix'iyle
-                // aynı mantık) direkt .color kullan — _BaseColor sprite
-                // shader'ında yok.
                 if (r is SpriteRenderer sr)
                 {
                     Color c = sr.color;
                     c.r *= factor; c.g *= factor; c.b *= factor;
-                    c.a = 1f; // ALFAYA DOKUNMA — Opaque kalmalı
+                    c.a = 1f;
                     sr.color = c;
                     continue;
                 }
@@ -310,25 +254,12 @@ namespace RestaurantLoop
                 r.GetPropertyBlock(mpb);
                 Color baseColor = mat.GetColor(BlockedBaseColorId);
                 baseColor.r *= factor; baseColor.g *= factor; baseColor.b *= factor;
-                baseColor.a = 1f; // ALFAYA DOKUNMA — Opaque kalmalı
+                baseColor.a = 1f;
                 mpb.SetColor(BlockedBaseColorId, baseColor);
                 r.SetPropertyBlock(mpb);
             }
         }
 
-        /// <summary>
-        /// "2D Visual" (parent, kendi SpriteRenderer'ı — Available/normal
-        /// görünüm) ile onun "Blocked" child'ının SpriteRenderer'ı (Locked
-        /// görünüm) arasında ÇAPRAZ SOLMA yapar:
-        /// - isBlocked=true  -> Blocked child alfa=1, 2D Visual'ın kendi alfa=0
-        /// - isBlocked=false -> 2D Visual'ın kendi alfa=1, Blocked child alfa=0
-        ///
-        /// duration=0 verilirsen ANINDA (animasyonsuz) uygulanır — ilk
-        /// spawn/kurulum için. duration>0 verilirsen DOTween ile o sürede
-        /// YUMUŞAKÇA geçiş yapar — QueueManager'daki "öne kayma" (shift)
-        /// animasyonuyla AYNI süreyi vererek, pozisyon değişimiyle TAM
-        /// SENKRON bir Blocked->Available geçişi elde edilir.
-        /// </summary>
         public void SetBlockedCrossfade(bool isBlocked, float duration = 0f)
         {
             EnsureBlockedRenderersCached();
@@ -355,12 +286,6 @@ namespace RestaurantLoop
             }
         }
 
-        /// <summary>
-        /// Alfayı ANINDA (animasyonsuz) set eder — RGB'ye ASLA dokunmaz,
-        /// sadece .color.a değiştirir. Hem ilk kurulum (Awake) hem
-        /// SetBlockedCrossfade'in duration=0 dalı bunu kullanır — tek bir
-        /// yerden, tutarlı şekilde.
-        /// </summary>
         private void ApplyCrossfadeInstant(bool isBlocked)
         {
             float targetVisualAlpha = isBlocked ? 0f : 1f;
@@ -368,14 +293,14 @@ namespace RestaurantLoop
 
             if (twoDVisualRenderer != null)
             {
-                Color c = twoDVisualRenderer.color; // RGB'ye dokunulmuyor
+                Color c = twoDVisualRenderer.color;
                 c.a = targetVisualAlpha;
                 twoDVisualRenderer.color = c;
             }
 
             if (blockedChildRenderer != null)
             {
-                Color c = blockedChildRenderer.color; // RGB'ye dokunulmuyor
+                Color c = blockedChildRenderer.color;
                 c.a = targetBlockedAlpha;
                 blockedChildRenderer.color = c;
             }
@@ -388,11 +313,6 @@ namespace RestaurantLoop
             if (spriteVisual != null && twoDVisualRenderer == null)
                 twoDVisualRenderer = spriteVisual.GetComponent<SpriteRenderer>();
 
-            // ÖNCELİK: Elle sürüklenen blockedSpriteRenderer — artık
-            // "2D Visual"ın child'ı olmak ZORUNDA DEĞİL, Inspector'dan
-            // doğrudan atanıyor. Boş bırakılırsa (geri uyumluluk için)
-            // eski "2D Visual altında 'Blocked' adında bir child ara"
-            // yöntemine düşülür.
             if (blockedChildRenderer == null)
             {
                 if (blockedSpriteRenderer != null)
@@ -411,19 +331,10 @@ namespace RestaurantLoop
 
             blockedRenderersCached = true;
 
-            // OYUN BAŞLAR BAŞLAMAZ: o anki gerçek state Blocked mi (LockedInQueue)
-            // değil mi kontrol edilip, alfalar ANINDA (animasyonsuz) doğru
-            // değere sabitleniyor — Editor'de prefab üzerinde bırakılmış
-            // olabilecek YANLIŞ varsayılan alfa değerlerine (ör. ikisi de
-            // 255/tam opak) güvenmiyoruz.
             bool isBlockedNow = currentState == FoodState.LockedInQueue;
             ApplyCrossfadeInstant(isBlockedNow);
         }
 
-        /// <summary>
-        /// Konveyöre (tray olarak) çıkışı dener. Başarılıysa food'u despawn eder
-        /// ve true döner. Konveyör doluysa hiçbir şey değiştirmeden false döner.
-        /// </summary>
         private bool TryLaunchPiecesToConveyor()
         {
             if (trayManager == null)
@@ -435,9 +346,6 @@ namespace RestaurantLoop
             if (!trayManager.CanLaunchTray())
             {
                 if (verboseLogging) Debug.Log($"Food [{gameObject.name}]: Konveyör dolu, tray başlatılamadı.");
-                // Launch başarısız olsa bile tıklamanın "hissedilmesi" için
-                // punch animasyonu yine de oynasın (food görselini gizlemeden
-                // — hiçbir şey gerçekten olmadı, olduğu yerde kalıyor).
                 PlayClickPunch();
                 return false;
             }
@@ -451,18 +359,8 @@ namespace RestaurantLoop
 
             ChangeState(FoodState.Launching);
 
-            // ÖNEMLİ FIX: ChangeState() kendi içinde UpdateVisualMode()'u
-            // çağırıyor ve bu, Launching state'i için spriteVisual'ı HEMEN
-            // (punch animasyonu daha başlamadan) kapatıyordu — bu yüzden
-            // Queue'da punch hiç GÖRÜNMÜYORDU, food anında kayboluyormuş
-            // gibi görünüyordu. Burada spriteVisual'ı ELLE tekrar açıyoruz;
-            // gerçek gizleme işini aşağıdaki PlayClickPunch'ın OnComplete'i
-            // yapacak — böylece Slot'takiyle birebir aynı davranış.
             if (spriteVisual != null) spriteVisual.SetActive(true);
 
-            // Punch animasyonu (küçülüp büyüme) İLE parça uçuş animasyonu
-            // AYNI ANDA başlıyor. Food'un kendi görseli punch TAM BİTENE
-            // kadar görünür kalıyor, sonra (OnComplete) gizleniyor.
             PlayClickPunch(() =>
             {
                 if (spriteVisual != null) spriteVisual.SetActive(false);
@@ -507,12 +405,9 @@ namespace RestaurantLoop
                 piece.transform.position = spawnOrigin;
                 spawnedPieces.Add(piece);
 
-                // DOJump directly to the target local point relative to the tray model
                 piece.transform.DOLocalJump(targetLocalPos, pieceJumpPower, 1, pieceJumpDuration)
                     .SetEase(Ease.OutQuad);
 
-                // Bu parça "fırlatıldı" — dinleyicilere (ör. Slot.cs'in
-                // kapasite etiketi) kalan miktarı bildiriyoruz.
                 int remainingAfterThisPiece = Mathf.Max(0, totalCount - (i + 1));
                 PieceLaunched?.Invoke(this, remainingAfterThisPiece);
 
@@ -520,16 +415,11 @@ namespace RestaurantLoop
                     yield return new WaitForSeconds(pieceStaggerDelay);
             }
 
-            // Eğer visualCount, totalCount'tan azsa (maxVisualPieces sınırı
-            // yüzünden), kalan miktarı en sonda 0'a tamamlayarak son bir
-            // bildirim daha yapıyoruz — dinleyici kesin olarak 0'da bitsin.
             if (visualCount < totalCount)
                 PieceLaunched?.Invoke(this, 0);
 
-            // Wait for the final piece to complete its jump
             yield return new WaitForSeconds(pieceJumpDuration);
 
-            // Finalize Tray launch
             trayManager.FinalizeTrayLaunch(tray, foodType, totalCount, spawnedPieces);
 
             ChangeState(FoodState.OnConveyor);

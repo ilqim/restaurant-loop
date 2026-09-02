@@ -396,6 +396,9 @@ namespace RestaurantLoop
                 return;
             }
 
+            // Sürpriz müşterinin ÖZEL açılma sesi 
+            AudioEvents.PlaySurpriseCustomer();
+
             surpriseVisual.transform.localScale = surpriseVisualBaseScale;
             surpriseVisual.transform.DOScale(Vector3.zero, surpriseUncoverDuration)
                 .SetEase(Ease.InBack)
