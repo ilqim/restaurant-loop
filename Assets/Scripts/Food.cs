@@ -66,6 +66,11 @@ namespace RestaurantLoop
         [Header("Debug")]
         [SerializeField] private bool verboseLogging = true;
 
+        [Header("Surprise Food Settings")]
+        [SerializeField] private GameObject surpriseVisual;
+        [SerializeField] private float uncoverDuration;
+
+        private bool isSurpriseFood;
         private static readonly int BlockedBaseColorId = Shader.PropertyToID("_BaseColor");
         private MaterialPropertyBlock mpb;
 
@@ -106,6 +111,35 @@ namespace RestaurantLoop
         public void PresetCapacity(int value)
         {
             capacity = Mathf.Max(0, value);
+        }
+
+        public void SetSurprise(bool surprise)
+        {
+            isSurpriseFood = surprise;
+            if (surpriseVisual != null)
+            {
+                surpriseVisual.SetActive(isSurpriseFood );
+            }
+        }
+
+        public void UncoverSurprise()
+        {
+            if (!isSurpriseFood || surpriseVisual == null || !surpriseVisual.activeSelf)
+                return;
+
+            isSurpriseFood = false;
+
+            if (surpriseVisual != null && surpriseVisual.activeSelf)
+            {
+                surpriseVisual.transform.DOKill();
+                surpriseVisual.transform.DOScale(Vector3.zero, uncoverDuration)
+                    .SetEase(Ease.InBack)
+                    .OnComplete(() =>
+                    {
+                        surpriseVisual.SetActive(false);
+                        surpriseVisual.transform.localScale = Vector3.one; // Reset scale for object pooling
+                    });
+            }
         }
 
         private void Awake()
@@ -215,6 +249,11 @@ namespace RestaurantLoop
 
         public void SetInFoodSlot()
         {
+            isSurpriseFood = false;
+            if (surpriseVisual != null)
+            {   
+                surpriseVisual.SetActive(false);
+            }
             ChangeState(FoodState.InFoodSlot);
         }
 
@@ -227,6 +266,9 @@ namespace RestaurantLoop
             // Kuyrukta ve slotta 2D Sprite göster, fırlatma/uçuş anında ve konveyörde 3D modeli göster
             if (spriteVisual != null)
                 spriteVisual.SetActive(isStaticInSlotOrQueue);
+
+            if (modelVisual != null)
+                modelVisual.SetActive(!isStaticInSlotOrQueue && currentState != FoodState.Launching);
 
             if (modelVisual != null)
                 modelVisual.SetActive(!isStaticInSlotOrQueue && currentState != FoodState.Launching);

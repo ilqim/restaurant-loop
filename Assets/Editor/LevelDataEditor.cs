@@ -44,6 +44,7 @@ namespace RestaurantLoop.EditorTools
 
         private QueuePaintMode currentQueueMode = QueuePaintMode.Hamburger;
         private int queuePaintCapacity = 10;
+        private bool paintAsSurprise = false;
         private bool isPaintingQueue;
         private int lastPaintedQueueRow = -1, lastPaintedQueueCol = -1;
         private int queueUndoGroupAtStroke;
@@ -509,6 +510,7 @@ namespace RestaurantLoop.EditorTools
 
             EditorGUILayout.BeginHorizontal();
             queuePaintCapacity = EditorGUILayout.IntField("Yerleştirilecek Kapasite", Mathf.Max(1, queuePaintCapacity));
+            paintAsSurprise = EditorGUILayout.ToggleLeft("Surprise Food?", paintAsSurprise, GUILayout.Width(130));
             EditorGUILayout.EndHorizontal();
 
             EditorGUILayout.BeginHorizontal();
@@ -564,17 +566,29 @@ namespace RestaurantLoop.EditorTools
 
                     Color color = new Color(0.18f, 0.18f, 0.18f);
                     string label = null;
+                    bool isSurprise = false;
 
                     if (levelData.TryGetQueueEntry(r, c, out var entry))
                     {
                         color = FoodColors[entry.food];
                         label = entry.capacity.ToString();
+                        isSurprise = entry.isSurprise;
                     }
 
                     // row 0 hafif farklı arka plan tonu — "bu satır tıklanabilir olacak" ipucu
                     if (r == 0 && label == null) color = new Color(0.22f, 0.22f, 0.16f);
 
                     EditorGUI.DrawRect(cellRect, color);
+
+                    if (isSurprise)
+                    {
+                        Rect badgeRect = new Rect(cellRect.x + 2, cellRect.y + 1, 10, 10);
+                        EditorGUI.LabelField(badgeRect, "?", new GUIStyle(EditorStyles.boldLabel)
+                        {
+                            fontSize = 9,
+                            normal = { textColor = Color.yellow }
+                        });
+                    }
 
                     if (label != null)
                         EditorGUI.LabelField(cellRect, label, new GUIStyle(EditorStyles.miniBoldLabel)
@@ -655,7 +669,7 @@ namespace RestaurantLoop.EditorTools
                 _ => FoodType.Hamburger
             };
 
-            levelData.SetQueueEntry(row, col, food, Mathf.Max(1, queuePaintCapacity));
+            levelData.SetQueueEntry(row, col, food, Mathf.Max(1, queuePaintCapacity), paintAsSurprise);
         }
     }
 }

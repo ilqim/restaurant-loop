@@ -693,6 +693,7 @@ namespace RestaurantLoop
             }
 
             food.PresetCapacity(entry.capacity);
+            food.SetSurprise(entry.isSurprise);
 
             var slotGo = Instantiate(queueSlotPrefab, slotPos, queueSlotPrefab.transform.rotation);
 
@@ -819,6 +820,7 @@ namespace RestaurantLoop
                 {
                     item.food.PresetQueueState(FoodState.AvailableInQueue);
                     item.food.SetBlockedCrossfade(false, shiftDuration);
+                    item.food.UncoverSurprise(); // Reveal food when it reaches the front!
                     availableFoodColumn[item.food] = col;
                     item.food.StateChanged += OnAvailableFoodStateChanged;
                 }

@@ -130,7 +130,7 @@ namespace RestaurantLoop
             return false;
         }
 
-        public void SetQueueEntry(int row, int col, FoodType food, int capacity)
+        public void SetQueueEntry(int row, int col, FoodType food, int capacity, bool isSurprise = false)
         {
             foreach (var e in queue)
             {
@@ -138,10 +138,11 @@ namespace RestaurantLoop
                 {
                     e.food = food;
                     e.capacity = capacity;
+                    e.isSurprise = isSurprise;
                     return;
                 }
             }
-            queue.Add(new QueueEntry { row = row, col = col, food = food, capacity = capacity });
+            queue.Add(new QueueEntry { row = row, col = col, food = food, capacity = capacity, isSurprise = isSurprise });
         }
 
         public void RemoveQueueEntry(int row, int col)
@@ -196,5 +197,6 @@ namespace RestaurantLoop
         public int col;
         public FoodType food;
         public int capacity;
+        public bool isSurprise;
     }
 }
