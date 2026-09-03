@@ -27,242 +27,319 @@ MonoBehaviour:
   - row: 2
     col: 2
     food: 3
+    isSurprise: 0
   - row: 2
     col: 3
     food: 3
+    isSurprise: 0
   - row: 2
     col: 4
     food: 4
+    isSurprise: 0
   - row: 3
     col: 2
     food: 4
+    isSurprise: 0
   - row: 4
     col: 4
     food: 4
+    isSurprise: 0
   - row: 4
     col: 3
     food: 2
+    isSurprise: 0
   - row: 4
     col: 2
     food: 2
+    isSurprise: 0
   - row: 3
     col: 3
     food: 1
+    isSurprise: 0
   - row: 3
     col: 4
     food: 0
+    isSurprise: 0
   - row: 4
     col: 5
     food: 4
+    isSurprise: 0
   - row: 5
     col: 6
     food: 4
+    isSurprise: 1
   - row: 4
     col: 6
     food: 1
+    isSurprise: 0
   - row: 4
     col: 7
     food: 0
+    isSurprise: 0
   - row: 5
     col: 8
     food: 0
+    isSurprise: 0
   - row: 4
     col: 8
     food: 3
+    isSurprise: 0
   - row: 6
     col: 8
     food: 3
+    isSurprise: 0
   - row: 9
     col: 8
     food: 3
+    isSurprise: 0
   - row: 7
     col: 8
     food: 0
+    isSurprise: 0
   - row: 8
     col: 8
     food: 2
+    isSurprise: 0
   - row: 10
     col: 8
     food: 0
+    isSurprise: 0
   - row: 11
     col: 8
     food: 4
+    isSurprise: 0
   - row: 11
     col: 5
     food: 4
+    isSurprise: 0
   - row: 11
     col: 6
     food: 0
+    isSurprise: 0
   - row: 11
     col: 7
     food: 3
+    isSurprise: 0
   - row: 10
     col: 5
     food: 2
+    isSurprise: 0
   - row: 9
     col: 5
     food: 0
+    isSurprise: 0
   - row: 8
     col: 5
     food: 1
+    isSurprise: 0
   - row: 7
     col: 5
     food: 0
+    isSurprise: 0
   - row: 6
     col: 5
     food: 3
+    isSurprise: 0
   - row: 5
     col: 5
     food: 0
+    isSurprise: 0
   - row: 5
     col: 7
     food: 1
+    isSurprise: 1
   - row: 7
     col: 7
     food: 1
+    isSurprise: 1
   - row: 8
     col: 7
     food: 1
+    isSurprise: 1
   - row: 6
     col: 6
     food: 3
+    isSurprise: 1
   - row: 8
     col: 6
     food: 3
+    isSurprise: 1
   - row: 9
     col: 6
     food: 2
+    isSurprise: 1
   - row: 9
     col: 7
     food: 0
+    isSurprise: 1
   - row: 10
     col: 6
     food: 1
+    isSurprise: 1
   - row: 10
     col: 7
     food: 4
+    isSurprise: 1
   - row: 7
     col: 6
     food: 2
+    isSurprise: 1
   - row: 6
     col: 7
     food: 0
+    isSurprise: 1
   - row: 11
     col: 3
     food: 0
+    isSurprise: 0
   - row: 13
     col: 2
     food: 0
+    isSurprise: 0
   - row: 13
     col: 4
     food: 0
+    isSurprise: 0
   - row: 11
     col: 2
     food: 1
+    isSurprise: 0
   - row: 12
     col: 3
     food: 4
+    isSurprise: 0
   - row: 12
     col: 2
     food: 4
+    isSurprise: 0
   - row: 13
     col: 3
     food: 3
+    isSurprise: 0
   - row: 11
     col: 4
     food: 3
+    isSurprise: 0
   - row: 12
     col: 4
     food: 2
+    isSurprise: 0
   - row: 13
     col: 9
     food: 2
+    isSurprise: 0
   - row: 11
     col: 10
     food: 2
+    isSurprise: 0
   - row: 11
     col: 9
     food: 4
+    isSurprise: 0
   - row: 12
     col: 10
     food: 3
+    isSurprise: 0
   - row: 13
     col: 10
     food: 3
+    isSurprise: 0
   - row: 13
     col: 11
     food: 0
+    isSurprise: 0
   - row: 11
     col: 11
     food: 0
+    isSurprise: 0
   - row: 12
     col: 9
     food: 0
+    isSurprise: 0
   - row: 12
     col: 11
     food: 1
+    isSurprise: 0
   - row: 3
     col: 11
     food: 1
+    isSurprise: 0
   - row: 2
     col: 11
     food: 1
+    isSurprise: 0
   - row: 4
     col: 10
     food: 1
+    isSurprise: 0
   - row: 4
     col: 11
     food: 2
+    isSurprise: 0
   - row: 4
     col: 9
     food: 2
+    isSurprise: 0
   - row: 2
     col: 9
     food: 2
+    isSurprise: 0
   - row: 3
     col: 9
     food: 3
+    isSurprise: 0
   - row: 2
     col: 10
     food: 4
+    isSurprise: 0
   - row: 3
     col: 10
     food: 4
+    isSurprise: 0
   queueColumns: 3
   queue:
   - row: 0
     col: 0
     food: 1
     capacity: 8
+    isSurprise: 0
   - row: 1
     col: 0
     food: 3
     capacity: 4
+    isSurprise: 0
   - row: 1
     col: 2
     food: 0
     capacity: 11
+    isSurprise: 0
   - row: 1
     col: 1
     food: 3
     capacity: 10
+    isSurprise: 0
   - row: 0
     col: 2
     food: 1
     capacity: 4
+    isSurprise: 0
   - row: 2
     col: 0
     food: 2
     capacity: 12
+    isSurprise: 0
   - row: 2
     col: 2
     food: 4
     capacity: 3
+    isSurprise: 0
   - row: 2
     col: 1
     food: 4
     capacity: 10
+    isSurprise: 0
   - row: 0
     col: 1
     food: 0
     capacity: 6
+    isSurprise: 0

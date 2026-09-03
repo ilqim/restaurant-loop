@@ -104,7 +104,10 @@ namespace RestaurantLoop
             if (!PlayerData.TrySpendBooster(BoosterType.Shuffle))
                 return;
 
-            AudioEvents.PlayButtonClick();
+            // İSTEK: Shuffle GERÇEKTEN gerçekleştiğinde (hak düşürüldükten
+            // hemen sonra) kendine özel bir ses çalsın — genel buton tıklama
+            // sesinden AYRI bir SFX (SfxId.Shuffle).
+            AudioEvents.PlayShuffle();
             queueManager.ShuffleQueue();
 
             PlayGlowPulse();

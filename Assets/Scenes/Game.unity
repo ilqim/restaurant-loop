@@ -9014,6 +9014,8 @@ MonoBehaviour:
   selectBoosterNewScreen: {fileID: 246463731}
   addTrayBoosterNewScreen: {fileID: 147903100}
   shuffleBoosterNewScreen: {fileID: 319301642}
+  mysteryCustomerNewScreen: {fileID: 292815115}
+  mysteryFoodNewScreen: {fileID: 1854571492}
 --- !u!4 &414157208
 Transform:
   m_ObjectHideFlags: 0
@@ -30910,7 +30912,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   queueManager: {fileID: 2008343123}
-  button: {fileID: 0}
+  button: {fileID: 1339267315}
   countText: {fileID: 39557128}
   unlockIndicator: {fileID: 1550098767}
   glowImage: {fileID: 1571634584}

@@ -2540,6 +2540,9 @@ MonoBehaviour:
   - id: 10
     clip: {fileID: 8300000, guid: 012a077a9e4c8d54988d78efcdd3054e, type: 3}
     volume: 1
+  - id: 11
+    clip: {fileID: 8300000, guid: 5a43ccba196ac4a48ab1dd79181efbfe, type: 3}
+    volume: 1
   timedCustomerCountdownClip: {fileID: 0}
   timedCustomerCountdownVolume: 1
   menuMusicClip: {fileID: 8300000, guid: 7311baa0aa367ed4e8704a9a1080708f, type: 3}
@@ -10099,7 +10102,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   levels:
-  - data: {fileID: 11400000, guid: 4a778f79ce5994b4aacd9fe07c072ace, type: 2}
+  - data: {fileID: 11400000, guid: 9eb87fee5f6ec884e81478a41446afe2, type: 2}
     difficulty: 0
   - data: {fileID: 11400000, guid: ea3bad14f15879546b3c2f022a98bf10, type: 2}
     difficulty: 0
@@ -10162,6 +10165,8 @@ MonoBehaviour:
   selectBoosterUnlockLevel: 20
   addTrayBoosterUnlockLevel: 9
   shuffleBoosterUnlockLevel: 15
+  mysteryCustomerUnlockLevel: 10
+  mysteryFoodUnlockLevel: 17
   gameplaySceneName: Game
 --- !u!4 &1378133352
 Transform:

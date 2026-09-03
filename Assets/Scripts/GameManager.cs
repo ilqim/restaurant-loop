@@ -55,6 +55,12 @@ namespace RestaurantLoop
         [Tooltip("Shuffle booster'ın 'yeni açıldı' ekranı.")]
         [SerializeField] private CanvasGroup shuffleBoosterNewScreen;
 
+        [Header("Yeni Challenge (Mystery) Duyuru Ekranları")]
+        [Tooltip("'MYSTERY CUSTOMER — A mysterious customer? Open their way to reveal what they want!' ekranı.")]
+        [SerializeField] private CanvasGroup mysteryCustomerNewScreen;
+        [Tooltip("'MYSTERY FOOD — An unknown food? Get it in front of the queue to find out!' ekranı.")]
+        [SerializeField] private CanvasGroup mysteryFoodNewScreen;
+
         private CanvasGroup activeNewBoosterScreen;
 
         private CustomerManager customerManager;
@@ -108,9 +114,9 @@ namespace RestaurantLoop
             // normal hızda başlasın.
             Time.timeScale = 1f;
 
-            // Bu level'de yeni açılan bir booster varsa (LevelManager'daki
-            // unlock level'lardan biri TAM OLARAK şu anki level'e eşitse),
-            // birkaç saniye sonra ilgili "yeni booster" ekranını göster.
+            // Bu level'de yeni açılan bir booster ya da mystery challenge varsa
+            // (unlock level'lardan biri TAM OLARAK şu anki level'e eşitse),
+            // birkaç saniye sonra ilgili "yeni" ekranını göster.
             EnsureNewBoosterScreensHidden();
             StartCoroutine(ShowNewBoosterScreenAfterDelay());
 
@@ -295,19 +301,21 @@ namespace RestaurantLoop
         }
 
         // ============================================================
-        // YENİ BOOSTER DUYURU EKRANLARI
+        // YENİ BOOSTER / MYSTERY CHALLENGE DUYURU EKRANLARI
         // ============================================================
 
         /// <summary>
-        /// Sahne her yüklendiğinde (Retry/level geçişi dahil) 3 ekran da
-        /// baştan görünmez olsun diye garanti altına alınıyor — bir
-        /// önceki oturumdan kalma açık bir ekran olmasın.
+        /// Sahne her yüklendiğinde (Retry/level geçişi dahil) tüm duyuru
+        /// ekranları baştan görünmez olsun diye garanti altına alınıyor —
+        /// bir önceki oturumdan kalma açık bir ekran olmasın.
         /// </summary>
         private void EnsureNewBoosterScreensHidden()
         {
             HideCanvasGroupInstant(selectBoosterNewScreen);
             HideCanvasGroupInstant(addTrayBoosterNewScreen);
             HideCanvasGroupInstant(shuffleBoosterNewScreen);
+            HideCanvasGroupInstant(mysteryCustomerNewScreen);
+            HideCanvasGroupInstant(mysteryFoodNewScreen);
         }
 
         private static void HideCanvasGroupInstant(CanvasGroup group)
@@ -321,11 +329,15 @@ namespace RestaurantLoop
         }
 
         /// <summary>
-        /// Level başladıktan newBoosterScreenDelay saniye sonra, LevelManager'daki
-        /// booster unlock level'larından HERHANGİ BİRİ şu anki level'e TAM
-        /// olarak eşitse, ilgili "yeni booster açıldı" ekranını gösterir.
-        /// WaitForSecondsRealtime kullanılıyor — pause-güvenli, PauseGameplayAfterDelay
-        /// ile aynı mantık.
+        /// Level başladıktan newBoosterScreenDelay saniye sonra:
+        /// - LevelManager'daki booster unlock level'larından HERHANGİ BİRİ
+        ///   şu anki level'e TAM olarak eşitse, ilgili "yeni booster açıldı" ekranını,
+        /// - ya da LevelManager'daki mystery challenge duyuru level'larından
+        ///   biri şu anki level'e TAM olarak eşitse, ilgili "mystery" ekranını
+        /// gösterir. Hangi level'de hangi mystery ekranının çıkacağı SADECE
+        /// LevelManager'daki "Mystery Challenge Level Kilitleri" alanından
+        /// belirlenir. WaitForSecondsRealtime kullanılıyor — pause-güvenli,
+        /// PauseGameplayAfterDelay ile aynı mantık.
         /// </summary>
         private IEnumerator ShowNewBoosterScreenAfterDelay()
         {
@@ -344,6 +356,10 @@ namespace RestaurantLoop
                 screenToShow = addTrayBoosterNewScreen;
             else if (currentLevel == LevelManager.Instance.GetBoosterUnlockLevel(BoosterType.Shuffle))
                 screenToShow = shuffleBoosterNewScreen;
+            else if (LevelManager.Instance.IsMysteryChallengeAnnounceLevel(MysteryChallengeType.Customer))
+                screenToShow = mysteryCustomerNewScreen;
+            else if (LevelManager.Instance.IsMysteryChallengeAnnounceLevel(MysteryChallengeType.Food))
+                screenToShow = mysteryFoodNewScreen;
 
             if (screenToShow == null)
                 yield break;
@@ -373,8 +389,8 @@ namespace RestaurantLoop
         }
 
         /// <summary>
-        /// "Yeni booster" ekranındaki kapatma/OK butonuna bağla — hangi
-        /// ekran açıksa onu kapatır.
+        /// "Yeni booster / mystery" ekranındaki kapatma/OK butonuna bağla —
+        /// hangi ekran açıksa onu kapatır.
         /// </summary>
         public void CloseNewBoosterScreen()
         {
