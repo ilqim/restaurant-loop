@@ -10407,41 +10407,6 @@ Transform:
   - {fileID: 1543550307}
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &516477475
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 516477476}
-  m_Layer: 5
-  m_Name: Target Coin End
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!224 &516477476
-RectTransform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 516477475}
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 627371811}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
-  m_AnchorMin: {x: 0.5, y: 0.5}
-  m_AnchorMax: {x: 0.5, y: 0.5}
-  m_AnchoredPosition: {x: 487, y: 1010}
-  m_SizeDelta: {x: 100, y: 100}
-  m_Pivot: {x: 0.5, y: 0.5}
 --- !u!1 &517421277
 GameObject:
   m_ObjectHideFlags: 0
@@ -10953,7 +10918,6 @@ RectTransform:
   - {fileID: 2135948227}
   - {fileID: 169694589}
   - {fileID: 203092669}
-  - {fileID: 516477476}
   m_Father: {fileID: 1840126557}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
@@ -10980,7 +10944,7 @@ MonoBehaviour:
   coinPrefab: {fileID: 5710081200003610101, guid: 221ec0fa388f1694bb61053a59eda73e, type: 3}
   coinContainer: {fileID: 2135948227}
   coinStartPoint: {fileID: 2135948227}
-  coinTargetPoint: {fileID: 516477476}
+  coinTargetPoint: {fileID: 0}
   animatedCoinCount: 15
   moveDuration: 0.8
   totalDelay: 0.4

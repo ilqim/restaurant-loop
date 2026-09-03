@@ -4,21 +4,16 @@ using UnityEngine;
 
 namespace RestaurantLoop
 {
-    /// <summary>
-    /// Coin bar'ı. ÖNEMLİ: Bu component PERSISTENT (DontDestroyOnLoad) DEĞİL —
-    /// Main Menu ve Game sahnelerinin HER BİRİNE kendi bağımsız instance'ını
-    /// koy (aynı script, iki ayrı obje). Buna rağmen ikisi de doğru sayıyı
-    /// gösterir çünkü asıl kalıcı olan şey UI objesi değil, PlayerData
-    /// (static sınıf, PlayerPrefs üzerinden zaten kalıcı) — UI'ın kendisinin
-    /// kalıcı olmasına hiç gerek yok.
-    ///
-    /// Bunu persistent yapmamanın avantajı: iki farklı sahnenin Canvas'ları
-    /// arasında render sırası (hangisi önde/arkada çizilecek) karışıklığı
-    /// hiç yaşanmıyor — her sahne sadece KENDİ Canvas'ını, kendi coin
-    /// bar'ıyla birlikte çiziyor, başka sahneden kalma bir obje devrede değil.
-    /// </summary>
     public class CurrencyBar : MonoBehaviour
     {
+        public static CurrencyBar Instance { get; private set; }
+
+        [Header("Coin Fly Target Anchor")]
+        [Tooltip("The RectTransform coins will fly to (e.g., the coin icon on this bar). If empty, uses this transform.")]
+        [SerializeField] private RectTransform coinTargetAnchor;
+
+        public RectTransform CoinTargetAnchor => coinTargetAnchor != null ? coinTargetAnchor : GetComponent<RectTransform>();
+
         [Header("UI")]
         [SerializeField] private TMP_Text coinsText;
 
@@ -28,15 +23,69 @@ namespace RestaurantLoop
         [Tooltip("Sayaç animasyonunun hız eğrisi (0-1 aralığında ilerleme).")]
         [SerializeField] private AnimationCurve countUpCurve = AnimationCurve.EaseInOut(0f, 0f, 1f, 1f);
 
+        [Header("Persistence")]
+        [SerializeField] private bool dontDestroyOnLoad = true;
+
         private int displayedCoins;
         private Coroutine countRoutine;
 
         private void Awake()
         {
-            // PlayerData zaten kalıcı (PlayerPrefs) — burada sadece o anki
-            // gerçek değeri okuyup ekrana anlık yazıyoruz, animasyonsuz.
+            if (Instance != null && Instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            Instance = this;
+
+            if (dontDestroyOnLoad)
+            {
+                // If it's a child of a canvas, detach to root so DontDestroyOnLoad works properly,
+                // or ensure its root Canvas has DontDestroyOnLoad.
+                if (transform.parent != null)
+                {
+                    DontDestroyOnLoad(transform.root.gameObject);
+                }
+                else
+                {
+                    DontDestroyOnLoad(gameObject);
+                }
+            }
+
             displayedCoins = PlayerData.Coins;
             RefreshTextInstant();
+        }
+
+        private void OnEnable()
+        {
+            PlayerData.CoinsChanged += HandleCoinsChanged;
+            displayedCoins = PlayerData.Coins;
+            RefreshTextInstant();
+        }
+
+        private void OnDisable()
+        {
+            PlayerData.CoinsChanged -= HandleCoinsChanged;
+        }
+
+        private void HandleCoinsChanged(int totalCoins)
+        {
+            if (countRoutine == null)
+            {
+                displayedCoins = totalCoins;
+                RefreshTextInstant();
+            }
+        }
+
+        public void SetVisible(bool isVisible)
+        {
+            gameObject.SetActive(isVisible);
+            if (isVisible)
+            {
+                displayedCoins = PlayerData.Coins;
+                RefreshTextInstant();
+            }
         }
 
         private void RefreshTextInstant()
@@ -45,11 +94,6 @@ namespace RestaurantLoop
                 coinsText.text = displayedCoins.ToString();
         }
 
-        /// <summary>
-        /// Coin'i GERÇEKTEN ekler (PlayerData'ya kalıcı yazar) VE bu bar
-        /// üzerinde eski değerden yeni değere sayan bir animasyon oynatır.
-        /// Süre/eğri Inspector'dan (countUpDuration, countUpCurve) ayarlanır.
-        /// </summary>
         public void AddCoinsAnimated(int amount)
         {
             if (amount <= 0) return;
@@ -71,7 +115,7 @@ namespace RestaurantLoop
 
             while (elapsed < duration)
             {
-                elapsed += Time.deltaTime;
+                elapsed += Time.unscaledDeltaTime;
                 float t = countUpCurve.Evaluate(Mathf.Clamp01(elapsed / duration));
                 displayedCoins = Mathf.RoundToInt(Mathf.Lerp(from, to, t));
                 RefreshTextInstant();
