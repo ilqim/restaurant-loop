@@ -18,6 +18,12 @@ namespace RestaurantLoop
         [SerializeField] private TextMeshProUGUI earnedCoinsTMP;
         [SerializeField] private Text earnedCoinsLegacy;
 
+        [Header("Para/Can Bar Referansı")]
+        [Tooltip("Bu SAHNEYE ait PlayerStatsBar instance'ı — GameManager'daki 'Win Fail Stats Bar' " +
+                 "alanına sürüklediğin İLE AYNI objeyi buraya da sürükle. Coin uçuşma animasyonu " +
+                 "hedefini ve gerçek coin ekleme çağrısını buradan yapıyoruz.")]
+        [SerializeField] private PlayerStatsBar statsBar;
+
         [Header("Coin Animation Settings (DOTween)")]
         [SerializeField] private GameObject coinPrefab;
         [SerializeField] private Transform coinContainer;
@@ -60,22 +66,36 @@ namespace RestaurantLoop
             
         }
 
-        public void Show(int earnedAmount)
+        public void Show(int earnedAmount, PlayerStatsBar bar = null)
         {
             if (popupContent != null)
                 popupContent.SetActive(true);
 
-            if(CurrencyBar.Instance != null )
+            // ÖNEMLİ: GameManager kendi elindeki (Win/Fail ekranına ait, doğru)
+            // PlayerStatsBar referansını BURAYA parametre olarak geçiyor.
+            // Bu sayede LevelCompleteUI ile GameManager ASLA farklı iki
+            // instance'a bakmaz — "hangisi doğru obje" belirsizliği
+            // tamamen ortadan kalkar. Parametre verilmezse (örn. bu ekranı
+            // GameManager olmadan tek başına test ediyorsan) eski
+            // davranışa (Inspector referansı / otomatik arama) düşer.
+            if (bar != null)
             {
-                coinTargetPoint = CurrencyBar.Instance.CoinTargetAnchor;
+                statsBar = bar;
             }
-            else if(coinTargetPoint == null)
+            else if (statsBar == null)
             {
-                var foundBar = FindAnyObjectByType<CurrencyBar>();
-                if(foundBar != null)
-                {
-                    coinTargetPoint = foundBar.CoinTargetAnchor;
-                }
+                // Aynı sebep: bar başlangıçta pasif olabileceğinden
+                // FindObjectsInactive.Include ile arıyoruz.
+                statsBar = FindFirstObjectByType<PlayerStatsBar>(FindObjectsInactive.Include);
+            }
+
+            // GÜVENLİK: Coin animasyonu pasif bir objeye StartCoroutine
+            // atmasın diye burada da (GameManager zaten yapmış olsa bile)
+            // garanti altına alıyoruz.
+            if (statsBar != null)
+            {
+                statsBar.SetVisible(true);
+                coinTargetPoint = statsBar.CoinTargetAnchor;
             }
 
             if(coinTargetPoint != null)
@@ -194,9 +214,9 @@ namespace RestaurantLoop
                         if (!hasTriggerBarIncrement)
                         {
                             hasTriggerBarIncrement = true;
-                            if(CurrencyBar.Instance != null)
+                            if(statsBar != null)
                             {
-                                CurrencyBar.Instance.AddCoinsAnimated(earnedAmount);
+                                statsBar.AddCoinsAnimated(earnedAmount);
                             }
                             else
                             {
