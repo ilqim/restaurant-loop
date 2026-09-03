@@ -96,6 +96,7 @@ namespace RestaurantLoop
             // kendi public API'sine bağımlı olmadan burada saklıyoruz.
             public FoodType foodType;
             public int capacity;
+            public bool isSurprise;
         }
 
         private readonly Dictionary<int, List<ColumnItem>> columnItems = new();
@@ -229,7 +230,7 @@ namespace RestaurantLoop
             var queueSlot = slotGo.GetComponent<QueueSlot>();
             if (queueSlot != null) queueSlot.AssignFood(food);
 
-            AddColumnItem(col, foodGo, slotGo, food, entry.food, entry.capacity);
+            AddColumnItem(col, foodGo, slotGo, food, entry.food, entry.capacity, entry.isSurprise);
         }
 
         private void OnSelectModeFoodStateChanged(Food food, FoodState newState)
@@ -332,14 +333,40 @@ namespace RestaurantLoop
                 }
             }
 
-            for (int i = allEntries.Count - 1; i > 0; i--)
+            var regularEntries = new List<QueueEntry>();
+            var surpriseEntries = new List<QueueEntry>();
+
+            foreach (var entry in allEntries)
             {
-                int j = UnityEngine.Random.Range(0, i + 1);
-                (allEntries[i], allEntries[j]) = (allEntries[j], allEntries[i]);
+                if(entry.isSurprise) surpriseEntries.Add(entry);
+                else regularEntries.Add(entry);
             }
 
-            int cursor = 0;
+            ShuffleList(regularEntries);
+            ShuffleList(surpriseEntries);
+
+            int frontSlotsAvailable = 0;
+            for (int col = 0; col < levelData.queueColumns; col++)
+            {
+                if(countPerColumn[col] > 0) frontSlotsAvailable ++;
+            }
+
+            // 4) Reserve regular items for the front slots
+            int regularNeededForFront = Mathf.Min(frontSlotsAvailable, regularEntries.Count);
+            var frontItems = regularEntries.GetRange(0, regularNeededForFront);
+            regularEntries.RemoveRange(0, regularNeededForFront);
+
+            // Pool the remainder together for the back rows (row > 0)
+            var backPool = new List<QueueEntry>();
+            backPool.AddRange(regularEntries);
+            backPool.AddRange(surpriseEntries);
+            ShuffleList(backPool);
+
+            // 5) Distribute back to the columns
+            int frontCursor = 0;
+            int backCursor = 0;
             var newColumnData = new Dictionary<int, List<QueueEntry>>();
+
             for (int col = 0; col < levelData.queueColumns; col++)
             {
                 int count = countPerColumn[col];
@@ -347,7 +374,16 @@ namespace RestaurantLoop
 
                 for (int row = 0; row < count; row++)
                 {
-                    QueueEntry entry = allEntries[cursor++];
+                    QueueEntry entry;
+                    if (row == 0 && frontCursor < frontItems.Count)
+                    {
+                        entry = frontItems[frontCursor++];
+                    }
+                    else
+                    {
+                        entry = backPool[backCursor++];
+                    }
+
                     entry.col = col;
                     entry.row = row;
                     newList.Add(entry);
@@ -357,6 +393,15 @@ namespace RestaurantLoop
             }
 
             AnimateShuffleTransition(newColumnData);
+        }
+
+        private static void ShuffleList<T>(IList<T> list)
+        {
+            for (int i = list.Count - 1; i > 0; i--)
+            {
+                int j = UnityEngine.Random.Range(0, i + 1);
+                (list[i], list[j]) = (list[j], list[i]);
+            }
         }
 
         /// <summary>
@@ -374,12 +419,13 @@ namespace RestaurantLoop
             // 1) Şu an sahnede olan (görünür) item'ları food tipi + kapasiteye
             //    göre havuzla — hangi eski GameObject'in yeni bir entry için
             //    yeniden kullanılabileceğini bulmak için.
-            var reusePool = new Dictionary<(FoodType food, int capacity), Queue<ColumnItem>>();
+            var reusePool = new Dictionary<(FoodType food, int capacity, bool isSurprise), Queue<ColumnItem>>();
             foreach (var items in columnItems.Values)
             {
                 foreach (var item in items)
                 {
-                    var key = (item.foodType, item.capacity);
+                    bool currentlySurprise = item.food != null && item.food.IsSurpriseFood;
+                    var key = (item.foodType, item.capacity, currentlySurprise);
                     if (!reusePool.TryGetValue(key, out var queue))
                     {
                         queue = new Queue<ColumnItem>();
@@ -400,7 +446,7 @@ namespace RestaurantLoop
                 for (int row = 0; row < visibleCount; row++)
                 {
                     QueueEntry entry = newList[row];
-                    var key = (entry.food, entry.capacity);
+                    var key = (entry.food, entry.capacity, entry.isSurprise);
 
                     ColumnItem itemToUse;
 
@@ -416,6 +462,11 @@ namespace RestaurantLoop
 
                     if (itemToUse != null)
                     {
+                        if(itemToUse.food != null)
+                        {
+                            itemToUse.food.SetSurprise(entry.isSurprise);
+                            itemToUse.isSurprise = entry.isSurprise;
+                        }
                         ApplyShuffleRowState(col, row, itemToUse);
                         AddToColumnList(newColumnItems, col, itemToUse);
                     }
@@ -516,6 +567,7 @@ namespace RestaurantLoop
                 return null;
             }
             food.PresetCapacity(entry.capacity);
+            food.SetSurprise(entry.isSurprise);
 
             var slotGo = Instantiate(queueSlotPrefab, startSlotPos, queueSlotPrefab.transform.rotation);
             var queueSlot = slotGo.GetComponent<QueueSlot>();
@@ -541,7 +593,7 @@ namespace RestaurantLoop
                 foodGo.transform.DOMove(targetFoodPos, shuffleMoveDuration)
                     .SetEase(shuffleMoveEase).SetDelay(delay);
 
-            return new ColumnItem { foodGo = foodGo, slotGo = slotGo, food = food, foodType = entry.food, capacity = entry.capacity };
+            return new ColumnItem { foodGo = foodGo, slotGo = slotGo, food = food, foodType = entry.food, capacity = entry.capacity, isSurprise = entry.isSurprise };
         }
 
         /// <summary>
@@ -707,7 +759,7 @@ namespace RestaurantLoop
                 queueSlot.AssignFood(food);
             }
 
-            AddColumnItem(col, foodGo, slotGo, food, entry.food, entry.capacity);
+            AddColumnItem(col, foodGo, slotGo, food, entry.food, entry.capacity, entry.isSurprise);
 
             if (visualRow == 0)
             {
@@ -723,14 +775,14 @@ namespace RestaurantLoop
             }
         }
 
-        private void AddColumnItem(int col, GameObject foodGo, GameObject slotGo, Food food, FoodType foodType, int capacity)
+        private void AddColumnItem(int col, GameObject foodGo, GameObject slotGo, Food food, FoodType foodType, int capacity, bool isSurprise)
         {
             if (!columnItems.TryGetValue(col, out var items))
             {
                 items = new List<ColumnItem>();
                 columnItems[col] = items;
             }
-            items.Add(new ColumnItem { foodGo = foodGo, slotGo = slotGo, food = food, foodType = foodType, capacity = capacity });
+            items.Add(new ColumnItem { foodGo = foodGo, slotGo = slotGo, food = food, foodType = foodType, capacity = capacity, isSurprise = isSurprise });
         }
 
         private void ClearAllVisuals()
