@@ -31,6 +31,9 @@ namespace RestaurantLoop
             new SfxClip { id = SfxId.LevelFail, volume = 1f },
             new SfxClip { id = SfxId.CoinEarn, volume = 1f },
             new SfxClip { id = SfxId.TimedCustomerFail, volume = 1f },
+            new SfxClip { id = SfxId.SurpriseFood, volume = 1f },
+            new SfxClip { id = SfxId.SurpriseCustomer, volume = 1f },
+            new SfxClip { id = SfxId.Shuffle, volume = 1f },
         };
 
         [Header("Süreli Müşteri Geri Sayım Sesi (loop — Start/Stop ile kontrol edilir, SFX kanalı sayılır)")]

@@ -18,6 +18,17 @@ namespace RestaurantLoop
     }
 
     /// <summary>
+    /// "Yeni açıldı" duyuru ekranı gösterilen mystery challenge tipleri.
+    /// Booster'lardaki BoosterType ile aynı mantık — GameManager hangi
+    /// ekranın hangi level'de tetikleneceğini buradan sorar.
+    /// </summary>
+    public enum MysteryChallengeType
+    {
+        Customer,
+        Food
+    }
+
+    /// <summary>
     /// Tüm level'lar TEK bir "Game" sahnesinde yaşıyor — LevelManager bu
     /// yüzden HİÇBİR sahne yüklemez, sadece:
     /// 1) "Şu an hangi level'deyiz" bilgisini tutar (PlayerData üzerinden kalıcı).
@@ -49,6 +60,14 @@ namespace RestaurantLoop
         [SerializeField] private int addTrayBoosterUnlockLevel = 9;
         [Tooltip("Shuffle booster bu level numarasından İTİBAREN (>=) açılır/interactable olur.")]
         [SerializeField] private int shuffleBoosterUnlockLevel = 15;
+
+        [Header("Mystery Challenge Level Kilitleri (parametrik)")]
+        [Tooltip("'MYSTERY CUSTOMER' duyuru ekranı TAM OLARAK bu level'de (GameManager tarafından) gösterilir. " +
+                 "-1 bırakılırsa hiç gösterilmez.")]
+        [SerializeField] private int mysteryCustomerUnlockLevel = 5;
+        [Tooltip("'MYSTERY FOOD' duyuru ekranı TAM OLARAK bu level'de (GameManager tarafından) gösterilir. " +
+                 "-1 bırakılırsa hiç gösterilmez.")]
+        [SerializeField] private int mysteryFoodUnlockLevel = 10;
 
         [Header("Level Müziği")]
         [Tooltip("Bu sahne yüklendiğinde, o anki level'in zorluğuna göre müzik otomatik çalar (AudioManager.PlayMusicForDifficulty). SceneFlowManager'daki 'Gameplay Scene Name' ile aynı olmalı.")]
@@ -93,6 +112,24 @@ namespace RestaurantLoop
 
         /// <summary>Şu anki level'de bu booster açık mı (unlock level'a ulaşılmış mı)?</summary>
         public bool IsBoosterUnlocked(BoosterType type) => CurrentLevel >= GetBoosterUnlockLevel(type);
+
+        /// <summary>
+        /// Bu mystery challenge duyuru ekranının TAM OLARAK hangi level'de
+        /// gösterileceğini döner. -1 ise hiç gösterilmez.
+        /// </summary>
+        public int GetMysteryChallengeUnlockLevel(MysteryChallengeType type) => type switch
+        {
+            MysteryChallengeType.Customer => mysteryCustomerUnlockLevel,
+            MysteryChallengeType.Food => mysteryFoodUnlockLevel,
+            _ => -1
+        };
+
+        /// <summary>Şu anki level, bu mystery challenge'ın duyuru level'ına TAM olarak eşit mi?</summary>
+        public bool IsMysteryChallengeAnnounceLevel(MysteryChallengeType type)
+        {
+            int unlockLevel = GetMysteryChallengeUnlockLevel(type);
+            return unlockLevel >= 0 && CurrentLevel == unlockLevel;
+        }
 
         public LevelData GetLevelData(int levelNumber)
         {

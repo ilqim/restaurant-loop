@@ -14,7 +14,8 @@ namespace RestaurantLoop
         CoinEarn,              
         TimedCustomerFail,     
         SurpriseFood,          // YENİ: Sürpriz yemek açılma sesi
-        SurpriseCustomer       // YENİ: Sürpriz müşteri açılma sesi
+        SurpriseCustomer,      // YENİ: Sürpriz müşteri açılma sesi
+        Shuffle                // YENİ: Shuffle booster kullanılınca çalan ses
     }
 
     public static class AudioEvents
@@ -39,6 +40,7 @@ namespace RestaurantLoop
         // YENİ ÇAĞRILAR
         public static void PlaySurpriseFood() => Play(SfxId.SurpriseFood);
         public static void PlaySurpriseCustomer() => Play(SfxId.SurpriseCustomer);
+        public static void PlayShuffle() => Play(SfxId.Shuffle);
 
         // ---- Coin Sesi ----
         public static event Action<int> CoinEarnSequenceRequested;
