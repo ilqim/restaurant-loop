@@ -84,7 +84,7 @@ namespace RestaurantLoop
         private void Start()
         {
             customerManager = FindFirstObjectByType<CustomerManager>();
-
+            
             if (customerManager == null)
             {
                 Debug.LogWarning(
@@ -105,6 +105,10 @@ namespace RestaurantLoop
             if (currencyBar == null)
             {
                 currencyBar = FindFirstObjectByType<CurrencyBar>();
+            }
+            if(currencyBar != null)
+            {
+                currencyBar.SetVisible(false);
             }
 
             currentState = GameState.Playing;
@@ -256,20 +260,13 @@ namespace RestaurantLoop
                 winParticle2.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
                 winParticle2.Play(true);
             }
-            // İSTEK: Para (coin) TAM BURADA, ekran/animasyon görünürken
-            // veriliyor — PlayerData.AddCoins içindeki para sesi de bu
-            // yüzden artık kazanma anında değil, TAM BU ANDA çalıyor.
-            if (currencyBar != null)
+            
+            var bar = currencyBar != null ? currencyBar : CurrencyBar.Instance;
+            if(bar != null)
             {
-                currencyBar.gameObject.SetActive(true);
-                currencyBar.AddCoinsAnimated(coinsPerWin);
+                bar.SetVisible(true);
             }
-            else
-            {
-                Debug.LogWarning("GameManager: CurrencyBar bulunamadı — coin animasyonsuz eklendi.");
-                PlayerData.AddCoins(coinsPerWin);
-            }
-
+            
             Debug.Log($"WIN! Awarded {coinsPerWin} coins. Total: {PlayerData.Coins}");
 
             if (levelCompleteUI != null)

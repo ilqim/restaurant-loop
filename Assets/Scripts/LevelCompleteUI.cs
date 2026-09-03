@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using DG.Tweening;
 using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -40,6 +41,9 @@ namespace RestaurantLoop
         [Header("Animation Settings")]
         [SerializeField] private float fadeDuration = 0.35f;
 
+        private Vector3 baseCoinTargetScale = Vector3.one;
+        private bool baseCoinTargetScaleCached = false;
+
         private readonly List<GameObject> activeCoins = new();
 
         private void Awake()
@@ -53,12 +57,32 @@ namespace RestaurantLoop
 
             if (popupContent != null)
                 popupContent.SetActive(false);
+            
         }
 
         public void Show(int earnedAmount)
         {
             if (popupContent != null)
                 popupContent.SetActive(true);
+
+            if(CurrencyBar.Instance != null )
+            {
+                coinTargetPoint = CurrencyBar.Instance.CoinTargetAnchor;
+            }
+            else if(coinTargetPoint == null)
+            {
+                var foundBar = FindAnyObjectByType<CurrencyBar>();
+                if(foundBar != null)
+                {
+                    coinTargetPoint = foundBar.CoinTargetAnchor;
+                }
+            }
+
+            if(coinTargetPoint != null)
+            {
+                baseCoinTargetScale = coinTargetPoint.localScale;
+                baseCoinTargetScaleCached = true;
+            }
 
             // İSTEK: Her level bitişinde 2 karakterden RASTGELE biri
             // aktif, diğeri pasif olsun.
@@ -128,7 +152,7 @@ namespace RestaurantLoop
             float delayPerCoin = totalDelay / Mathf.Max(1, animatedCoinCount);
             int displayedCoins = 0;
             int stepAmount = Mathf.Max(1, earnedAmount / animatedCoinCount);
-
+            bool hasTriggerBarIncrement = false;
             Transform parent = coinContainer != null ? coinContainer : transform;
 
             for (int i = 0; i < animatedCoinCount; i++)
@@ -154,7 +178,7 @@ namespace RestaurantLoop
                 // moveDuration, varsayılan ~1.2sn) GameManager'ın 1sn'lik
                 // pause gecikmesini AŞABİLİR; scaled kalsaydı pause tam bu
                 // sırada tetiklenirse coin havada donup kalırdı.
-                Sequence scaleSequence = DOTween.Sequence();
+                DG.Tweening.Sequence scaleSequence = DOTween.Sequence();
                 scaleSequence.SetUpdate(true);
                 scaleSequence.SetDelay(delay);
                 scaleSequence.Append(rect.DOScale(1.3f, moveDuration * 0.4f).SetEase(Ease.OutBack));
@@ -167,21 +191,46 @@ namespace RestaurantLoop
                     .SetEase(moveEase)
                     .OnComplete(() =>
                     {
+                        if (!hasTriggerBarIncrement)
+                        {
+                            hasTriggerBarIncrement = true;
+                            if(CurrencyBar.Instance != null)
+                            {
+                                CurrencyBar.Instance.AddCoinsAnimated(earnedAmount);
+                            }
+                            else
+                            {
+                                PlayerData.AddCoins(earnedAmount);
+                            }
+                        }
+
                         displayedCoins = Mathf.Min(earnedAmount, displayedCoins + stepAmount);
                         SetCoinText($"+{displayedCoins}");
+                        
+                        if (coinTargetPoint != null)
+                        {
+                            // Kill any mid-animation drift and reset to original scale before punching
+                            coinTargetPoint.DOKill();
+                            if (baseCoinTargetScaleCached)
+                                coinTargetPoint.localScale = baseCoinTargetScale;
 
-                        // Punch scale the target UI icon if desired
-                        coinTargetPoint.DOPunchScale(Vector3.one * 0.15f, 0.1f, 5, 1).SetUpdate(true);
+                            coinTargetPoint.DOPunchScale(baseCoinTargetScale * 0.15f, 0.1f, 5, 1).SetUpdate(true);
+                        }
 
                         activeCoins.Remove(coin);
                         Destroy(coin);
                     });
             }
 
-            // Final text sync
-            DOVirtual.DelayedCall(totalDelay + moveDuration, () =>
+           // Final text sync & target scale guarantee
+            DOVirtual.DelayedCall(totalDelay + moveDuration + 0.15f, () =>
             {
                 SetCoinText($"+{earnedAmount}");
+                if (coinTargetPoint != null && baseCoinTargetScaleCached)
+                {
+                    coinTargetPoint.DOKill();
+                    coinTargetPoint.localScale = baseCoinTargetScale;
+                }
             }).SetUpdate(true);
         }
 
