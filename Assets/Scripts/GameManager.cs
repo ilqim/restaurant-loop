@@ -409,6 +409,11 @@ namespace RestaurantLoop
             group.blocksRaycasts = true;
             group.interactable = true;
 
+            // İSTEK: "New" sesi, level BAŞLADIĞI an değil, bu duyuru ekranı
+            // GERÇEKTEN görünmeye başladığı an (tam burada, SetActive(true)
+            // ile aynı anda) çalsın.
+            AudioEvents.PlayNew();
+
             duration = Mathf.Max(0.01f, duration);
             float elapsed = 0f;
 

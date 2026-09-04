@@ -37,6 +37,10 @@ namespace RestaurantLoop
         [Header("Conveyor Entry Animation")]
         [Tooltip("Base kapısından konveyörün ilk waypoint'ine doğru kayma süresi.")]
         [SerializeField] private float entryMoveDuration = 0.4f;
+        
+        [Tooltip("Çıkış sırasında tepsinin havaya doğru ne kadar kavis/zıplama (Y offset) yapacağı. 0 verilirse tam düz kayar.")]
+        [SerializeField] private float entryMoveJumpPower = 0.5f;
+        
         [SerializeField] private Ease entryMoveEase = Ease.OutQuad;
         [Tooltip("Çıkarken hafif esneme/sıkışma efekti (0 = kapalı).")]
         [SerializeField] private float entrySquashStretch = 0.12f;
@@ -784,8 +788,15 @@ namespace RestaurantLoop
             Sequence entrySeq = DOTween.Sequence();
             entrySeq.SetLink(gameObject);
 
-            // 1. Kapıdan ilk waypoint'e kayma
-            entrySeq.Append(transform.DOMove(targetWaypointPos, entryMoveDuration).SetEase(entryMoveEase));
+            // 1. Kapıdan ilk waypoint'e kayma (Zıplamalı veya Düz)
+            if (entryMoveJumpPower > 0f)
+            {
+                entrySeq.Append(transform.DOJump(targetWaypointPos, entryMoveJumpPower, 1, entryMoveDuration).SetEase(entryMoveEase));
+            }
+            else
+            {
+                entrySeq.Append(transform.DOMove(targetWaypointPos, entryMoveDuration).SetEase(entryMoveEase));
+            }
 
             // 2. Hafif elastik esneme efekti
             if (entrySquashStretch > 0f)
