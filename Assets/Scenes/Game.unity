@@ -1957,17 +1957,17 @@ MonoBehaviour:
   settingsImage: {fileID: 1094573029}
   visualSets:
   - difficulty: 0
-    groundSprite: {fileID: 21300000, guid: 98b006512e66291458eae1f72c814999, type: 3}
+    groundSprite: {fileID: 21300000, guid: 676a63d83ac6a6c418dc0cd626566d06, type: 3}
     levelIndicatorSprite: {fileID: 21300000, guid: 40aa8d44a7b40e54aa1c8b5d675b7b1a, type: 3}
     topBarSprite: {fileID: 21300000, guid: 1b2de4f27dbc1514e87d2f74226d7f39, type: 3}
     settingsSprite: {fileID: 21300000, guid: 8b37ede7ec88ac54a91c1a3c9140705c, type: 3}
   - difficulty: 1
-    groundSprite: {fileID: 21300000, guid: c5f26700e6f39d14c95859670db0e992, type: 3}
+    groundSprite: {fileID: 21300000, guid: 3a172b131bf46d941a8dcfa9cadb710b, type: 3}
     levelIndicatorSprite: {fileID: 21300000, guid: 31e80b68fcfa1db4d99b4c7fdd7018de, type: 3}
     topBarSprite: {fileID: 21300000, guid: 6dd76d56d1b6fb446a7184d476066f70, type: 3}
     settingsSprite: {fileID: 21300000, guid: 8a3365919198aa04d8bc7c973b1e12e6, type: 3}
   - difficulty: 2
-    groundSprite: {fileID: 21300000, guid: 7db03cc12ae67334caa0edef99ea2b29, type: 3}
+    groundSprite: {fileID: 21300000, guid: f6c43b7b5403cd84fbb43ce534417457, type: 3}
     levelIndicatorSprite: {fileID: 21300000, guid: 2a9102a357265b24db85e35d06cd4708, type: 3}
     topBarSprite: {fileID: 21300000, guid: 8661d35db17308b4d84a80af0921964f, type: 3}
     settingsSprite: {fileID: 21300000, guid: e8345ac457fd217449f83f6b02e4f484, type: 3}
@@ -2989,7 +2989,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: 0.5693341, y: -0, z: -0, w: 0.8221063}
-  m_LocalPosition: {x: 5.459968, y: 22.946892, z: -17.125334}
+  m_LocalPosition: {x: 5.459968, y: 22.992193, z: -17.101217}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3102,7 +3102,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 5cfa1728629d2a944a8847b8d6aa0432, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  levelData: {fileID: 11400000, guid: 1156e184914b0394f9621ed11d5dee4d, type: 2}
+  levelData: {fileID: 11400000, guid: 68619b9a6055ae24d9390f7a147ae1a4, type: 2}
   unityGrid: {fileID: 368813332}
   customerManager: {fileID: 1989108643}
   straightConveyorPrefab: {fileID: 7003198807947168408, guid: 51eab3757f73a4540963288817d8a339, type: 3}
@@ -4147,7 +4147,7 @@ MonoBehaviour:
   failScreenUI: {fileID: 668274277}
   levelTopBar: {fileID: 985379067}
   winFailStatsBar: {fileID: 1523266074}
-  newBoosterScreenDelay: 0.7
+  newBoosterScreenDelay: 0.5
   newBoosterFadeDuration: 0.35
   selectBoosterNewScreen: {fileID: 246463731}
   addTrayBoosterNewScreen: {fileID: 147903100}
@@ -7193,8 +7193,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: SLOTS FULL
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
-  m_sharedMaterial: {fileID: -3789127002041800362, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
+  m_sharedMaterial: {fileID: -697072943385500258, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -24879,7 +24879,7 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 0
-  m_Sprite: {fileID: 21300000, guid: 4432c9ac06a429e438ec1fb2b9f941e3, type: 3}
+  m_Sprite: {fileID: 21300000, guid: 676a63d83ac6a6c418dc0cd626566d06, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -26544,8 +26544,8 @@ MonoBehaviour:
 
 '
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
-  m_sharedMaterial: {fileID: -3789127002041800362, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
+  m_sharedMaterial: {fileID: -697072943385500258, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -27117,7 +27117,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9ae52312c87ad29478982a6e3d3a1c7f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  levelData: {fileID: 11400000, guid: 1156e184914b0394f9621ed11d5dee4d, type: 2}
+  levelData: {fileID: 11400000, guid: 68619b9a6055ae24d9390f7a147ae1a4, type: 2}
   gridManager: {fileID: 368813331}
   foodPrefabs:
   - food: 0
@@ -27839,7 +27839,7 @@ RectTransform:
   m_GameObject: {fileID: 2135350543}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.0263158, y: 1.0263158, z: 1}
+  m_LocalScale: {x: 1.0011848, y: 1.0011848, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 934538700}
@@ -27869,7 +27869,7 @@ MonoBehaviour:
   scaleStrength: 1
   minScale: 1
   maxScale: 1.6
-  currentAppliedScale: 1.0263158
+  currentAppliedScale: 1.0011848
 --- !u!1 &2135948226
 GameObject:
   m_ObjectHideFlags: 0
