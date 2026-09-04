@@ -2,6 +2,7 @@ using System.Collections;
 using System.Collections.Generic;
 using DG.Tweening;
 using TMPro;
+using Unity.VisualScripting;
 using UnityEngine;
 
 namespace RestaurantLoop
@@ -128,7 +129,7 @@ namespace RestaurantLoop
         [SerializeField] private float scaleOutDuration = 0.35f;
 
         private Vector3 originalBaseLabelScale = Vector3.one;
-        private Sequence baseLabelScaleSequence;
+        private DG.Tweening.Sequence baseLabelScaleSequence;
 
         [Header("Merge-back")]
         [Tooltip("Tray'de kalan yemek slot'a dönerken kullanılacak Food prefabları.")]
@@ -577,81 +578,72 @@ namespace RestaurantLoop
             HighlightBaseCountLabel();
         }
 
-        /// <summary>
-        /// Food.cs'in parça-bazlı uçuş animasyonu için kullandığı fırlatma
-        /// yolu. TryLaunchTray()'in ALTERNATİFİ, ondan BAĞIMSIZ ÇALIŞIR —
-        /// bu yüzden currentActiveTrays'i artıran her yerde sayaç
-        /// güncellemesi AYRI AYRI yapılmak zorunda (birinde olması diğerinde
-        /// otomatik olmuyor). Daha önce burada UpdateTrayCountText() çağrısı
-        /// EKSİKTİ — currentActiveTrays doğru artıyordu ama "müsait/toplam"
-        /// yazısı hiç yenilenmiyordu. Şimdi düzeltildi.
-        /// </summary>
         public Tray PrepareUpcomingTray()
-        {
-            lastLaunchTime = Time.time;
-            
-            if (currentActiveTrays >= maxActiveTrays)
-                return null;
+{
+    lastLaunchTime = Time.time;
+    
+    if (currentActiveTrays >= maxActiveTrays)
+        return null;
 
-            if (gridManager == null ||
-                gridManager.WaypointWorldPositions == null ||
-                gridManager.WaypointWorldPositions.Count == 0)
-            {
-                return null;
-            }
+    if (gridManager == null ||
+        gridManager.WaypointWorldPositions == null ||
+        gridManager.WaypointWorldPositions.Count == 0)
+    {
+        return null;
+    }
 
-            Tray trayToLaunch = null;
+    Tray trayToLaunch = null;
+    Vector3 doorStartPos;
 
-            if (trayBaseQueue.Count > 0)
-            {
-                trayToLaunch = trayBaseQueue[0];
-                trayBaseQueue.RemoveAt(0);
-                ShiftTraysForward();
-            }
-            else
-            {
-                Vector3 spawnPos = GetWaypointPosition(0);
-                GameObject trayGo = Instantiate(
-                    trayPrefab,
-                    spawnPos,
-                    Quaternion.identity,
-                    transform
-                );
-                trayToLaunch = trayGo.GetComponent<Tray>();
-            }
+    if (trayBaseQueue.Count > 0)
+    {
+        // 1. Kuyruğun başındaki tepsiyi çıkış pozisyonu olarak kullan
+        trayToLaunch = trayBaseQueue[0];
+        doorStartPos = trayToLaunch.transform.position;
 
-            if (trayToLaunch == null)
-                return null;
+        trayBaseQueue.RemoveAt(0);
+        ShiftTraysForward();
+    }
+    else
+    {
+        // Kuyruk boşsa base çıkış kapısı noktasından üret
+        doorStartPos = GetBaseStackPosition(0);
 
-            currentActiveTrays++;
-            trayToLaunch.gameObject.SetActive(true);
+        GameObject trayGo = Instantiate(
+            trayPrefab,
+            doorStartPos,
+            Quaternion.identity,
+            transform
+        );
+        trayToLaunch = trayGo.GetComponent<Tray>();
+    }
 
-            // FIX: Sayaç güncellemesi eksikti, eklendi.
-            UpdateTrayCountText();
+    if (trayToLaunch == null)
+        return null;
 
-            Vector3 startPos = GetWaypointPosition(0);
-            trayToLaunch.transform.position = startPos;
+    currentActiveTrays++;
+    trayToLaunch.gameObject.SetActive(true);
 
-            var facings = gridManager.WaypointFacingDirections;
-            if (facings != null && facings.Count > 0 && facings[0].sqrMagnitude > 0.0001f)
-            {
-                // FIX: ModelTransform.rotation'a ARTIK DOĞRUDAN YAZILMIYOR.
-                // Tray.cs'teki yeni sallanma (inertia sway) sistemi her frame
-                // ModelTransform.rotation'ı kendi "headingRotation" kaydına göre
-                // yeniden hesaplayıp yazıyor; buraya doğrudan bir atama yapılırsa
-                // (tray'in component'i o an enabled ise) bir sonraki LateUpdate'te
-                // sessizce geri alınırdı. SetFacingRotationImmediate() bu kaydı da
-                // güncelleyerek çakışmayı önlüyor.
-                trayToLaunch.SetFacingRotationImmediate(Quaternion.LookRotation(facings[0], Vector3.up));
-            }
+    UpdateTrayCountText();
 
-            if(trayToLaunch != null)
-            {
-                activeConveyorTrays.Add(trayToLaunch);
-            }
+    Vector3 targetWaypoint = GetWaypointPosition(0);
+    doorStartPos.y = targetWaypoint.y; // Konveyör yüksekliği ile hizala
 
-            return trayToLaunch;
-        }
+    // Rotasyonu hesapla
+    Quaternion targetRot = Quaternion.identity;
+    var facings = gridManager.WaypointFacingDirections;
+    if (facings != null && facings.Count > 0 && facings[0].sqrMagnitude > 0.0001f)
+    {
+        targetRot = Quaternion.LookRotation(facings[0], Vector3.up);
+    }
+
+    // Tepsiyi kapıdan waypoint 0'a doğru kaydır
+    trayToLaunch.AnimateEntryToConveyor(doorStartPos, targetWaypoint, targetRot);
+
+    activeConveyorTrays.Add(trayToLaunch);
+
+    return trayToLaunch;
+}   
 
         public void FinalizeTrayLaunch(Tray tray, FoodType foodType, int capacity, List<GameObject> spawnedPieces)
         {
