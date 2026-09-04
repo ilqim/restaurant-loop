@@ -223,6 +223,8 @@ namespace RestaurantLoop
             food.PresetQueueState(FoodState.AvailableInQueue);
             food.SetBlockedCrossfade(false);
 
+            food.SetSurprise(entry.isSurprise);
+
             activeSelectableFoods[food] = (col, indexInCol);
             food.StateChanged += OnSelectModeFoodStateChanged;
 
@@ -873,6 +875,10 @@ namespace RestaurantLoop
                     item.food.PresetQueueState(FoodState.AvailableInQueue);
                     item.food.SetBlockedCrossfade(false, shiftDuration);
                     item.food.UncoverSurprise(); // Reveal food when it reaches the front!
+                    if(columnData.TryGetValue(col, out var list) && list.Count > 0)
+                    {
+                        list[0].isSurprise = false;
+                    }
                     availableFoodColumn[item.food] = col;
                     item.food.StateChanged += OnAvailableFoodStateChanged;
                 }
