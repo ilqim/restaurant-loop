@@ -1464,7 +1464,7 @@ MonoBehaviour:
   m_text: 40
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
-  m_sharedMaterial: {fileID: -3789127002041800362, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
+  m_sharedMaterial: {fileID: 2100000, guid: ca9c0264b533a624f8b60fc4fbd6f5c4, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -2989,7 +2989,7 @@ Transform:
   m_GameObject: {fileID: 330585543}
   serializedVersion: 2
   m_LocalRotation: {x: 0.5693341, y: -0, z: -0, w: 0.8221063}
-  m_LocalPosition: {x: 5.459968, y: 22.992193, z: -17.101217}
+  m_LocalPosition: {x: 5.459968, y: 22.946892, z: -17.125334}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children: []
@@ -3526,8 +3526,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: MYSTERY CUSTOMER
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
-  m_sharedMaterial: {fileID: -3789127002041800362, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
+  m_sharedMaterial: {fileID: 2100000, guid: 3f1e932f38795a74183f185e3c8a8d56, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -4898,8 +4898,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: Select the food you need and send it to the conveyor!
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
-  m_sharedMaterial: {fileID: 2100000, guid: 8865613f7f82a144f9c6f866ba7fe652, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
+  m_sharedMaterial: {fileID: 2100000, guid: 073a5e94e22e76a43ba60157d6e23cae, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -18794,10 +18794,10 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: An unkown food? Get it in front of the queue to find out!
+  m_text: Get it in front of the queue to find out!
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
-  m_sharedMaterial: {fileID: 2100000, guid: 8865613f7f82a144f9c6f866ba7fe652, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
+  m_sharedMaterial: {fileID: 2100000, guid: 073a5e94e22e76a43ba60157d6e23cae, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -23708,8 +23708,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: Gain space for one more food and keep serving!
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
-  m_sharedMaterial: {fileID: 2100000, guid: 8865613f7f82a144f9c6f866ba7fe652, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
+  m_sharedMaterial: {fileID: 2100000, guid: 073a5e94e22e76a43ba60157d6e23cae, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -24628,8 +24628,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: FOOD SHUFFLE
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
-  m_sharedMaterial: {fileID: -3789127002041800362, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
+  m_sharedMaterial: {fileID: 2100000, guid: 3f1e932f38795a74183f185e3c8a8d56, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -25215,8 +25215,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: ADD TRAY
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
-  m_sharedMaterial: {fileID: -3789127002041800362, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
+  m_sharedMaterial: {fileID: 2100000, guid: 3f1e932f38795a74183f185e3c8a8d56, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -26860,8 +26860,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: Mix up the food order and find a better move!
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
-  m_sharedMaterial: {fileID: 2100000, guid: 8865613f7f82a144f9c6f866ba7fe652, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
+  m_sharedMaterial: {fileID: 2100000, guid: 073a5e94e22e76a43ba60157d6e23cae, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -26994,10 +26994,10 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: A mysterious customer? Open their way to reveal what they want!
+  m_text: Open their way to reveal what they want!
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
-  m_sharedMaterial: {fileID: 2100000, guid: 8865613f7f82a144f9c6f866ba7fe652, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
+  m_sharedMaterial: {fileID: 2100000, guid: 073a5e94e22e76a43ba60157d6e23cae, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -27438,8 +27438,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: QUICK PICK
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
-  m_sharedMaterial: {fileID: -3789127002041800362, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
+  m_sharedMaterial: {fileID: 2100000, guid: 3f1e932f38795a74183f185e3c8a8d56, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -27661,8 +27661,8 @@ MonoBehaviour:
       m_Calls: []
   m_text: MYSTERY FOOD
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
-  m_sharedMaterial: {fileID: -3789127002041800362, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
+  m_sharedMaterial: {fileID: 2100000, guid: 3f1e932f38795a74183f185e3c8a8d56, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -27839,7 +27839,7 @@ RectTransform:
   m_GameObject: {fileID: 2135350543}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.0011848, y: 1.0011848, z: 1}
+  m_LocalScale: {x: 1.0263158, y: 1.0263158, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 934538700}
@@ -27869,7 +27869,7 @@ MonoBehaviour:
   scaleStrength: 1
   minScale: 1
   maxScale: 1.6
-  currentAppliedScale: 1.0011848
+  currentAppliedScale: 1.0263158
 --- !u!1 &2135948226
 GameObject:
   m_ObjectHideFlags: 0

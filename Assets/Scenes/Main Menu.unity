@@ -4857,8 +4857,8 @@ MonoBehaviour:
 
 '
   m_isRightToLeft: 0
-  m_fontAsset: {fileID: 11400000, guid: 88d6f96d1b0338a4baafd6a5411e3ba9, type: 2}
-  m_sharedMaterial: {fileID: 2100000, guid: ca9c0264b533a624f8b60fc4fbd6f5c4, type: 2}
+  m_fontAsset: {fileID: 11400000, guid: 91a6198fb12adac489bbd7b901c234e3, type: 2}
+  m_sharedMaterial: {fileID: 2100000, guid: 04987bea838dc0f42a747a4469b9db5c, type: 2}
   m_fontSharedMaterials: []
   m_fontMaterial: {fileID: 0}
   m_fontMaterials: []
@@ -7450,7 +7450,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 1, y: 1}
-  m_AnchoredPosition: {x: 0, y: 0.0312}
+  m_AnchoredPosition: {x: 0, y: 0.031188965}
   m_SizeDelta: {x: 0, y: -12.2363}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!222 &948949508
@@ -10750,7 +10750,7 @@ RectTransform:
   m_GameObject: {fileID: 1445076499}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1.0011848, y: 1.0011848, z: 1}
+  m_LocalScale: {x: 1.0263158, y: 1.0263158, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1855307946}
@@ -10777,7 +10777,7 @@ MonoBehaviour:
   scaleStrength: 1
   minScale: 1
   maxScale: 1.6
-  currentAppliedScale: 1.0011848
+  currentAppliedScale: 1.0263158
 --- !u!1 &1474709829
 GameObject:
   m_ObjectHideFlags: 0
