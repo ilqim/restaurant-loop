@@ -398,6 +398,9 @@ MonoBehaviour:
   shootPunchDuration: 0.2
   shootPunchVibrato: 5
   shootPunchElasticity: 0.86
+  entryMoveDuration: 0.35
+  entryMoveEase: 6
+  entrySquashStretch: 0.15
   vanishMoveDistance: 2
   vanishMoveUpDistance: 1.5
   vanishMoveAngleNoise: 70
