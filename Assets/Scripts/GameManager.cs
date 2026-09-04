@@ -38,10 +38,12 @@ namespace RestaurantLoop
         [SerializeField] private LevelCompleteUI levelCompleteUI;
         [Tooltip("Level FAIL olduğunda gösterilecek panel. Boş bırakılırsa Start()'ta otomatik aranır.")]
         [SerializeField] private FailScreenUI failScreenUI;
-        [Tooltip("In-game'de gösterilen 'Level X' üst bar objesi — kazanınca gizlenir (CurrencyBar ile üst üste binmesin diye).")]
+        [Tooltip("In-game'de gösterilen 'Level X' üst bar objesi — kazanınca gizlenir (PlayerStatsBar ile üst üste binmesin diye).")]
         [SerializeField] private GameObject levelTopBar;
-        [Tooltip("Bu SAHNEYE (Game) ait, bağımsız CurrencyBar instance'ı. Boş bırakılırsa Start()'ta otomatik aranır.")]
-        [SerializeField] private CurrencyBar currencyBar;
+        [Tooltip("Bu SAHNEYE (Game/WinFail ekranı) ait, BAĞIMSIZ bir PlayerStatsBar instance'ı. " +
+                 "Main Menu'deki bar ile PAYLAŞILMAZ, DontDestroyOnLoad DEĞİLDİR — kendi konumunu/boyutunu " +
+                 "bu ekran için serbestçe ayarlayabilirsin. Boş bırakılırsa Start()'ta otomatik aranır.")]
+        [SerializeField] private PlayerStatsBar winFailStatsBar;
 
         [Header("Yeni Booster Duyuru Ekranları")]
         [Tooltip("Level başladıktan kaç saniye sonra (varsa) 'yeni booster açıldı' ekranı gösterilsin.")]
@@ -84,7 +86,7 @@ namespace RestaurantLoop
         private void Start()
         {
             customerManager = FindFirstObjectByType<CustomerManager>();
-            
+
             if (customerManager == null)
             {
                 Debug.LogWarning(
@@ -102,13 +104,22 @@ namespace RestaurantLoop
                 failScreenUI = FindFirstObjectByType<FailScreenUI>();
             }
 
-            if (currencyBar == null)
+            if (winFailStatsBar == null)
             {
-                currencyBar = FindFirstObjectByType<CurrencyBar>();
+                // ÖNEMLİ: PlayerStatsBar'ın bulunduğu obje (TopBar), WinFailCanvas
+                // içinde genelde BAŞLANGIÇTA pasif (inactive) durur — normal
+                // FindFirstObjectByType pasif objeleri BULAMAZ, bu yüzden
+                // FindObjectsInactive.Include ile aramamız gerekiyor.
+                winFailStatsBar = FindFirstObjectByType<PlayerStatsBar>(FindObjectsInactive.Include);
             }
-            if(currencyBar != null)
+            if (winFailStatsBar != null)
             {
-                currencyBar.SetVisible(false);
+                winFailStatsBar.SetVisible(false);
+            }
+            else
+            {
+                Debug.LogWarning("GameManager: PlayerStatsBar sahnede bulunamadı — " +
+                                  "'Win Fail Stats Bar' alanına Inspector'dan MANUEL sürüklemen önerilir.");
             }
 
             currentState = GameState.Playing;
@@ -149,7 +160,21 @@ namespace RestaurantLoop
 
             //SFX & Heart Cezası
             AudioEvents.PlayLevelFail();
+
+            // İSTEK: Can azalma anını görünür kılmak için, can düşürülmeden
+            // ÖNCE bar'ı görünür yapıyoruz, düşürdükten SONRA görsel
+            // güncelleme + kısa "punch" efektini oynatıyoruz.
+            if (winFailStatsBar != null)
+            {
+                winFailStatsBar.SetVisible(true);
+            }
+
             PlayerData.ConsumeHeart();
+
+            if (winFailStatsBar != null)
+            {
+                winFailStatsBar.PlayHeartLossAnimation();
+            }
 
             // İSTEK: Kaybedince level müziği durup, level müziklerinden
             // AYRI bir "fail müziği" çalmaya başlasın.
@@ -260,18 +285,30 @@ namespace RestaurantLoop
                 winParticle2.Stop(true, ParticleSystemStopBehavior.StopEmittingAndClear);
                 winParticle2.Play(true);
             }
-            
-            var bar = currencyBar != null ? currencyBar : CurrencyBar.Instance;
-            if(bar != null)
+
+            // İSTEK: Para (coin) TAM BURADA değil, LevelCompleteUI'nin coin
+            // uçuşma animasyonu HEDEFE ULAŞTIĞINDA ekleniyor (bkz.
+            // LevelCompleteUI.PlayCoinFlyAnimation -> statsBar.AddCoinsAnimated).
+            // Burada SADECE bar'ı görünür yapıyoruz — coin eklemeyi burada
+            // TEKRAR çağırırsak coin İKİ KERE eklenmiş olur.
+            if (winFailStatsBar != null)
             {
-                bar.SetVisible(true);
+                winFailStatsBar.SetVisible(true);
             }
-            
+            else
+            {
+                Debug.LogWarning("GameManager: PlayerStatsBar bulunamadı — bar görünür yapılamadı.");
+            }
+
             Debug.Log($"WIN! Awarded {coinsPerWin} coins. Total: {PlayerData.Coins}");
 
             if (levelCompleteUI != null)
             {
-                levelCompleteUI.Show(coinsPerWin);
+                // ÖNEMLİ: Kendi elimizdeki (garantili doğru) winFailStatsBar
+                // referansını DOĞRUDAN parametre olarak geçiyoruz —
+                // LevelCompleteUI artık kendi başına ayrı bir instance
+                // ARAMIYOR/BULMUYOR, ikisi KESİNLİKLE aynı objeye bakıyor.
+                levelCompleteUI.Show(coinsPerWin, winFailStatsBar);
             }
 
             // Panel fade-in'i tamamlansın diye pauseDelayAfterGameEnd kadar

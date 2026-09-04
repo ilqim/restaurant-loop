@@ -34,6 +34,13 @@ namespace RestaurantLoop
         [Range(0f,1f)]
         [SerializeField] private float shootPunchElasticity = 0.5f;
 
+        [Header("Conveyor Entry Animation")]
+        [Tooltip("Base kapısından konveyörün ilk waypoint'ine doğru kayma süresi.")]
+        [SerializeField] private float entryMoveDuration = 0.4f;
+        [SerializeField] private Ease entryMoveEase = Ease.OutQuad;
+        [Tooltip("Çıkarken hafif esneme/sıkışma efekti (0 = kapalı).")]
+        [SerializeField] private float entrySquashStretch = 0.12f;
+
         [Header("Vanish Hareketi (DOTween — Geriye ve Yukarı)")]
         [Tooltip("Vanish animasyonu oynarken ModelTransform'un ne kadar geriye (tepsinin yemek fırlattığı " +
                  "yönün TAM TERSİNE, yani -ModelTransform.forward) ilerleyeceği. Bu yön tepsinin o anki " +
@@ -761,6 +768,44 @@ namespace RestaurantLoop
                     piece.go.transform.localPosition = basePos + new Vector3(stackLinearLagValue.x, 0f, stackLinearLagValue.y) * layerScale;
                 }
             }
+        }
+
+        /// <summary>
+        /// Tepsiyi Base çıkış kapısından (GetBaseStackPosition(0)) konveyörün ilk waypoint'ine doğru kaydırır.
+        /// </summary>
+        public void AnimateEntryToConveyor(Vector3 startSpawnPos, Vector3 targetWaypointPos, Quaternion targetRotation, System.Action onComplete = null)
+        {
+            transform.position = startSpawnPos;
+            SetFacingRotationImmediate(targetRotation);
+
+            transform.DOKill();
+            if (visualModel != null) visualModel.DOKill();
+
+            Sequence entrySeq = DOTween.Sequence();
+            entrySeq.SetLink(gameObject);
+
+            // 1. Kapıdan ilk waypoint'e kayma
+            entrySeq.Append(transform.DOMove(targetWaypointPos, entryMoveDuration).SetEase(entryMoveEase));
+
+            // 2. Hafif elastik esneme efekti
+            if (entrySquashStretch > 0f)
+            {
+                Transform scaleTarget = visualModel != null ? visualModel : transform;
+                Vector3 origScale = scaleTarget.localScale;
+                Vector3 stretched = new Vector3(
+                    origScale.x * (1f - entrySquashStretch * 0.5f),
+                    origScale.y * (1f - entrySquashStretch * 0.5f),
+                    origScale.z * (1f + entrySquashStretch)
+                );
+
+                entrySeq.Join(scaleTarget.DOScale(stretched, entryMoveDuration * 0.45f).SetEase(Ease.OutQuad));
+                entrySeq.Append(scaleTarget.DOScale(origScale, entryMoveDuration * 0.55f).SetEase(Ease.OutBack));
+            }
+
+            entrySeq.OnComplete(() =>
+            {
+                onComplete?.Invoke();
+            });
         }
 
         // ---------------------------------------------------------------
